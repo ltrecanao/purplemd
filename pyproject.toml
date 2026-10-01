@@ -1,0 +1,60 @@
+[project]
+name = "purplemd"
+version = "0.1.0"
+description = "Editor de markdown ligero: FastAPI + frontend vanilla para notas en un directorio local"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.13"
+
+# Dependencias de producción: solo lo necesario para servir la API y
+# convertir markdown. Nada de tests ni httpx: eso va en el grupo de
+# desarrollo [dependency-groups].dev.
+dependencies = [
+    "fastapi>=0.126.0",
+    "uvicorn>=0.32.0",
+    "markdown-it-py>=3.0.0",
+    "mdit-py-plugins>=0.4.1",
+    "pygments>=2.19.0",
+    "weasyprint>=62.0",
+    "python-multipart>=0.0.6",
+]
+
+# Grupo de desarrollo (estándar de uv): `uv sync` lo instala por defecto.
+# fastapi.testclient.TestClient lo necesita para transporte HTTP.
+# pytest es el runner estándar de la industria para Python: habilita
+# `uv run pytest` sobre la suite unittest existente (254 tests) sin
+# reescribirla. Piso 8.4.2: último patch de la serie 8.x.
+[dependency-groups]
+dev = [
+    "httpx>=0.27.0",
+    "pytest>=8.4.2",
+    "ruff>=0.14.0",
+    "ty>=0.0.1",
+]
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+# Proyecto híbrido: tres módulos sueltos en la raíz más un paquete. La
+# documentación de setuptools (Configuring setuptools using
+# pyproject.toml) indica listar `py-modules` para los módulos sueltos y
+# `packages` para los paquetes cuando se configura explícitamente; sin
+# `packages`, purplemd_storage/ no viaja en el wheel y la instalación no
+# editable falla con ModuleNotFoundError.
+[tool.setuptools]
+py-modules = ["purplemd", "renderer", "api"]
+packages = ["purplemd_storage"]
+
+# ruff: linting y formateo. target-version va de acuerdo con la versión que
+# corre el proyecto en todos lados (Dockerfile, render.yaml y CI: 3.13).
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+# ty: type checking estático.
+[tool.ty.environment]
+python-version = "3.13"

@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: purplemd
+    runtime: python
+    buildCommand: uv sync --no-dev
+    startCommand: uv run uvicorn api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13"
+      - key: PURPLEMD_STORAGE
+        value: "memory"
+      # Con storage=memory, las notas viven solo en RAM y se pierden en cada
+      # restart del proceso (deploy, crash, scale to 0). El namespace por
+      # usuario (localStorage en el navegador) aísla proyectos entre usuarios.

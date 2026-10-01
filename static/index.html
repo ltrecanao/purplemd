@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PurpleMD</title>
+  <meta name="description" content="Editor de markdown ligero: notas en proyectos con subcarpetas y previsualización.">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="marca">PurpleMD</h1>
+    <div class="acciones">
+      <!-- Badge con namespace del usuario (localStorage) -->
+      <span id="namespace-badge" class="badge" title="Tu identificador único en este navegador" hidden></span>
+      <!-- Desplegable del explorador: solo existe en pantallas angostas
+           (< 60rem), donde el explorador no es una columna lateral. El
+           texto es fijo («Explorador») y `aria-expanded` refleja el estado. -->
+      <button type="button" id="explorador-toggle" class="btn" aria-expanded="false" aria-controls="explorador" aria-label="Abrir explorador">Explorador</button>
+      <!-- Menú overflow: superficie angosta (< 48rem) de vistas y
+           archivo. Patrón «Menu Button» de la WAI-ARIA APG: el botón ☰
+           lleva `aria-haspopup` + `aria-expanded` y abre el panel con
+           `role="menu"`. El envoltorio es solo contenedor: un menú solo
+           admite ítems y grupos como hijos, el trigger va fuera. Desde
+           48rem este bloque se oculta y su lugar lo toma la barra de
+           acciones (corte único en el CSS). -->
+      <div class="menu-overflow">
+        <button type="button" class="btn menu-overflow-trigger" aria-expanded="false" aria-haspopup="true" aria-label="Más acciones" title="Más acciones">☰</button>
+        <!-- Dos grupos con nombre (ARIA admite `menu > group > menuitem*`):
+             «Visualizador» con las opciones exclusivas y «Archivo» con las
+             acciones de archivo. Al activar un ítem el menú se cierra y
+             el foco vuelve al trigger. Cada `data-accion` comparte
+             manejador y `disabled` con el control homólogo de la barra
+             (una acción, dos superficies). -->
+        <div class="menu-overflow-panel" role="menu" aria-label="Acciones adicionales" hidden>
+          <div class="menu-overflow-grupo" role="group" aria-label="Visualizador">
+            <button type="button" class="menu-overflow-item" role="menuitemradio" aria-checked="true" data-vista="ambos">Editor y previsualización</button>
+            <button type="button" class="menu-overflow-item" role="menuitemradio" aria-checked="false" data-vista="preview">Solo previsualización</button>
+            <button type="button" class="menu-overflow-item" role="menuitemradio" aria-checked="false" data-vista="editor">Solo editor</button>
+          </div>
+          <div class="menu-overflow-grupo" role="group" aria-label="Archivo">
+            <button type="button" id="descargar" class="menu-overflow-item" role="menuitem" data-accion="descargar" title="Descarga el contenido actual del editor" disabled>Descargar .md</button>
+            <button type="button" id="exportar-zip" class="menu-overflow-item" role="menuitem" data-accion="zip" title="Exporta el proyecto completo" disabled>Exportar .zip</button>
+          </div>
+          <div class="menu-overflow-grupo" role="group" aria-label="Difusión">
+            <button type="button" id="compartir" class="menu-overflow-item" role="menuitem" data-accion="compartir" title="Comparte PurpleMD en redes">Compartir PurpleMD</button>
+          </div>
+        </div>
+      </div>
+      <!-- Segmentado de vistas: superficie ancha (>= 48rem). «Radio
+           Group» de la WAI-ARIA APG con HTML nativo: `fieldset` +
+           `legend` oculto + tres `radio` con label visible. El estado es
+           el `checked` nativo sincronizado con `zona[data-vista]`; sin
+           `role="toolbar"` (ese rol exige roving tabindex) ni ARIA
+           pintado a mano. -->
+      <fieldset class="segmentado">
+        <legend class="solo-lectores">Visualizador</legend>
+        <input type="radio" name="vista" id="vista-ambos" class="solo-lectores" data-vista="ambos" checked>
+        <label for="vista-ambos">Editor y previsualización</label>
+        <input type="radio" name="vista" id="vista-preview" class="solo-lectores" data-vista="preview">
+        <label for="vista-preview">Solo previsualización</label>
+        <input type="radio" name="vista" id="vista-editor" class="solo-lectores" data-vista="editor">
+        <label for="vista-editor">Solo editor</label>
+      </fieldset>
+      <!-- Descarga en superficie ancha: mismo manejador y misma
+           habilitación que el ítem del menú ☰, por `data-accion`. -->
+      <button type="button" class="btn acciones-descargar" data-accion="descargar" title="Descarga el contenido actual del editor" disabled>Descargar .md</button>
+      <!-- Menú «Exportar»: superficie ancha de las exportaciones.
+           Patrón «Menu Button» de la WAI-ARIA APG con el mismo ciclo de
+           vida que el ☰; el panel se ancla bajo su trigger y alineado a
+           la derecha, nunca a ancho completo (ese es el patrón del
+           menú angosto). El caret va `aria-hidden` para que el nombre
+           accesible sea solo «Exportar». -->
+      <div class="menu-exportar">
+        <button type="button" class="btn menu-exportar-trigger" aria-expanded="false" aria-haspopup="true" title="Exporta la nota abierta o el proyecto completo" disabled>Exportar<span class="menu-exportar-caret" aria-hidden="true">▼</span></button>
+        <div class="menu-exportar-panel" role="menu" aria-label="Exportar" hidden>
+          <button type="button" class="menu-exportar-item" role="menuitem" data-accion="pdf" title="Exporta la nota abierta" disabled>Exportar .pdf</button>
+          <!-- Opción del PDF, no una exportación: es un `menuitemcheckbox`
+               porque alterna un estado (WAI-ARIA APG, patrón «Menu»), igual
+               que los `menuitemradio` de «Vista» en el menú ☰. Va acá y no
+               en el ☰ porque ahí el PDF no existe todavía (sí en la barra
+               de la superficie ancha) y porque es una opción del propio
+               PDF: se lee junto a la acción que modifica. -->
+          <button type="button" class="menu-exportar-item" role="menuitemcheckbox" aria-checked="true" data-accion="pdf-marca" title="Incluye «Generado con PurpleMD ♥» en el pie del PDF exportado">Marca de agua en el PDF</button>
+          <button type="button" class="menu-exportar-item" role="menuitem" data-accion="zip" title="Exporta el proyecto completo" disabled>Exportar .zip</button>
+          <hr style="border:none;border-top:1px solid var(--borde);margin:4px 0">
+          <button type="button" class="menu-exportar-item" role="menuitem" data-accion="compartir" title="Comparte PurpleMD en redes">Compartir PurpleMD</button>
+        </div>
+      </div>
+      <button type="button" id="guardar" class="btn btn-acento" disabled>Guardar</button>
+    </div>
+  </header>
+
+  <noscript>
+    <p class="noscript">Este editor necesita JavaScript para funcionar.</p>
+  </noscript>
+
+  <div class="app">
+    <aside class="panel panel-explorador" id="explorador" aria-labelledby="explorador-titulo">
+      <div class="panel-cabecera">
+        <h2 id="explorador-titulo" class="panel-titulo">Explorador</h2>
+        <span id="proyectos-cantidad" class="cantidad" aria-hidden="true"></span>
+      </div>
+
+      <!-- tabindex="-1": tras una operación el foco va acá si la entrada
+           sobre la que se trabajó ya no existe (se eliminó). -->
+      <p id="explorador-estado" class="estado estado-lista" role="status" aria-live="polite" tabindex="-1"></p>
+
+      <section id="bienvenida" class="bienvenida" hidden>
+        <h3 class="bienvenida-titulo">Creá tu primer proyecto</h3>
+        <p class="bienvenida-texto">Toda nota vive dentro de un proyecto con subcarpetas. Creá uno para empezar a escribir.</p>
+      </section>
+
+      <form id="proyecto-form" class="crear">
+        <label for="proyecto-nombre">Proyecto nuevo</label>
+        <div class="crear-campos">
+          <input id="proyecto-nombre" name="proyecto" type="text" autocomplete="off" required>
+          <button type="submit" class="btn">Crear</button>
+        </div>
+        <p id="proyecto-estado" class="estado" role="status" aria-live="polite"></p>
+      </form>
+
+      <ul id="proyectos-lista" class="lista proyectos" hidden></ul>
+
+      <form id="nota-form" class="crear" hidden>
+        <label for="nota-ruta">Nota nueva (ruta)</label>
+        <div class="crear-campos">
+          <input id="nota-ruta" name="ruta" type="text" autocomplete="off" placeholder="diseños/logo" required>
+          <button type="submit" class="btn">Crear</button>
+        </div>
+        <p id="nota-estado" class="estado" role="status" aria-live="polite"></p>
+      </form>
+
+      <!-- Fila única de importación del explorador: `.md` (nota nueva en
+           la raíz del proyecto) y `.zip` (proyecto completo), de
+           izquierda a derecha. La fila siempre está visible: sin
+           proyecto activo, o con cambios sin guardar, los dos botones
+           quedan deshabilitados. El input de archivo va oculto y el
+           botón lo activa: así el control tiene nombre y foco visibles
+           (un `<label for>` no se puede deshabilitar). El `accept` es
+           solo una ayuda al selector, la validación la hace el JS.
+           Una sola línea de estado (`role="status"`) para los dos
+           formatos; exportar vive en el menú ☰, acá solo se importa. -->
+      <div class="crear">
+        <div class="crear-campos">
+          <button type="button" id="importar-boton" class="btn" disabled>Importar .md</button>
+          <button type="button" id="importar-proyecto" class="btn" title="Importa un proyecto completo" disabled>Importar .zip</button>
+          <input type="file" id="importar-archivo" hidden accept=".md,text/markdown">
+          <input type="file" id="importar-proyecto-archivo" hidden accept=".zip">
+        </div>
+        <p id="importar-estado" class="estado" role="status" aria-live="polite"></p>
+      </div>
+
+      <ul id="arbol" class="lista arbol"></ul>
+      <p id="arbol-vacio" class="vacio" hidden>Este proyecto todavía no tiene notas.</p>
+    </aside>
+
+    <main class="zona" id="zona" data-vista="ambos">
+      <section class="panel panel-editor" aria-label="Editor">
+        <div class="panel-cabecera">
+          <h2 id="nota-actual" class="panel-titulo">Sin nota abierta</h2>
+          <p id="guardar-estado" class="estado" role="status" aria-live="polite">Sin nota abierta</p>
+        </div>
+        <!-- Toolbar Markdown estilo Office -->
+        <div class="editor-toolbar" role="toolbar" aria-label="Formato Markdown" hidden>
+          <div class="toolbar-group">
+            <button type="button" class="tool-btn" data-md="heading1" title="Encabezado 1 (#)" aria-label="Encabezado 1">H1</button>
+            <button type="button" class="tool-btn" data-md="heading2" title="Encabezado 2 (##)" aria-label="Encabezado 2">H2</button>
+            <button type="button" class="tool-btn" data-md="heading3" title="Encabezado 3 (###)" aria-label="Encabezado 3">H3</button>
+          </div>
+          <div class="toolbar-divider" aria-hidden="true"></div>
+          <div class="toolbar-group">
+            <button type="button" class="tool-btn" data-md="bold" title="Negrita (**texto**) - Ctrl+B" aria-label="Negrita"><strong>B</strong></button>
+            <button type="button" class="tool-btn" data-md="italic" title="Cursiva (*texto*) - Ctrl+I" aria-label="Cursiva"><em>I</em></button>
+            <button type="button" class="tool-btn" data-md="strikethrough" title="Tachado (~~texto~~)" aria-label="Tachado"><s>S</s></button>
+            <button type="button" class="tool-btn" data-md="code" title="Código inline (`codigo`)" aria-label="Código inline">&#96;</button>
+          </div>
+          <div class="toolbar-divider" aria-hidden="true"></div>
+          <div class="toolbar-group">
+            <button type="button" class="tool-btn" data-md="quote" title="Cita (> texto)" aria-label="Cita">></button>
+            <button type="button" class="tool-btn" data-md="ul" title="Lista viñetas (- item)" aria-label="Lista viñetas">&#8226;</button>
+            <button type="button" class="tool-btn" data-md="ol" title="Lista numerada (1. item)" aria-label="Lista numerada">1.</button>
+            <button type="button" class="tool-btn" data-md="task" title="Task list (- [ ])" aria-label="Lista de tareas">[ ]</button>
+          </div>
+          <div class="toolbar-divider" aria-hidden="true"></div>
+          <div class="toolbar-group">
+            <button type="button" class="tool-btn" data-md="link" title="Enlace [texto](url) - Ctrl+K" aria-label="Enlace">&#128279;</button>
+            <button type="button" class="tool-btn" data-md="image" title="Imagen ![alt](url)" aria-label="Imagen">&#128247;</button>
+            <button type="button" class="tool-btn" data-md="table" title="Tabla" aria-label="Tabla">&#9472;</button>
+            <button type="button" class="tool-btn" data-md="hr" title="Línea horizontal (---)" aria-label="Línea horizontal">&#8213;</button>
+          </div>
+          <div class="toolbar-divider" aria-hidden="true"></div>
+          <div class="toolbar-group">
+            <button type="button" class="tool-btn" data-md="codeblock" title="Bloque de código (```)" aria-label="Bloque de código">{ }</button>
+            <button type="button" class="tool-btn" data-md="math" title="Matemáticas ($$...$$)" aria-label="Matemáticas">&#8730;</button>
+          </div>
+        </div>
+        <label class="solo-lectores" for="editor">Contenido de la nota en markdown</label>
+        <textarea id="editor" class="editor" spellcheck="true" disabled
+          placeholder="Creá tu primer proyecto y una nota para empezar a escribir."></textarea>
+      </section>
+
+      <section class="panel panel-preview" aria-label="Previsualización">
+        <div class="panel-cabecera">
+          <h2 class="panel-titulo">Previsualización</h2>
+          <p id="render-estado" class="estado" role="status" aria-live="polite"></p>
+        </div>
+        <p id="preview-vacio" class="vacio">La previsualización aparecerá acá cuando abras una nota.</p>
+        <div id="preview" class="preview"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Región contenedora, NO viva: cada toast lleva su propio rol
+       (`role="status"` en el éxito, `role="alert"` en el error), que es
+       la región viva que se crea vacía y se rellena después (ARIA19). -->
+  <div id="toasts" class="toasts"></div>
+
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

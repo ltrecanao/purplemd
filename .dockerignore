@@ -1,0 +1,24 @@
+# Entornos y cachés
+.venv/
+venv/
+env/
+*.egg-info/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# VCS
+.git/
+.gitignore
+
+# Datos del usuario
+local/
+
+# Tests y docs
+tests/
+docs/
+
+# Build
+dist/
+build/

@@ -1,0 +1,1467 @@
+/* Tema de purplemd: fondo lavanda suave y acento violeta. Los tokens viven
+   en :root; el modo oscuro solo reescribe esos mismos tokens. */
+
+:root {
+  color-scheme: light;
+  --fondo: #f6f4fd;
+  --panel: #ffffff;
+  --texto: #201a35;
+  --texto-tenue: #5a5375;
+  --borde: #ddd6f0;
+  --acento: #6d28d9;
+  --acento-fuerte: #5b21b6;
+  --acento-suave: #efe9fd;
+  --sobre-acento: #ffffff;
+  --ok: #14733d;
+  --error: #b3261e;
+  --radio: 0.5rem;
+  --esp-1: 0.25rem;
+  --esp-2: 0.5rem;
+  --esp-3: 0.75rem;
+  --esp-4: 1rem;
+  --esp-6: 1.5rem;
+  --fuente: system-ui, -apple-system, "DejaVu Sans", sans-serif;
+  --mono: ui-monospace, "DejaVu Sans Mono", Consolas, monospace;
+  --ancho-lista: clamp(13rem, 20vw, 19rem);
+  /* Ancho tope del panel de acción superpuesto: alcanza para que entre
+     una ruta larga sin que un aviso ocupe todo el lienzo. */
+  --accion-tope: 34rem;
+  /* Alto de la barra superior que usa el desplegable del explorador
+     para caer justo debajo: el JS lo fija con la altura real, porque
+     la topbar tiene `flex-wrap` y en pantallas angostas puede ocupar
+     dos filas. */
+  --topbar-alto: 3.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --fondo: #14111d;
+    --panel: #1c1828;
+    --texto: #ece9f7;
+    --texto-tenue: #a9a2c6;
+    --borde: #322b47;
+    --acento: #a78bfa;
+    --acento-fuerte: #8b5cf6;
+    --acento-suave: #2a2342;
+    --sobre-acento: #171226;
+    --ok: #4ade80;
+    --error: #fca5a5;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Seguridad: algunas reglas de abajo fijan `display` y anularían el
+   `hidden` nativo si no fuera por esta precedencia. */
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--fondo);
+  color: var(--texto);
+  font: 16px/1.5 var(--fuente);
+}
+
+:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+/* Visible solo para lectores de pantalla (etiqueta del editor). */
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.noscript {
+  margin: 0;
+  padding: var(--esp-3) var(--esp-4);
+  background: var(--panel);
+  border-bottom: 1px solid var(--borde);
+  color: var(--error);
+}
+
+/* --- Barra superior --- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-4);
+  padding: var(--esp-2) var(--esp-4);
+  background: var(--panel);
+  border-bottom: 1px solid var(--borde);
+}
+
+.marca {
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+  color: var(--acento);
+}
+
+/* `flex-wrap` es la regla del corte: a 768–959px la barra puede ir en
+   dos filas en vez de truncar etiquetas, quitar «.md», achicar la font
+   ni bajar los targets de 44px (WCAG 2.5.5). */
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-2);
+  align-items: center;
+}
+
+.badge {
+  font-size: 0.75rem;
+  color: var(--texto-tenue);
+  font-family: var(--mono);
+  padding: 0.15rem 0.4rem;
+  background: var(--acento-suave);
+  border-radius: var(--radio);
+  border: 1px solid var(--borde);
+}
+
+.btn {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--panel);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:hover {
+  background: var(--acento-suave);
+}
+
+.btn:active {
+  background: var(--borde);
+}
+
+.btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn[disabled]:hover {
+  background: var(--panel);
+}
+
+.btn-acento {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: var(--sobre-acento);
+  font-weight: 600;
+}
+
+.btn-acento:hover {
+  background: var(--acento-fuerte);
+  border-color: var(--acento-fuerte);
+}
+
+.btn-acento:active {
+  background: var(--acento-fuerte);
+}
+
+.btn-acento[disabled]:hover {
+  background: var(--acento);
+}
+
+/* --- Menú overflow (acciones secundarias en mobile) --- */
+
+.menu-overflow {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.menu-overflow-trigger {
+  padding: 0.5rem 0.75rem;
+  font-size: 1.2rem;
+  line-height: 1;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.menu-overflow-panel {
+  position: fixed;
+  top: var(--topbar-alto);
+  right: var(--esp-4);
+  left: var(--esp-4);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--esp-2);
+  background: var(--panel);
+  border: 2px solid var(--acento);
+  border-radius: var(--radio);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+  min-width: 0;
+  max-width: 100vw;
+}
+
+/* Grupos del menú («Vista» y «Archivo»): el panel aplica su `gap` solo
+   entre sus hijos directos, así que cada grupo repite el mismo ritmo
+   vertical que tenían los ítems sueltos. */
+.menu-overflow-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Ítems del menú ☰ y del menú «Exportar»: misma caja, mismo ciclo de
+   vida visual, distinta superficie. */
+.menu-overflow-item,
+.menu-exportar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radio);
+  min-height: 44px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.menu-overflow-item:hover:not(:disabled),
+.menu-exportar-item:hover:not(:disabled) {
+  background: var(--acento-suave);
+}
+
+.menu-overflow-item:active:not(:disabled),
+.menu-exportar-item:active:not(:disabled) {
+  background: var(--borde);
+}
+
+.menu-overflow-item:disabled,
+.menu-exportar-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Ítem «Marca de agua en el PDF»: el ✓ hace visible el estado del
+   `menuitemcheckbox` (WCAG 1.4.1: el estado nunca va solo con color) y se
+   alinea a la derecha, como en los menús de sistema. Va en `--texto` y no
+   en el acento porque es el único color garantizado a AAA 7:1 sobre
+   cualquier fondo del menú en los dos temas. Hereda del bloque de arriba
+   los 44px, el foco y los estados hover/active/disabled. */
+.menu-exportar-item[aria-checked="true"]::after {
+  content: "✓";
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--texto);
+}
+
+/* --- Barra de acciones (superficie ancha: >= 48rem) --- */
+
+/* Mobile-first: en angosto estos controles no existen todavía y las
+   acciones de archivo viven en el menú ☰. Un único media query
+   `min-width: 48rem` (al final de la hoja) muestra la barra y oculta el
+   ☰ a la vez. */
+.segmentado,
+.acciones-descargar,
+.menu-exportar {
+  display: none;
+}
+
+/* Segmentado de visualizador: «Radio Group» de la WAI-ARIA APG con HTML nativo
+   (`fieldset` + `legend` oculto + `radio`), sin `role="toolbar"` (ese rol
+   exige roving tabindex y, sin él, quedaría no conforme). El estado es
+   el `checked` nativo: cada input va oculto visualmente pero sigue
+   enfocable, así que Tab entra al grupo y las flechas lo recorren
+   marcando, como manda el HTML nativo. Los labels son los segmentos
+   visibles y se envuelven (nunca se achican: WCAG 2.5.5). */
+.segmentado {
+  position: relative;
+  align-items: center;
+  gap: var(--esp-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  font: inherit;
+}
+
+.segmentado label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--panel);
+  color: var(--texto);
+  font-size: 0.9rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.segmentado label:hover {
+  background: var(--acento-suave);
+}
+
+/* Segmento elegido: fondo de acento, texto inverso y peso extra, para
+   que la selección no se distinga solo por el color (WCAG 1.4.1). */
+.segmentado input:checked + label {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: var(--sobre-acento);
+  font-weight: 600;
+}
+
+/* El input está oculto visualmente: su foco se dibuja en el label. */
+.segmentado input:focus-visible + label {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+/* Menú «Exportar»: APG «Menu Button». El panel se ancla bajo su trigger
+   y alineado a la derecha (`position: absolute`), nunca a ancho
+   completo: eso es el patrón móvil del menú ☰. */
+.menu-exportar {
+  position: relative;
+  align-items: center;
+}
+
+.menu-exportar-caret {
+  margin-left: 0.35em;
+  font-size: 0.7em;
+}
+
+.menu-exportar-panel {
+  position: absolute;
+  top: calc(100% + var(--esp-1));
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* `max-content` lo acota a sus ítems; `min-width: 100%` evita que
+     quede más angosto que su propio trigger. */
+  width: max-content;
+  min-width: 100%;
+  padding: var(--esp-2);
+  background: var(--panel);
+  border: 2px solid var(--acento);
+  border-radius: var(--radio);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
+}
+
+/* Transiciones suaves */
+.btn,
+.menu-overflow-trigger,
+.menu-overflow-item,
+.menu-exportar-item,
+.proyecto,
+.entrada-nota,
+.carpeta summary {
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.accion {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.panel-explorador.abierto {
+  animation: slideDown 180ms ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Focus visible mejorado */
+:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.btn:focus-visible,
+.menu-overflow-trigger:focus-visible,
+.menu-overflow-item:focus-visible,
+.menu-exportar-item:focus-visible,
+.proyecto:focus-visible,
+.entrada-nota:focus-visible,
+.carpeta summary:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+/* --- Scroll fallback para viewports muy restringidos (i3 tiles) --- */
+@media (max-height: 600px), (max-width: 40rem) {
+  body {
+    overflow: auto;
+    height: auto;
+    min-height: 100dvh;
+  }
+  .app {
+    min-height: auto;
+  }
+}
+
+/* --- Estructura general --- */
+
+.app {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--panel);
+}
+
+.zona .panel {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--esp-3);
+  padding: var(--esp-3) var(--esp-4);
+  border-bottom: 1px solid var(--borde);
+}
+
+.panel-titulo {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.estado {
+  margin: 0;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--texto-tenue);
+  text-align: right;
+}
+
+/* Un indicador sin mensaje no debe dejar un hueco en el layout. */
+.estado:empty {
+  display: none;
+}
+
+/* Excepción: `#explorador-estado` es el destino del foco cuando se
+   elimina la entrada sobre la que se operó (`enfocarTrasOperacion`), y
+   un elemento con `display:none` no es enfocable ni visible (WCAG 2.4.3).
+   Vacío mide 0 px y no deja hueco, igual que el resto. */
+#explorador-estado:empty {
+  display: block;
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Foco visible también en ese indicador vacío: el `:focus-visible`
+   global puede no aplicar cuando el foco lo mueve el código tras un clic. */
+.estado:focus {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.estado.ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.estado.error {
+  color: var(--error);
+}
+
+.estado.trabajando {
+  color: var(--acento);
+}
+
+.estado-lista {
+  padding: var(--esp-2) var(--esp-4) 0;
+  text-align: left;
+}
+
+.vacio {
+  margin: 0;
+  padding: var(--esp-4);
+  color: var(--texto-tenue);
+  font-size: 0.9rem;
+}
+
+.cantidad {
+  font-size: 0.8rem;
+  color: var(--texto-tenue);
+}
+
+/* --- Explorador: proyectos, formularios y árbol --- */
+
+/* Block (y no flex) para que el panel entero scrollee con su contenido:
+   en flex los hijos se comprimirían antes de aparecer la barra. En
+   pantallas angostas arranca oculto: es un desplegable (ver el media
+   query con estado `.abierto` al final de la hoja); en anchas vuelve a
+   ser la columna lateral. */
+.panel-explorador {
+  display: none;
+  border-bottom: 1px solid var(--borde);
+}
+
+/* Bloque de bienvenida: solo visible cuando todavía no hay proyectos. */
+.bienvenida {
+  padding: var(--esp-4);
+  border-bottom: 1px solid var(--borde);
+}
+
+.bienvenida-titulo {
+  margin: 0 0 var(--esp-2);
+  font-size: 1rem;
+  color: var(--acento);
+}
+
+.bienvenida-texto {
+  margin: 0;
+  color: var(--texto-tenue);
+  font-size: 0.9rem;
+}
+
+.crear {
+  display: grid;
+  /* minmax(0, …): la columna `auto` tomaría el max-content de la fila
+     (input con `flex-basis: 0%` + botón) y desbordaría el panel angosto. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--esp-2);
+  padding: var(--esp-3) var(--esp-4);
+  border-bottom: 1px solid var(--borde);
+}
+
+.crear label {
+  font-size: 0.85rem;
+  color: var(--texto-tenue);
+}
+
+.crear-campos {
+  display: flex;
+  gap: var(--esp-2);
+}
+
+.crear input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.crear input[aria-invalid="true"] {
+  border-color: var(--error);
+}
+
+.crear .estado {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.lista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: var(--esp-2);
+  list-style: none;
+}
+
+/* --- Proyectos --- */
+
+.proyecto {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radio);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proyecto:hover {
+  background: var(--acento-suave);
+}
+
+.proyecto[aria-current="true"] {
+  background: var(--acento-suave);
+  border-color: var(--acento);
+}
+
+.proyecto-nombre {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.proyecto-fecha {
+  font-size: 0.78rem;
+  color: var(--texto-tenue);
+}
+
+/* --- Árbol de carpetas y notas --- */
+
+/* Cada nivel anida una lista dentro de la carpeta que la contiene. */
+.arbol ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding-left: 0.9rem;
+  list-style: none;
+}
+
+.carpeta summary {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radio);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Safari/WebKit dibuja su propio triángulo además del pseudo-elemento. */
+.carpeta summary::-webkit-details-marker {
+  display: none;
+}
+
+.carpeta summary::before {
+  content: "▸";
+  font-size: 0.8em;
+  color: var(--texto-tenue);
+  transition: transform 120ms ease;
+}
+
+.carpeta details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.carpeta summary:hover {
+  background: var(--acento-suave);
+}
+
+.entrada-nota {
+  display: block;
+  width: 100%;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radio);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.entrada-nota:hover {
+  background: var(--acento-suave);
+}
+
+.entrada-nota[aria-current="true"] {
+  background: var(--acento-suave);
+  border-color: var(--acento);
+  font-weight: 600;
+}
+
+/* --- Acciones inline: renombrar y eliminar --- */
+
+/* Fila de una entrada: a la izquierda el botón que la abre, a la derecha
+   sus acciones. Van como hermanos (nunca dentro del botón ni del
+   <summary>) para no anidar controles interactivos. */
+.fila {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--esp-1);
+}
+
+.fila > .proyecto,
+.fila > .entrada-nota,
+.fila > details {
+  flex: 1;
+  min-width: 0;
+}
+
+.fila-acciones {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding-top: 0.25rem;
+}
+
+/* Botón de acción con símbolo: mínimo para no robarle ancho a la lista. */
+.btn-mini {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: var(--radio);
+  background: none;
+  color: var(--texto-tenue);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.btn-mini:hover {
+  border-color: var(--borde);
+  background: var(--acento-suave);
+  color: var(--texto);
+}
+
+/* Panel de la acción: sigue colgado de la fila que lo abrió, pero va
+   superpuesto en lugar de metido en la columna del explorador (ahí la
+   ruta larga no entraba). Por eso es `fixed` respecto del viewport y
+   `ubicarPanel()` (JS) le fija la esquina desde el rectángulo de esa
+   fila: la caja toma el ancho que necesita y, al depender de `left`,
+   nunca se pasa del borde del lienzo. */
+.accion {
+  position: fixed;
+  /* Las esquinas las calcula el JS; los fallbacks cubren el instante
+     previo a la ubicación (insertar y ubicar ocurren en el mismo turno). */
+  left: var(--accion-izq, 0px);
+  top: var(--accion-top, 0px);
+  /* `max-content` le da el ancho del campo (sale de su `size`), así la
+     ruta entera se ve. El tope evita que un texto largo se desparrame y
+     el segundo término la recorta contra el borde derecho del lienzo:
+     al ser `fixed`, el 100% se mide sobre ese mismo lienzo del que sale
+     `left`, así que las dos medidas coinciden. */
+  width: max-content;
+  max-width: min(var(--accion-tope), calc(100% - var(--accion-izq, 0px) - var(--esp-4)));
+  border-top: 2px solid var(--acento);
+  border-bottom: 0;
+  background: var(--fondo);
+  /* Sombra corta: se lee como caja superpuesta, sin perder el filo de
+     acento que la amarra a la fila. */
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.14);
+  /* Capa que sostiene el foco al abrirse: por encima de `#toasts` (10)
+     para que un aviso transitorio no tape el control enfocado ni
+     intercepte su clic (WCAG 2.2 SC 2.4.11 «Focus Not Obscured»; en la
+     franja 48–60rem el panel se ancla arriba a la derecha, el mismo
+     rincón que los toasts), y por debajo de `.topbar` (20) y de los
+     menús (9999). */
+  z-index: 15;
+}
+
+/* El campo manda sobre el ancho: ocupa el panel entero y los botones no
+   le roban lugar porque van en su propia fila, debajo. */
+.accion input {
+  width: 100%;
+}
+
+/* Fila de botones del panel: «Cancelar» a la izquierda y el que
+   confirma, a la derecha. */
+.accion-botones {
+  display: flex;
+  gap: var(--esp-2);
+  justify-content: space-between;
+}
+
+.accion-aviso {
+  margin: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+/* Confirmación destructiva: rojo en ambos temas, con contraste suficiente. */
+.btn-peligro {
+  border-color: var(--error);
+  color: var(--error);
+  font-weight: 600;
+}
+
+.btn-peligro:hover {
+  background: var(--error);
+  color: var(--panel);
+}
+
+/* --- Zona de trabajo: editor y previsualización --- */
+
+.zona {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+  /* En angosto, el eje vertical invierte el horizontal: izquierda→abajo,
+     derecha→arriba. El editor va arriba y la previsualización abajo. */
+  .panel-editor { order: 1; }
+  .panel-preview { order: 2; }
+  /* En pantallas angostas el explorador es la primera fila de `.app` y la
+     zona la segunda. Con `display: none` (desplegable cerrado) el
+     explorador se elimina del layout y la zona, si no se le fila, cae en
+     la primera fila (`auto`), que toma la altura del contenido: el
+     editor colapsa a la altura intrínseca del textarea. Fijando la fila
+     2, la zona siempre ocupa el `minmax(0, 1fr)`, que reparte el espacio
+     disponible. En anchas se anula: `.app` tiene una sola fila. */
+  grid-row: 2;
+}
+
+.panel-editor {
+  border-bottom: 1px solid var(--borde);
+  min-height: 0;
+}
+
+/* Ciclo de un solo panel (`data-vista`): gana en especificidad sobre las
+   reglas de .zona de abajo, así el panel que queda ocupa todo el ancho en
+   ambos layouts. Ocultar es solo `display:none`: el DOM no se toca, el
+   textarea conserva texto, cursor y scroll, y el preview su HTML. */
+.zona[data-vista="preview"],
+.zona[data-vista="editor"] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.zona[data-vista="preview"] .panel-editor {
+  display: none;
+}
+
+.zona[data-vista="editor"] .panel-preview {
+  display: none;
+}
+
+/* --- Toolbar del Editor (estilo Office) --- */
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--borde);
+}
+
+.toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--borde);
+  margin: 0 6px;
+  flex-shrink: 0;
+}
+
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--texto);
+  border-radius: var(--radio);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.tool-btn:hover {
+  background: var(--acento-suave);
+  color: var(--acento);
+}
+
+.tool-btn:active {
+  background: var(--borde);
+}
+
+.tool-btn:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+@media (max-width: 48rem) {
+  .editor-toolbar {
+    padding: 4px 6px;
+    gap: 2px;
+  }
+  .tool-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 0.7rem;
+  }
+  .toolbar-divider {
+    height: 20px;
+    margin: 0 4px;
+  }
+}
+
+.editor {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  padding: var(--esp-4);
+  border: 0;
+  resize: none;
+  background: var(--panel);
+  color: var(--texto);
+  font: 0.95rem/1.6 var(--mono);
+  tab-size: 2;
+}
+
+.editor:focus-visible {
+  outline-offset: -3px;
+}
+
+.editor::placeholder {
+  color: var(--texto-tenue);
+  opacity: 1;
+}
+
+/* Sin proyecto o sin nota no se puede escribir markdown que no se pueda
+   guardar: el estado deshabilitado se explica con el placeholder. */
+.editor[disabled] {
+  background: var(--fondo);
+  color: var(--texto-tenue);
+  cursor: not-allowed;
+}
+
+.panel-preview {
+  min-height: 0;
+}
+
+.preview {
+  flex: 1;
+  min-height: 0;
+  padding: var(--esp-4) var(--esp-6);
+  overflow: auto;
+}
+
+/* --- Tipografía del markdown renderizado por el backend --- */
+
+.preview :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.4em 0 0.5em;
+  line-height: 1.25;
+}
+
+.preview :is(h1, h2):first-child {
+  margin-top: 0;
+}
+
+.preview :is(p, ul, ol, blockquote, pre, table, hr) {
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+.preview :is(ul, ol) {
+  padding-left: 1.4em;
+}
+
+.preview li + li {
+  margin-top: 0.25em;
+}
+
+.preview a {
+  color: var(--acento);
+}
+
+.preview img {
+  max-width: 100%;
+  height: auto;
+}
+
+.preview code {
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  background: var(--acento-suave);
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+.preview pre {
+  padding: var(--esp-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+  overflow-x: auto;
+}
+
+.preview pre code {
+  padding: 0;
+  background: none;
+}
+
+.preview blockquote {
+  padding-left: var(--esp-4);
+  border-left: 3px solid var(--acento);
+  color: var(--texto-tenue);
+}
+
+.preview hr {
+  border: 0;
+  border-top: 1px solid var(--borde);
+}
+
+.preview table {
+  border-collapse: collapse;
+}
+
+.preview :is(th, td) {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--borde);
+}
+
+.preview th {
+  background: var(--fondo);
+}
+
+.preview li.task-list-item {
+  list-style: none;
+}
+
+.preview .task-list-item input {
+  margin-right: 0.45em;
+  accent-color: var(--acento);
+}
+
+/* --- Resaltado de sintaxis: tema Dracula de Pygments --- */
+
+.highlight {
+  background: var(--fondo);
+  color: #f8f8f2;
+  padding: var(--esp-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  overflow-x: auto;
+}
+.highlight .c { color: #6272a4; }
+.highlight .err { color: #f8f8f2; }
+.highlight .g { color: #f8f8f2; }
+.highlight .k { color: #ff79c6; }
+.highlight .l { color: #f8f8f2; }
+.highlight .n { color: #f8f8f2; }
+.highlight .o { color: #ff79c6; }
+.highlight .x { color: #f8f8f2; }
+.highlight .p { color: #f8f8f2; }
+.highlight .ch { color: #6272a4; }
+.highlight .cm { color: #6272a4; }
+.highlight .cp { color: #ff79c6; }
+.highlight .cpf { color: #6272a4; }
+.highlight .c1 { color: #6272a4; }
+.highlight .cs { color: #6272a4; }
+.highlight .gd { color: #8b080b; }
+.highlight .ge { color: #f8f8f2; text-decoration: underline; }
+.highlight .ges { color: #f8f8f2; text-decoration: underline; }
+.highlight .gr { color: #f8f8f2; }
+.highlight .gh { color: #f8f8f2; font-weight: bold; }
+.highlight .gi { color: #f8f8f2; font-weight: bold; }
+.highlight .go { color: #44475a; }
+.highlight .gp { color: #f8f8f2; }
+.highlight .gs { color: #f8f8f2; }
+.highlight .gu { color: #f8f8f2; font-weight: bold; }
+.highlight .gt { color: #f8f8f2; }
+.highlight .kc { color: #ff79c6; }
+.highlight .kd { color: #8be9fd; font-style: italic; }
+.highlight .kn { color: #ff79c6; }
+.highlight .kp { color: #ff79c6; }
+.highlight .kr { color: #ff79c6; }
+.highlight .kt { color: #8be9fd; }
+.highlight .ld { color: #f8f8f2; }
+.highlight .m { color: #ffb86c; }
+.highlight .s { color: #bd93f9; }
+.highlight .na { color: #50fa7b; }
+.highlight .nb { color: #8be9fd; font-style: italic; }
+.highlight .nc { color: #50fa7b; }
+.highlight .no { color: #f8f8f2; }
+.highlight .nd { color: #f8f8f2; }
+.highlight .ni { color: #f8f8f2; }
+.highlight .ne { color: #f8f8f2; }
+.highlight .nf { color: #50fa7b; }
+.highlight .nl { color: #8be9fd; font-style: italic; }
+.highlight .nn { color: #f8f8f2; }
+.highlight .nx { color: #f8f8f2; }
+.highlight .py { color: #f8f8f2; }
+.highlight .nt { color: #ff79c6; }
+.highlight .nv { color: #8be9fd; font-style: italic; }
+.highlight .ow { color: #ff79c6; }
+.highlight .pm { color: #f8f8f2; }
+.highlight .w { color: #f8f8f2; }
+.highlight .mb { color: #ffb86c; }
+.highlight .mf { color: #ffb86c; }
+.highlight .mh { color: #ffb86c; }
+.highlight .mi { color: #ffb86c; }
+.highlight .mo { color: #ffb86c; }
+.highlight .sa { color: #bd93f9; }
+.highlight .sb { color: #bd93f9; }
+.highlight .sc { color: #bd93f9; }
+.highlight .dl { color: #bd93f9; }
+.highlight .sd { color: #bd93f9; }
+.highlight .s2 { color: #bd93f9; }
+.highlight .se { color: #bd93f9; }
+.highlight .sh { color: #bd93f9; }
+.highlight .si { color: #bd93f9; }
+.highlight .sx { color: #bd93f9; }
+.highlight .sr { color: #bd93f9; }
+.highlight .s1 { color: #bd93f9; }
+.highlight .ss { color: #bd93f9; }
+.highlight .bp { color: #f8f8f2; font-style: italic; }
+.highlight .fm { color: #50fa7b; }
+.highlight .vc { color: #8be9fd; font-style: italic; }
+.highlight .vg { color: #8be9fd; font-style: italic; }
+.highlight .vi { color: #8be9fd; font-style: italic; }
+.highlight .vm { color: #8be9fd; font-style: italic; }
+.highlight .il { color: #ffb86c; }
+
+/* --- Toast de notificaciones --- */
+
+/* Mobile-first: en pantallas angostas (<48rem) los toasts van ABAJO
+   (Material 3: el snackbar aparece en la parte inferior en móvil), lejos
+   de la topbar, del menú ☰ y del desplegable del explorador, que caen
+   desde arriba. El safe-area evita que tape los controles de gesto. */
+.toasts {
+  position: fixed;
+  top: auto;
+  bottom: calc(var(--esp-4) + env(safe-area-inset-bottom, 0px));
+  right: var(--esp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-2);
+  z-index: 10;
+  max-width: min(24rem, calc(100vw - var(--esp-6)));
+  pointer-events: none;
+}
+
+.toast {
+  padding: var(--esp-3) var(--esp-4);
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--acento);
+  border-radius: var(--radio);
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+  pointer-events: auto;
+}
+
+.toast strong {
+  display: block;
+  margin-bottom: var(--esp-1);
+  color: var(--acento);
+}
+
+.toast p {
+  margin: 0 0 var(--esp-2);
+  font-size: 0.9rem;
+  color: var(--texto);
+}
+
+/* Error: mismo lugar que el éxito, pero marcado en rojo (Carbon). El
+   título del éxito sigue en el acento. */
+.toast-error {
+  border-left-color: var(--error);
+}
+
+.toast-error strong {
+  color: var(--error);
+}
+
+/* --- Pantallas angostas: editor y previsualización apilados --- */
+
+/* --- Corte único de la barra superior (48rem = 768px) --- */
+
+/* Mobile-first ≠ mobile-only (NN/g, «Mobile First Is NOT Mobile Only»):
+   la base angosta muestra el menú ☰ y oculta la barra; este único
+   `min-width` invierte las dos caras del
+   corte. Un solo corte (no 60rem): a 48rem el layout ya es ancho
+   (explorador en columna, badge visible), así que la franja 48–60rem
+   queda cubierta por construcción y ninguna capacidad se queda sin
+   superficie. En ancho no hay hamburguesa: visualizador, descarga y
+   exportaciones viven en la barra. */
+@media (min-width: 48rem) {
+  .menu-overflow {
+    display: none;
+  }
+
+  .segmentado {
+    display: flex;
+  }
+
+  .acciones-descargar {
+    display: inline-flex;
+  }
+
+  .menu-exportar {
+    display: flex;
+  }
+
+  /* Desde 48rem los toasts suben a la esquina superior derecha, DEBAJO
+     de la topbar: `top` con `--topbar-alto` (medido por el JS) + un
+     espaciado deja el bloque fuera del rectángulo de la barra (`z-index`
+     20), así nunca queda tapado por ella. */
+  .toasts {
+    top: calc(var(--topbar-alto, 3.5rem) + var(--esp-4));
+    bottom: auto;
+  }
+}
+
+/* Breakpoint intermedio (48rem = 768px): explorer como sidebar estrecha persistente */
+@media (min-width: 48rem) and (max-width: 60rem) {
+  .app {
+    grid-template-columns: 14rem minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .panel-explorador {
+    display: block;
+    position: static;
+    top: auto;
+    z-index: auto;
+    box-shadow: none;
+    border-right: 1px solid var(--borde);
+    border-bottom: 0;
+    max-height: none;
+    overflow-y: auto;
+  }
+
+  /* Sidebar estrecha: solo iconos/tooltips, texto colapsado. El indicador
+     del explorador NO se oculta: ahí viven sus errores y ahí cae el foco
+     tras eliminar una entrada (WCAG 2.4.3); vacío mide 0 px, así que no
+     cuesta píxeles (ver `.estado:empty`). */
+  .panel-explorador .panel-titulo,
+  .panel-explorador .cantidad,
+  .panel-explorador .crear label,
+  .panel-explorador .bienvenida-texto,
+  .panel-explorador .vacio,
+  .panel-explorador .proyecto-fecha {
+    display: none;
+  }
+
+  .panel-explorador .proyecto-nombre,
+  .panel-explorador .entrada-nota {
+    font-size: 0;
+    padding: 0.5rem;
+  }
+
+  .panel-explorador .proyecto-nombre::before,
+  .panel-explorador .entrada-nota::before {
+    content: attr(title);
+    font-size: 0.85rem;
+  }
+
+  .panel-explorador .proyecto:hover .proyecto-nombre::before,
+  .panel-explorador .entrada-nota:hover::before {
+    content: attr(title);
+  }
+
+  .panel-explorador .crear-campos {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .panel-explorador .crear input {
+    font-size: 0;
+    padding: 0.4rem;
+  }
+
+  .panel-explorador .crear input::placeholder {
+    font-size: 0.85rem;
+  }
+
+  .panel-explorador .btn {
+    font-size: 0;
+    padding: 0.4rem;
+  }
+
+  .panel-explorador .btn::before {
+    content: attr(title);
+    font-size: 0.85rem;
+  }
+
+  .panel-explorador .fila-acciones {
+    justify-content: center;
+  }
+
+  .panel-explorador .accion {
+    left: auto !important;
+    right: var(--esp-4) !important;
+    top: var(--topbar-alto, 3.5rem) !important;
+  }
+
+  #explorador-toggle {
+    display: none;
+  }
+
+  .zona {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-row: auto;
+  }
+
+  .panel-editor {
+    border-right: 1px solid var(--borde);
+    border-bottom: 0;
+  }
+
+  .panel-preview {
+    border-left: 1px solid var(--borde);
+  }
+
+  .zona[data-vista="preview"] .panel-editor {
+    display: none;
+  }
+
+  .zona[data-vista="editor"] .panel-editor {
+    border-right: 0;
+  }
+
+  .zona[data-vista="editor"] .panel-preview {
+    display: none;
+  }
+}
+
+@media (min-width: 60rem) {
+  .app {
+    grid-template-columns: var(--ancho-lista) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .panel-explorador {
+    /* Vuelve a la columna lateral: resetea lo que pudo quedar del
+       desplegable (el JS además limpia la clase al pasar a ancho). */
+    display: block;
+    position: static;
+    top: auto;
+    z-index: auto;
+    box-shadow: none;
+    border-right: 1px solid var(--borde);
+    border-bottom: 0;
+    max-height: none;
+  }
+
+  /* En pantallas anchas el explorador siempre está visible: el botón
+     del desplegable no se ve. */
+  #explorador-toggle {
+    display: none;
+  }
+
+  .zona {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    /* En anchas `.app` tiene una sola fila: la zona vuelve a la primera. */
+    grid-row: auto;
+  }
+
+  .panel-editor {
+    border-right: 1px solid var(--borde);
+    border-bottom: 0;
+  }
+
+  .panel-preview {
+    border-left: 1px solid var(--borde);
+  }
+
+  .zona[data-vista="preview"] .panel-editor {
+    display: none;
+  }
+
+  .zona[data-vista="editor"] .panel-editor {
+    border-right: 0;
+  }
+
+  .zona[data-vista="editor"] .panel-preview {
+    display: none;
+  }
+}
+
+/* --- Desplegable del explorador: solo pantallas angostas --- */
+
+/* Abierto, cae como menú sobre el contenido (no lo empuja), ancho
+   completo y justo debajo de la topbar: el JS fija `--topbar-alto` con
+   la altura real, porque la topbar tiene `flex-wrap` y en pantallas
+   angostas puede ocupar dos filas. El `z-index` va por debajo del
+   panel de acción (`.accion` usa 15). Scoped a angosto para que en
+   pantallas anchas, donde el explorador es la columna lateral, no
+   interfiera. */
+@media (max-width: 60rem) {
+  .panel-explorador.abierto {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: var(--topbar-alto, 3.5rem);
+    bottom: 0;
+    overflow-y: auto;
+    z-index: 4;
+    box-shadow: 0 12px 28px rgb(0 0 0 / 0.18);
+  }
+}
