@@ -49,35 +49,21 @@ Formato:
 
 ### Reglas de mensaje
 
-- **Descripción corta**: imperativo, minúscula, sin punto final, ≤ 72 chars
-- **Cuerpo**: explica *qué* y *por qué* (no *cómo*), wrap 72 chars
-- **Footer**: `Closes #123`, `BREAKING CHANGE: ...`, `Co-authored-by: ...`
+- **Una sola línea, concisa**: español, imperativo, minúscula, sin punto
+  final, ≤ 72 chars. El mensaje cuenta *qué* cambió, no la historia.
+- **Sin cuerpo por defecto**. Cuerpo solo si hay algo indispensable que
+  no cabe en la línea (breaking, contexto no obvio), wrap 72 chars.
+- **Footer**: `Closes #123`, `BREAKING CHANGE: ...` — solo cuando aplica.
 
 ### Ejemplos
 
 ```bash
-# Feature
-feat(api): add /health endpoint for load balancer probes
-
-# Fix con scope
-fix(cors): allow localhost regex for dev origins
-
-# Refactor con cuerpo
-refactor(auth): extract token validation to service
-
-- Moves JWT logic to TokenService class
-- Enables unit testing without FastAPI test client
-- Reduces duplication in middleware
-
-# Breaking change
-feat(config)!: require API_KEY in environment
-
-BREAKING CHANGE: API_KEY must be set in .env; no default provided.
-
-# Chore con issue
-chore(deps): upgrade ruff to 0.5.0
-
-Closes #456
+feat: marca de agua obligatoria en PDF y fuentes libres
+feat: menú "Menú ▾", enlace al repo, iconos en compartir y logos
+docs: README minimal + guías en docs/
+fix(cors): permitir localhost en orígenes de desarrollo
+refactor(auth): extraer validación de tokens a servicio propio
+chore(deps): subir ruff a 0.5.0
 ```
 
 ---
@@ -185,17 +171,10 @@ He detectado 3 archivos modificados:
 - CHANGELOG.md (actualizado)
 
 Sugerencia de commit:
-  feat(api): add /health endpoint for load balancer probes
+  feat(api): añadir endpoint /health para sondas del load balancer
 
-  - Implements GET /health returning 200 + JSON status
-  - Adds unit tests with 100% coverage
-  - Updates CHANGELOG.md [Added]
-
-¿Ejecutas? git add -A && git commit -m "feat(api): add /health endpoint for load balancer probes
-
-- Implements GET /health returning 200 + JSON status
-- Adds unit tests with 100% coverage
-- Updates CHANGELOG.md [Added]"
+¿Ejecutas? git add src/api/health.py tests/test_health.py \
+  && git commit -m "feat(api): añadir endpoint /health para sondas del load balancer"
 ```
 
 ### 2. Humano revisa, ajusta si quiere, y ejecuta
@@ -237,12 +216,12 @@ git config push.autoSetupRemote true
 `.gitmessage.txt` (plantilla commit):
 
 ```text
-# <tipo>[ámbito]: <descripción ≤72c>
+# <tipo>[ámbito]: <descripción ≤72c, español, imperativo>
 #
 # Tipos: feat|fix|docs|style|refactor|perf|test|chore|revert|build|ci
 # Ámbitos: api|ui|auth|db|config|ci|docs|deps|...
 #
-# Cuerpo: qué y por qué (wrap 72c)
+# Cuerpo: solo si es imprescindible (wrap 72c)
 #
 # Footer: Closes #123 | BREAKING CHANGE: ...
 ```
