@@ -1432,7 +1432,12 @@ a.menu-acciones-item {
 
   .panel-explorador {
     /* Vuelve a la columna lateral: resetea lo que pudo quedar del
-       desplegable (el JS además limpia la clase al pasar a ancho). */
+       desplegable (el JS además limpia la clase al pasar a ancho).
+       `overflow-y: auto` es el que hace scrolleable la columna: el panel
+       es un hijo de `.app` (fila `minmax(0, 1fr)`) dentro de un `body`
+       con `overflow: hidden`, así que sin esto la lista larga se
+       recortaba sin barra. El rango intermedio (48–60rem) de arriba ya
+       lo traía; acá faltaba. */
     display: block;
     position: static;
     top: auto;
@@ -1441,6 +1446,7 @@ a.menu-acciones-item {
     border-right: 1px solid var(--borde);
     border-bottom: 0;
     max-height: none;
+    overflow-y: auto;
   }
 
   /* En pantallas anchas el explorador siempre está visible: el botón
