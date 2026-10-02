@@ -40,6 +40,22 @@ rutas cuelgan de `https://purplemd.onrender.com`.
 Los dos `PATCH` (notas y directorios) consumen el mismo cuerpo, con la
 ruta destino completa dentro del proyecto.
 
+## Recursos estáticos
+
+Además de `/api`, el servidor monta dos directorios de solo lectura:
+
+| Ruta | Contenido |
+|---|---|
+| `/static/...` | Frontend: `index.html`, `css/`, `js/`, `assets/`. |
+| `/plantillas/...` | Plantillas de documentos (`.md`) y su manifiesto `indice.json`. |
+
+Las plantillas no viven en el código: el frontend las lee de
+`/plantillas` y las copia al proyecto «Plantillas» en el primer
+arranque (idempotente y no destructiva). Agregar una plantilla es
+dropear el `.md` en `plantillas/{empresas,clientes}/` y sumarlo al
+manifiesto; un test del CI falla si el directorio y el manifiesto
+divergen.
+
 ## Borrado de directorios
 
 - Sin `recursive=true` solo se borran directorios vacíos; uno no vacío

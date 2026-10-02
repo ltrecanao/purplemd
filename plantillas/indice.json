@@ -1,0 +1,17 @@
+{
+  "proyecto": "Plantillas",
+  "plantillas": [
+    "empresas/propuesta-comercial",
+    "empresas/presupuesto",
+    "empresas/contrato-de-servicios",
+    "empresas/informe-tecnico",
+    "empresas/ficha-de-cliente",
+    "empresas/orden-de-trabajo",
+    "clientes/cv",
+    "clientes/carta-de-presentacion",
+    "clientes/apuntes-de-estudio",
+    "clientes/presupuesto",
+    "clientes/detalle-de-cobro",
+    "clientes/guia-paso-a-paso"
+  ]
+}

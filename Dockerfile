@@ -48,6 +48,8 @@ FROM deps AS build
 COPY README.md api.py purplemd.py renderer.py ./
 COPY purplemd_storage/ ./purplemd_storage/
 COPY static/ ./static/
+# Plantillas: recursos .md servidos por /plantillas y sembrados en la app.
+COPY plantillas/ ./plantillas/
 RUN uv sync --no-dev --frozen
 
 
