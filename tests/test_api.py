@@ -7,7 +7,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import purplemd
-from api import MAX_RENDER_BYTES, _html_para_pdf, app
+from api import MAX_RENDER_BYTES, app
 
 
 class ApiTestCase(unittest.TestCase):
@@ -438,31 +438,6 @@ class NotasEndpointTests(ApiTestCase):
         response = self.client.get("/api/projects/proyecto/notes/no-existe/pdf")
         self.assertEqual(response.status_code, 404)
 
-    def test_exportar_pdf_con_sin_marca_sigue_siendo_un_pdf(self):
-        """El query param no cambia el tipo de respuesta, solo el pie."""
-        self.crear_nota("proyecto", "saludo", "# Hola\n")
-        response = self.client.get("/api/projects/proyecto/notes/saludo/pdf?sin_marca=1")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers["content-type"], "application/pdf")
-        self.assertTrue(response.content.startswith(b"%PDF"))
-
-    def test_html_para_pdf_la_marca_es_optativa_y_la_paginacion_no(self):
-        """`sin_marca` omite solo el pie de branding, no la paginación."""
-        self.crear_nota("proyecto", "saludo", "# Hola\n")
-        nota = purplemd.leer_nota("proyecto", "saludo")
-
-        por_defecto = _html_para_pdf(nota)
-        self.assertIn("Generado con PurpleMD", por_defecto)
-        self.assertIn("@bottom-left", por_defecto)
-        self.assertIn("Pág. ", por_defecto)
-
-        sin_marca = _html_para_pdf(nota, sin_marca=True)
-        self.assertNotIn("Generado con PurpleMD", sin_marca)
-        self.assertNotIn("@bottom-left", sin_marca)
-        # El número de página es paginación del documento: no depende de la
-        # preferencia y mentir sobre eso sería un bug de honestidad.
-        self.assertIn("@bottom-right", sin_marca)
-        self.assertIn("Pág. ", sin_marca)
 
     def test_los_endpoints_viejos_de_notas_desaparecieron(self):
         for metodo in ("get", "post"):

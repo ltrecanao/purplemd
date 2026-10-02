@@ -64,6 +64,8 @@ RUN apt-get update \
         libpango-1.0-0 \
         libpangoft2-1.0-0 \
         libharfbuzz-subset0 \
+        fonts-noto-color-emoji \
+        fonts-liberation2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Usuario sin privilegios: la app solo lee su /app y escribe en su directorio

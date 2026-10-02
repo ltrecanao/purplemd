@@ -468,19 +468,12 @@ def crear_nota(project: str, payload: NotaCreacion) -> NotaSalida:
 def exportar_pdf(
     project: str,
     path: str,
-    sin_marca: bool = Query(
-        False,
-        description="Omite el pie «Generado con PurpleMD ♥» del PDF.",
-    ),
 ) -> Response:
-    """Devuelve la nota como PDF; 404 si no existe, 422 si la ruta no sirve.
-
-    `sin_marca=1` deja fuera la marca de agua del pie. Es una preferencia
-    de quien exporta, no una protección: sin autenticación no hay sello
-    que valga, así que el parámetro se acepta siempre.
+    """Devuelve la nota como PDF con marca de agua "Generado con PurpleMD ♥".
+    La marca de agua siempre se incluye. No hay parámetro para omitirla.
     """
     nota = purplemd.leer_nota(project, path, storage=_storage)
-    html = _html_para_pdf(nota, sin_marca=sin_marca)
+    html = _html_para_pdf(nota)
     pdf = weasyprint.HTML(string=html).write_pdf()
     return Response(
         content=pdf,
@@ -555,35 +548,28 @@ def render(payload: RenderRequest) -> RenderResponse:
     return RenderResponse(html=renderer.renderizar(payload.markdown))
 
 
-def _html_para_pdf(nota: purplemd.Nota, sin_marca: bool = False) -> str:
+def _html_para_pdf(nota: purplemd.Nota) -> str:
     """Envuelve el HTML renderizado en un documento completo con estilos.
 
     WeasyPrint necesita un HTML con `<style>` propio para aplicar márgenes,
     tipografía y los colores del resaltado de sintaxis.
     Estilo profesional inspirado en CVs generados por Claude.
 
-    Con `sin_marca` se omite el pie `@bottom-left` («Generado con
-    PurpleMD ♥»). El número de página `@bottom-right` es paginación del
-    documento y se emite siempre.
+    La marca de agua "Generado con PurpleMD ♥" siempre se incluye en @bottom-left.
+    El número de página @bottom-right es paginación del documento y se emite siempre.
     """
     cuerpo = renderer.renderizar(nota.content)
-    # El pie de la marca va en una variable para poder omitirlo sin
-    # duplicar el f-string: sus llaves literales entran por interpolación
-    # y no necesitan escape. Con `sin_marca` queda vacío.
-    marca = (
-        ""
-        if sin_marca
-        else """      /* Marca de agua a la izquierda con el corazón Unicode \2665 */
+    # La marca de agua siempre se incluye en @bottom-left.
+    marca = """      /* Marca de agua a la izquierda con el corazón Unicode \2665 */
       @bottom-left {
-        content: "Generado con PurpleMD \\2665";
-        font-family: "DejaVu Sans", Arial, sans-serif;
+        content: "Generado con PurpleMD \2665";
+        font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
         font-size: 6.5pt;
         font-weight: 600;
         color: var(--accent);
       }
 
 """
-    )
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -599,7 +585,7 @@ def _html_para_pdf(nota: purplemd.Nota, sin_marca: bool = False) -> str:
 {marca}      /* Número de página a la derecha */
       @bottom-right {{
         content: "Pág. " counter(page);
-        font-family: "DejaVu Sans", Arial, sans-serif;
+        font-family: "DejaVu Sans", "Liberation Sans", "Noto Color Emoji", sans-serif;
         font-size: 6.5pt;
         color: #7b8491;
       }}
@@ -626,7 +612,7 @@ def _html_para_pdf(nota: purplemd.Nota, sin_marca: bool = False) -> str:
 
     body {{
       color: var(--text);
-      font-family: "DejaVu Sans", Arial, sans-serif;
+      font-family: "DejaVu Sans", "Liberation Sans", "Noto Color Emoji", sans-serif;
       font-size: 8.5pt;
       line-height: 1.38;
       max-width: none;
@@ -639,7 +625,7 @@ def _html_para_pdf(nota: purplemd.Nota, sin_marca: bool = False) -> str:
       padding: 0;
       border: none;
       color: var(--text);
-      font-family: "DejaVu Sans", Arial, sans-serif;
+      font-family: "DejaVu Sans", "Liberation Sans", "Noto Color Emoji", sans-serif;
       font-size: 22pt;
       font-weight: 700;
       letter-spacing: -0.4px;
@@ -649,7 +635,7 @@ def _html_para_pdf(nota: purplemd.Nota, sin_marca: bool = False) -> str:
     body > h1:first-child + p {{
       margin: 0 0 0.9em;
       color: var(--accent);
-      font-family: "DejaVu Sans", Arial, sans-serif;
+      font-family: "DejaVu Sans", "Liberation Sans", "Noto Color Emoji", sans-serif;
       font-size: 10pt;
       font-weight: 600;
       line-height: 1.35;
@@ -689,7 +675,7 @@ def _html_para_pdf(nota: purplemd.Nota, sin_marca: bool = False) -> str:
     h6 {{
       break-after: avoid;
       color: var(--text);
-      font-family: "DejaVu Sans", Arial, sans-serif;
+      font-family: "DejaVu Sans", "Liberation Sans", "Noto Color Emoji", sans-serif;
       font-weight: 700;
       line-height: 1.2;
     }}
