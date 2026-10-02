@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="ph" gradientUnits="userSpaceOnUse" x1="24" y1="28" x2="232" y2="220">
+      <stop offset="0" stop-color="#a855f7"/>
+      <stop offset="1" stop-color="#6d28d9"/>
+    </linearGradient>
+  </defs>
+  <!-- Solo el corazón, mismo púrpura de la marca -->
+  <path d="M128 220
+           C 62 166, 24 124, 24 84
+           C 24 50, 50 26, 84 26
+           C 104 26, 119 37, 128 53
+           C 137 37, 152 26, 172 26
+           C 206 26, 232 50, 232 84
+           C 232 124, 194 166, 128 220 Z"
+        fill="url(#ph)"/>
+</svg>

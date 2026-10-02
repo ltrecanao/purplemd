@@ -177,76 +177,13 @@ const itemsVista = [...menuOverflowPanel.querySelectorAll("[role='menuitemradio'
 // Segmentado de visualizador de la barra (superficie ancha): radios nativos
 // con el mismo `data-vista` espejo; su `checked` es el estado visible.
 const radiosVista = [...document.querySelectorAll(".segmentado input[name='vista']")];
-// Menú «Exportar» de la barra (superficie ancha): APG «Menu Button» con
+// Menú «Menú ▾» de la barra (superficie ancha): APG «Menu Button» con
 // el mismo ciclo de vida que el menú ☰.
-const menuExportar = document.querySelector(".menu-exportar");
-const menuExportarTrigger = document.querySelector(".menu-exportar-trigger");
-const menuExportarPanel = document.querySelector(".menu-exportar-panel");
-// Ítem «Marca de agua en el PDF» del menú «Exportar» (`menuitemcheckbox`).
-const botonMarcaPdf = document.querySelector('[data-accion="pdf-marca"]');
+const menuAcciones = document.querySelector(".menu-acciones");
+const menuAccionesTrigger = document.querySelector(".menu-acciones-trigger");
+const menuAccionesPanel = document.querySelector(".menu-acciones-panel");
 const importarProyectoBtn = document.getElementById("importar-proyecto");
 const importarProyectoArchivo = document.getElementById("importar-proyecto-archivo");
-
-// --------------------------------------- Marca de agua del PDF (menú Exportar)
-
-/**
- * Preferencia «Marca de agua en el PDF».
- *
- * Activada —por defecto— el PDF sale con el pie «Generado con PurpleMD ♥»;
- * desactivada, `exportarPdf()` agrega `?sin_marca=1` y el backend omite ese
- * pie. El número de página (`@bottom-right`) no depende de esto: es
- * paginación del documento, no branding.
- *
- * Es una preferencia de este navegador, **no** una protección: la API no
- * tiene autenticación y el parámetro se acepta siempre (así lo documenta el
- * README). Vive en `localStorage` plano y no dentro del namespace `u_...`,
- * porque ese particiona datos que viajan al backend y ésta es una
- * preferencia de UI. Sin storage (modo privado) el estado queda en memoria
- * y vuelve a la marca al recargar: mismo criterio que el namespace.
- */
-const CLAVE_MARCA_PDF = "purplemd_pdf_marca";
-
-/** @returns {boolean} `true` si el PDF debe salir con la marca (default). */
-function leerMarcaPdf() {
-  try {
-    return localStorage.getItem(CLAVE_MARCA_PDF) !== "0";
-  } catch (_) {
-    return true;
-  }
-}
-
-/** Persiste la preferencia; si el storage falla, dura lo que la pestaña. */
-function guardarMarcaPdf(activada) {
-  try {
-    localStorage.setItem(CLAVE_MARCA_PDF, activada ? "1" : "0");
-  } catch (_) {
-    // Almacenamiento bloqueado: el estado sigue vivo en `marcaPdf`.
-  }
-}
-
-let marcaPdf = leerMarcaPdf();
-
-/** Refleja el estado en el ítem: `aria-checked` es la fuente de verdad. */
-function pintarMarcaPdf() {
-  botonMarcaPdf.setAttribute("aria-checked", String(marcaPdf));
-}
-
-/** Alterna la preferencia, la persiste y repinta el ítem del menú. */
-function alternarMarcaPdf() {
-  marcaPdf = !marcaPdf;
-  guardarMarcaPdf(marcaPdf);
-  pintarMarcaPdf();
-}
-
-// Se ata acá y no en `accionesCompartidas`: ese juego es para las acciones
-// que viven en las dos superficies (menú ☰ y barra) y este ítem solo está
-// en el menú «Exportar». Ambas llamadas van protegidas: si el ítem falta
-// del DOM, fallar acá tumbaría el módulo entero y dejaría muerta toda la
-// topbar (mismo modo de fallo que ya vivió este proyecto).
-if (botonMarcaPdf) {
-  pintarMarcaPdf();
-  botonMarcaPdf.addEventListener("click", alternarMarcaPdf);
-}
 
 // ---------------------------------------------------------------- Estado
 
@@ -442,7 +379,8 @@ function refrescarGuardado() {
 /**
  * Habilita o deshabilita una acción en TODAS las superficies que la
  * ofrecen: cada control lleva `data-accion` y los dos juegos (menú ☰ en
- * `<48rem` y barra en `>=48rem`) se pintan juntos, con una sola regla.
+ * `<48rem` y menú «Menú ▾» de la barra en `>=48rem`) se pintan juntos,
+ * con una sola regla.
  * @param {"descargar"|"pdf"|"zip"} accion - Valor de `data-accion`.
  * @param {boolean} habilitar - true para habilitar.
  */
@@ -467,12 +405,13 @@ function refrescarHabilitacion() {
   habilitarAccion("descargar", conNota);
   habilitarAccion("pdf", conNota);
   habilitarAccion("zip", conProyecto);
-  // El trigger «Exportar» se apaga cuando sus dos ítems lo están, para
-  // no abrir un menú con todo adentro deshabilitado. El menú ☰ nunca se
-  // deshabilita: contiene el grupo «Vista», siempre disponible.
+  // El trigger «Menú» se apaga cuando no hay nada que exportar (ni nota
+  // ni proyecto), para no abrir un menú con las exportaciones apagadas.
+  // El menú ☰ nunca se deshabilita: contiene el grupo «Vista», siempre
+  // disponible.
   const exportarApagado = !conNota && !conProyecto;
-  menuExportarTrigger.disabled = exportarApagado;
-  if (exportarApagado) cerrarMenuExportar();
+  menuAccionesTrigger.disabled = exportarApagado;
+  if (exportarApagado) cerrarMenuAcciones();
   notaForm.hidden = !conProyecto;
   // Mismo sitio donde se habilita `#nota-ruta`: la fila de importación
   // depende del proyecto activo, que es lo que cambia acá.
@@ -2058,6 +1997,9 @@ async function abrirNota(ruta) {
     );
     estado.nota = nota;
     editor.value = nota.content;
+    // Resetear scroll al inicio al abrir nueva nota
+    editor.scrollTop = 0;
+    if (previewVisible()) preview.scrollTop = 0;
     notaTitulo.textContent = `${stripNs(nota.project)} / ${nota.path}`;
     marcarNotaActiva();
     refrescarGuardado();
@@ -2068,7 +2010,10 @@ async function abrirNota(ruta) {
     // Con el editor oculto `focus()` no haría nada: el foco se queda en
     // el elemento del árbol desde el que se abrió la nota, que es donde
     // conviene que siga.
-    if (elementoVisible(editor)) editor.focus();
+    if (elementoVisible(editor)) {
+      editor.selectionStart = editor.selectionEnd = 0;
+      editor.focus();
+    }
     cerrarExploradorSiAngosto();
     return true;
   } catch (error) {
@@ -2159,20 +2104,16 @@ function descargarNota() {
  * Va el contenido guardado, no el del editor: la exportación es de la
  * nota, no de los cambios sin guardar. Éxito y error se avisan con un
  * toast (hoy un fallo quedaba solo en la consola).
- *
- * Con la preferencia «Marca de agua en el PDF» desactivada viaja
- * `?sin_marca=1` para que el backend omita ese pie.
  */
 async function exportarPdf() {
   if (!estado.nota) return;
 
   const nombreArchivo = `${ultimoSegmento(estado.nota.path)}.pdf`;
-  const sinMarca = marcaPdf ? "" : "?sin_marca=1";
   try {
     // `estado.nota.project` ya viene CON prefijo del backend: sin volver a
     // prefijar (el doble prefijo terminaba en 404).
     const respuesta = await fetch(
-      `/api/projects/${encodeURIComponent(estado.nota.project)}/notes/${rutaUrl(estado.nota.path)}/pdf${sinMarca}`,
+      `/api/projects/${encodeURIComponent(estado.nota.project)}/notes/${rutaUrl(estado.nota.path)}/pdf`
     );
     if (!respuesta.ok) {
       const error = await respuesta.json().catch(() => ({}));
@@ -2191,19 +2132,18 @@ async function exportarPdf() {
     enlace.remove();
 
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    // El aviso dice lo que realmente pasó: sin la marca o con ella.
-    const detalle = marcaPdf ? "" : " (sin marca de agua)";
-    mostrarToast(null, "Exportar .pdf", `Nota exportada como .pdf${detalle}.`);
+    mostrarToast(null, "Exportar .pdf", "Nota exportada como .pdf.");
   } catch (error) {
-    // Mismo criterio que «Exportar .zip»: el error va en toast y persiste
+    // Mismo criterio que "Exportar .zip": el error va en toast y persiste
     // hasta que lo cierra la X.
     mostrarToast(null, "Exportar .pdf", `No se pudo exportar: ${error.message}`, "error");
   }
 }
+// ------------------------------------------------------ Compartir en redes
 
 /**
  * Comparte PurpleMD en redes sociales.
- * Usa Web Share API si está disponible; si no, abre URLs pre-armadas.
+ * Usa Web Share API si está disponible; si no, abre modal con opciones.
  */
 async function compartirApp() {
   const url = "https://purplemd.onrender.com";
@@ -2221,91 +2161,199 @@ async function compartirApp() {
     }
   }
 
-  // Fallback: abrir ventana con opciones
+  // Fallback: modal con opciones. Los iconos son SVG estáticos con
+  // `fill="currentColor"` (marcas de simple-icons, sobre de Bootstrap
+  // Icons): heredan el color del texto y siguen el tema claro/oscuro.
+  // El `innerHTML` de acá es markup fijo de este archivo, sin datos de
+  // usuario (la regla del proyecto es no interpretar como marcado nada
+  // que venga del exterior).
   const codificada = encodeURIComponent(texto);
   const urlCodificada = encodeURIComponent(url);
   const opciones = [
-    { label: "X (Twitter)", url: `https://x.com/intent/tweet?text=${codificada}&url=${urlCodificada}` },
-    { label: "LinkedIn", url: `https://www.linkedin.com/sharing/share-offsite/?url=${urlCodificada}` },
-    { label: "Mastodon", url: `https://mastodon.social/share?text=${codificada}&url=${urlCodificada}` },
-    { label: "Email", url: `mailto:?subject=${encodeURIComponent(titulo)}&body=${codificada}%0A%0A${urlCodificada}` },
+    {
+      label: "X (Twitter)",
+      url: `https://x.com/intent/tweet?text=${codificada}&url=${urlCodificada}`,
+      icono: '<svg class="compartir-icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>',
+    },
+    {
+      label: "LinkedIn",
+      url: `https://www.linkedin.com/sharing/share-offsite/?url=${urlCodificada}`,
+      icono: '<svg class="compartir-icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>',
+    },
+    {
+      label: "Mastodon",
+      url: `https://mastodon.social/share?text=${codificada}&url=${urlCodificada}`,
+      icono: '<svg class="compartir-icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M23.268 5.313c-.35-2.578-2.617-4.61-5.304-5.004C17.51.242 15.792 0 11.813 0h-.03c-3.98 0-4.835.242-5.288.309C3.882.692 1.496 2.518.917 5.127.64 6.412.61 7.837.661 9.143c.074 1.874.088 3.745.26 5.611.118 1.24.325 2.47.62 3.68.55 2.237 2.777 4.098 4.96 4.857 2.336.792 4.849.923 7.256.38.265-.061.527-.132.786-.213.585-.184 1.27-.39 1.774-.753a.057.057 0 0 0 .023-.043v-1.809a.052.052 0 0 0-.02-.041.053.053 0 0 0-.046-.01 20.282 20.282 0 0 1-4.709.545c-2.73 0-3.463-1.284-3.674-1.818a5.593 5.593 0 0 1-.319-1.433.053.053 0 0 1 .066-.054c1.517.363 3.072.546 4.632.546.376 0 .75 0 1.125-.01 1.57-.044 3.224-.124 4.768-.422.038-.008.077-.015.11-.024 2.435-.464 4.753-1.92 4.989-5.604.008-.145.03-1.52.03-1.67.002-.512.167-3.63-.024-5.545zm-3.748 9.195h-2.561V8.29c0-1.309-.55-1.976-1.67-1.976-1.23 0-1.846.79-1.846 2.35v3.403h-2.546V8.663c0-1.56-.617-2.35-1.848-2.35-1.112 0-1.668.668-1.67 1.977v6.218H4.822V8.102c0-1.31.337-2.35 1.011-3.12.696-.77 1.608-1.164 2.74-1.164 1.311 0 2.302.5 2.962 1.498l.638 1.06.638-1.06c.66-.999 1.65-1.498 2.96-1.498 1.13 0 2.043.395 2.74 1.164.675.77 1.012 1.81 1.012 3.12z"/></svg>',
+    },
+    {
+      label: "Email",
+      url: `mailto:?subject=${encodeURIComponent(titulo)}&body=${codificada}%0A%0A${urlCodificada}`,
+      icono: '<svg class="compartir-icono" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M.05 3.555A2 2 0 0 1 2 2h12a2 2 0 0 1 1.95 1.555L8 8.414zM0 4.697v7.104l5.803-3.558zM6.761 8.83l-6.57 4.027A2 2 0 0 0 2 14h12a2 2 0 0 0 1.808-1.144l-6.57-4.027L8 9.586zm3.436-.586L16 11.801V4.697z"/></svg>',
+    },
   ];
 
-  // Crear panel flotante simple
+  // Crear backdrop semi-transparente (overlay)
+  const backdrop = document.createElement("div");
+  backdrop.className = "compartir-backdrop";
+  backdrop.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 0.4);
+    backdrop-filter: blur(2px);
+    z-index: 9998;
+    animation: fadeIn 0.15s ease-out;
+  `;
+
+  // Crear panel modal centrado
   const panel = document.createElement("div");
   panel.className = "accion compartir-panel";
   panel.style.cssText = `
     position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     background: var(--panel);
     border: 1px solid var(--borde);
     border-radius: var(--radio);
-    box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
-    padding: 8px;
+    box-shadow: 0 16px 48px rgb(0 0 0 / 0.3);
+    padding: 16px;
     z-index: 9999;
-    min-width: 180px;
+    width: min(300px, 90vw);
+    max-width: 90vw;
+    animation: slideUp 0.2s ease-out;
   `;
-  panel.setAttribute("role", "menu");
+  panel.setAttribute("role", "dialog");
+  panel.setAttribute("aria-modal", "true");
+  panel.setAttribute("aria-label", "Compartir PurpleMD");
+
+  // Título del modal
+  const tituloModal = document.createElement("h3");
+  tituloModal.textContent = "Compartir PurpleMD";
+  tituloModal.style.cssText = `
+    margin: 0 0 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--texto);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--borde);
+  `;
+  panel.append(tituloModal);
+
+  // Cierre del modal: se define antes de los botones que lo usan (si no,
+  // referenciarlo en su declaración lanza ReferenceError y el modal nunca
+  // llega a insertarse en el DOM).
+  const cleanup = () => {
+    backdrop.remove();
+    panel.remove();
+    document.removeEventListener("keydown", onKeydown);
+  };
+
+  // Escape cierra el modal.
+  const onKeydown = (e) => {
+    if (e.key === "Escape") cleanup();
+  };
+  document.addEventListener("keydown", onKeydown);
+
+  // Click en el fondo gris para cerrar.
+  backdrop.onclick = cleanup;
 
   opciones.forEach((opt) => {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.textContent = opt.label;
+    btn.innerHTML = `${opt.icono}<span>${opt.label}</span>`;
     btn.style.cssText = `
-      display: block;
+      display: flex;
+      align-items: center;
+      gap: 10px;
       width: 100%;
-      padding: 8px 12px;
+      padding: 10px 14px;
       border: none;
       background: transparent;
       color: var(--texto);
       font: inherit;
-      text-align: left;
+      font-size: 0.9rem;
       cursor: pointer;
-      border-radius: 4px;
+      border-radius: 6px;
+      margin: 2px 0;
+      transition: background 0.1s;
     `;
     btn.onmouseenter = () => btn.style.background = "var(--acento-suave)";
     btn.onmouseleave = () => btn.style.background = "transparent";
     btn.onclick = () => {
       window.open(opt.url, "_blank", "noopener,noreferrer");
-      panel.remove();
+      cleanup();
       mostrarToast(null, "Compartir", "¡Gracias por compartir PurpleMD! 💜");
     };
     panel.append(btn);
   });
 
-  // Posicionar junto al botón que lo abrió
-  const trigger = document.querySelector('[data-accion="compartir"]:not(:disabled)');
-  if (trigger) {
-    const rect = trigger.getBoundingClientRect();
-    panel.style.top = `${rect.bottom + 8}px`;
-    panel.style.left = `${Math.max(8, rect.right - 200)}px`;
-  } else {
-    panel.style.top = "50%";
-    panel.style.left = "50%";
-    panel.style.transform = "translate(-50%, -50%)";
-  }
+  // Botón cerrar
+  const btnCerrar = document.createElement("button");
+  btnCerrar.type = "button";
+  btnCerrar.textContent = "Cancelar";
+  btnCerrar.style.cssText = `
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    margin-top: 8px;
+    border: 1px solid var(--borde);
+    background: transparent;
+    color: var(--texto);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.1s;
+  `;
+  btnCerrar.onmouseenter = () => btnCerrar.style.background = "var(--acento-suave)";
+  btnCerrar.onmouseleave = () => btnCerrar.style.background = "transparent";
+  btnCerrar.onclick = cleanup;
+  panel.append(btnCerrar);
 
+  // Insertar en DOM
+  document.body.append(backdrop);
   document.body.append(panel);
 
-  // Cerrar al click fuera
-  const cerrar = (e) => {
-    if (!panel.contains(e.target) && e.target !== trigger) {
-      panel.remove();
-      document.removeEventListener("click", cerrar);
-    }
-  };
-  setTimeout(() => document.addEventListener("click", cerrar), 0);
+  // Focus management
+  setTimeout(() => panel.querySelector("button").focus(), 0);
 }
 
 // ------------------------------------------------------ Preview en vivo
 
 /**
- * Espera DEBOUNCE_MS tras la última tecla antes de pedir el render.
- * Con el preview oculto no se pide nada: se retoma al volver a mostrarlo.
+ * Debounce adaptativo según longitud del texto: notas cortas = rápido,
+ * notas largas = más tiempo para no saturar.
+ * @param {number} textLength - Longitud del markdown en caracteres.
+ * @returns {number} Ms de debounce.
+ */
+function debounceAdaptativo(textLength) {
+  if (textLength < 1000) return 120;      // <1KB: casi instantáneo
+  if (textLength < 5000) return 200;      // 1-5KB: fluido
+  if (textLength < 20000) return 350;     // 5-20KB: equilibrado
+  return 500;                              // >20KB: prioriza respuesta
+}
+
+/**
+ * Programa render con debounce adaptativo + requestIdleCallback.
+ * Evita bloquear hilo principal en notas grandes.
  */
 function programarPreview() {
   clearTimeout(timerPreview);
   if (!previewVisible()) return;
-  timerPreview = setTimeout(() => renderizarPreview(editor.value), DEBOUNCE_MS);
+
+  const debounceMs = debounceAdaptativo(editor.value.length);
+
+  timerPreview = setTimeout(() => {
+    // requestIdleCallback para trabajo no crítico (render preview)
+    // fallback a setTimeout si no soportado
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => renderizarPreview(editor.value), { timeout: 1000 });
+    } else {
+      renderizarPreview(editor.value);
+    }
+  }, debounceMs);
 }
 
 /**
@@ -2326,7 +2374,8 @@ async function renderizarPreview(texto) {
     const datos = await pedir("/api/render", conJson("POST", { markdown: texto }));
     if (id !== idRender) return; // ya se pidió un texto más nuevo
     cacheGuardar(texto, datos.html);
-    aplicarPreview(datos.html, texto);
+    // Aplicar preview en siguiente frame para no bloquear
+    requestAnimationFrame(() => aplicarPreview(datos.html, texto));
   } catch (error) {
     if (id !== idRender) return;
     pintarEstado(renderEstado, "error", `No se pudo renderizar: ${error.message}`);
@@ -2414,9 +2463,9 @@ function insertarEspacios() {
 
 botonGuardar.addEventListener("click", guardarNota);
 
-// Cada acción se ofrece en dos superficies (menú ☰ en `<48rem` y barra en
-// `>=48rem`): un solo juego de manejadores, atados por `data-accion`, así
-// las dos caras ejecutan exactamente la misma función.
+// Cada acción se ofrece en dos superficies (menú ☰ en `<48rem` y menú
+// «Menú ▾» de la barra en `>=48rem`): un solo juego de manejadores, atados por
+// `data-accion`, así las dos caras ejecutan exactamente la misma función.
 const accionesCompartidas = {
   descargar: descargarNota,
   pdf: exportarPdf,
@@ -2508,6 +2557,67 @@ function restaurarPosEditor() {
 }
 
 /**
+ * Sincroniza scroll editor <-> preview (proporcional).
+ * Solo activo en vista "ambos". Usa RAF para evitar layout thrashing.
+ */
+let sincronizandoScroll = false;
+let scrollRAF = null;
+
+/**
+ * Calcula ratio de scroll una vez y lo cachea.
+ * @returns {{maxEditor: number, maxPreview: number, ratio: number}|null}
+ */
+function obtenerMetricasScroll() {
+  const maxEditor = editor.scrollHeight - editor.clientHeight;
+  const maxPreview = preview.scrollHeight - preview.clientHeight;
+  if (maxEditor <= 0 || maxPreview <= 0) return null;
+  return { maxEditor, maxPreview, ratio: maxPreview / maxEditor };
+}
+
+function sincronizarPreviewDesdeEditor(scrollTop) {
+  if (sincronizandoScroll || zona.dataset.vista !== "ambos") return;
+  const metricas = obtenerMetricasScroll();
+  if (!metricas) return;
+
+  const target = scrollTop * metricas.ratio;
+  if (scrollRAF) cancelAnimationFrame(scrollRAF);
+  scrollRAF = requestAnimationFrame(() => {
+    preview.scrollTop = Math.max(0, Math.min(metricas.maxPreview, target));
+  });
+}
+
+function sincronizarEditorDesdePreview(scrollTop) {
+  if (sincronizandoScroll || zona.dataset.vista !== "ambos") return;
+  const metricas = obtenerMetricasScroll();
+  if (!metricas) return;
+
+  const target = scrollTop / metricas.ratio;
+  if (scrollRAF) cancelAnimationFrame(scrollRAF);
+  scrollRAF = requestAnimationFrame(() => {
+    editor.scrollTop = Math.max(0, Math.min(metricas.maxEditor, target));
+  });
+}
+
+function activarScrollSincronizado() {
+  if (editor._scrollSyncHandler) return;
+  editor._scrollSyncHandler = () => sincronizarPreviewDesdeEditor(editor.scrollTop);
+  preview._scrollSyncHandler = () => sincronizarEditorDesdePreview(preview.scrollTop);
+  editor.addEventListener("scroll", editor._scrollSyncHandler, { passive: true });
+  preview.addEventListener("scroll", preview._scrollSyncHandler, { passive: true });
+}
+
+function desactivarScrollSincronizado() {
+  if (editor._scrollSyncHandler) {
+    editor.removeEventListener("scroll", editor._scrollSyncHandler);
+    preview.removeEventListener("scroll", preview._scrollSyncHandler);
+    editor._scrollSyncHandler = null;
+    preview._scrollSyncHandler = null;
+  }
+  if (scrollRAF) cancelAnimationFrame(scrollRAF);
+  scrollRAF = null;
+}
+
+/**
  * Sincroniza las dos superficies con `zona[data-vista]`: `aria-checked`
  * de los `menuitemradio` del menú ☰ y `checked` de los `radio` del
  * segmentado (WAI-ARIA APG: en un menú la selección se refleja con
@@ -2538,11 +2648,17 @@ function aplicarVista(vista) {
   if (actual === vista) return;
   const ocultandoPreview = vista === "editor";
 
+  // Desactivar scroll sincronizado si salimos de vista "ambos"
+  if (actual === "ambos") desactivarScrollSincronizado();
+
   // Antes de ocultar el editor se guarda su posición; después de
   // mostrarlo (si viene de `preview`) se restaura.
   if (vista === "preview") guardarPosEditor();
   zona.dataset.vista = vista;
   if (actual === "preview") restaurarPosEditor();
+
+  // Activar scroll sincronizado si entramos en vista "ambos"
+  if (vista === "ambos") activarScrollSincronizado();
 
   // Con la vista previa oculta no se pide nada: se cancela hasta el
   // render que esperaba al debounce.
@@ -2678,71 +2794,72 @@ menuOverflowPanel.addEventListener("click", (evento) => {
   menuOverflowTrigger.focus();
 });
 
-// ------------------------------------------------ Menú «Exportar» (barra)
+// -------------------------------------------------- Menú «Menú ▾» (barra)
 
-// Superficie ancha (>= 48rem) de las exportaciones. Mismo ciclo de vida
-// que el menú ☰ (WAI-ARIA APG, patrón «Menu Button»): alternar con el
-// trigger, clic fuera cierra, `Escape` cierra y devuelve el foco al
-// trigger, y activar un ítem cierra y devuelve el foco. En `<48rem` este
-// menú está oculto y las exportaciones viven en el menú ☰.
+// Superficie ancha (>= 48rem) de las acciones: exportar, compartir y
+// repo. Mismo ciclo de vida que el menú ☰ (WAI-ARIA APG, patrón
+// «Menu Button»): alternar con el trigger, clic fuera cierra, `Escape`
+// cierra y devuelve el foco al trigger, y activar un ítem cierra y
+// devuelve el foco. En `<48rem` este menú está oculto y las mismas
+// acciones viven en el menú ☰.
 
-/** ¿El menú «Exportar» está abierto? */
-function menuExportarAbierto() {
-  return !menuExportarPanel.hidden;
+/** ¿El menú «Menú ▾» está abierto? */
+function menuAccionesAbierto() {
+  return !menuAccionesPanel.hidden;
 }
 
-function alternarMenuExportar() {
-  if (menuExportarAbierto()) cerrarMenuExportar();
-  else abrirMenuExportar();
+function alternarMenuAcciones() {
+  if (menuAccionesAbierto()) cerrarMenuAcciones();
+  else abrirMenuAcciones();
 }
 
-function abrirMenuExportar() {
-  menuExportarPanel.hidden = false;
-  menuExportarTrigger.setAttribute("aria-expanded", "true");
+function abrirMenuAcciones() {
+  menuAccionesPanel.hidden = false;
+  menuAccionesTrigger.setAttribute("aria-expanded", "true");
   // Cerrar al hacer click fuera (con pequeño delay para no cerrar
   // inmediatamente), igual que el menú ☰.
   setTimeout(() => {
-    document.addEventListener("click", clickFueraMenuExportar, { once: true });
+    document.addEventListener("click", clickFueraMenuAcciones, { once: true });
   }, 0);
 }
 
-function cerrarMenuExportar() {
-  menuExportarPanel.hidden = true;
-  menuExportarTrigger.setAttribute("aria-expanded", "false");
+function cerrarMenuAcciones() {
+  menuAccionesPanel.hidden = true;
+  menuAccionesTrigger.setAttribute("aria-expanded", "false");
 }
 
-function clickFueraMenuExportar(evento) {
-  if (!menuExportar.contains(evento.target)) {
-    cerrarMenuExportar();
+function clickFueraMenuAcciones(evento) {
+  if (!menuAcciones.contains(evento.target)) {
+    cerrarMenuAcciones();
   } else {
     setTimeout(() => {
-      document.addEventListener("click", clickFueraMenuExportar, { once: true });
+      document.addEventListener("click", clickFueraMenuAcciones, { once: true });
     }, 0);
   }
 }
 
 // Un solo oyente por botón: un toque/clic tiene que alternar una única vez.
-menuExportarTrigger.addEventListener("click", alternarMenuExportar);
+menuAccionesTrigger.addEventListener("click", alternarMenuAcciones);
 
 // Al activar un ítem, el menú se cierra y el foco vuelve al trigger. Va en
 // el panel (burbuja) para correr después del oyente propio del ítem —que
 // dispara la exportación— y antes de que el clic salga hacia `document`.
-menuExportarPanel.addEventListener("click", (evento) => {
+menuAccionesPanel.addEventListener("click", (evento) => {
   // El checkbox entra en el selector: si no, al alternarlo el menú no se
   // cierra ni devuelve el foco al trigger.
   const item = evento.target.closest("[role='menuitem'], [role='menuitemcheckbox']");
   if (!item) return;
-  cerrarMenuExportar();
-  menuExportarTrigger.focus();
+  cerrarMenuAcciones();
+  menuAccionesTrigger.focus();
 });
 
-// Escape cierra menú «Exportar», menú overflow y explorador
+// Escape cierra menú «Menú ▾», menú overflow y explorador
 window.addEventListener("keydown", (evento) => {
   if (evento.key !== "Escape" || evento.defaultPrevented) return;
-  if (menuExportarAbierto()) {
+  if (menuAccionesAbierto()) {
     evento.preventDefault();
-    cerrarMenuExportar();
-    menuExportarTrigger.focus();
+    cerrarMenuAcciones();
+    menuAccionesTrigger.focus();
     return;
   }
   if (!menuOverflowPanel.hidden) {
@@ -2820,8 +2937,8 @@ let corteAncho = window.matchMedia("(min-width: 48rem)").matches;
 
 window.addEventListener("resize", () => {
   const ancho = window.matchMedia("(min-width: 48rem)").matches;
-  // (1) menú «Exportar» abierto → bajar de 48rem lo cierra.
-  if (!ancho && menuExportarAbierto()) cerrarMenuExportar();
+  // (1) menú «Menú ▾» abierto → bajar de 48rem lo cierra.
+  if (!ancho && menuAccionesAbierto()) cerrarMenuAcciones();
   // (2) menú ☰ abierto → subir a >= 48rem lo cierra.
   if (ancho && !menuOverflowPanel.hidden) cerrarMenuOverflow();
   // (3) el foco en un control recién oculto pasa al primer control
@@ -3117,19 +3234,45 @@ function inicializarToolbar() {
     const { prefix, suffix } = f;
     const start = editor.selectionStart;
     const end = editor.selectionEnd;
-    const texto = editor.value;
-    const seleccion = texto.slice(start, end);
+    const seleccion = editor.value.slice(start, end);
     const nuevoTexto = prefix + seleccion + suffix;
-    editor.value = texto.slice(0, start) + nuevoTexto + texto.slice(end);
+
+    // execCommand('insertText') preserva undo stack nativo
     editor.focus();
-    // Reposicionar cursor
-    if (seleccion) {
-      editor.selectionStart = start + prefix.length;
-      editor.selectionEnd = start + prefix.length + seleccion.length;
-    } else {
-      editor.selectionStart = editor.selectionEnd = start + prefix.length;
+    document.execCommand('insertText', false, nuevoTexto);
+
+    // Posicionar cursor según formato SIN romper undo:
+    // - Si había selección: la selecciona (comportamiento nativo de insertText)
+    // - Si no había selección:
+    //   - Inline (bold, italic, code, strikethrough): cursor al final (entre prefix/suffix)
+    //   - Block (headings, quote, listas, hr, codeblock): cursor después del prefix
+    //   - Link/image/math/table: placeholder seleccionado (usuario escribe y reemplaza)
+    if (!seleccion) {
+      const isBlock = fmt === 'heading1' || fmt === 'heading2' || fmt === 'heading3' ||
+                      fmt === 'quote' || fmt === 'ul' || fmt === 'ol' || fmt === 'task' ||
+                      fmt === 'hr' || fmt === 'codeblock';
+      const isInline = fmt === 'bold' || fmt === 'italic' || fmt === 'strikethrough' || fmt === 'code';
+
+      if (isBlock) {
+        // Block: mover cursor DESPUÉS del prefix (ej: después de "# ")
+        // Usamos setRangeText con 'end' SOLO para mover cursor, no para insertar
+        // Esto es una operación separada pero necesaria para UX
+        const newStart = start + prefix.length;
+        editor.setRangeText('', newStart, newStart, 'end');
+      } else if (isInline) {
+        // Inline: cursor ENTRE prefix y suffix (ej: **|**)
+        const newStart = start + prefix.length;
+        const newEnd = start + nuevoTexto.length - suffix.length;
+        editor.setRangeText('', newStart, newEnd, 'select');
+      }
+      // link/image/math/table: deja placeholder seleccionado (comportamiento nativo)
     }
-    editor.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Actualizar UI en microtask: sin evento sintético = undo preservado
+    Promise.resolve().then(() => {
+      refrescarGuardado();
+      programarPreview();
+    });
   });
 }
 
@@ -3139,78 +3282,68 @@ function inicializarToolbar() {
 // usuario puede editarla o vaciarla y su texto sobrevive.
 
 const PROYECTO_BIENVENIDA = "Bienvenida";
-const NOTA_BIENVENIDA = "primeros-pasos";
+const NOTA_BIENVENIDA = "nota-de-bienvenida";
 
-const CONTENIDO_BIENVENIDA = `# ¡Hola! Bienvenido a PurpleMD 👋
+const CONTENIDO_BIENVENIDA = `# ¡Hola! Bienvenido/a a PurpleMD 👋
 
-Tomate un minuto con esta nota: te cuenta lo más importante para
-arrancar. Después es tuya: podés vaciarla o escribir encima.
+ Tomate un minuto para leer esta nota: te cuenta lo más importante para empezar. Después, hacela tuya: podés vaciarla o escribir encima.
 
-## Cómo se usa
+ ## Cómo se usa
 
-Vas a ver dos paneles: **a la izquierda escribís** y **a la derecha
-mirás cómo queda**. La vista previa se actualiza sola, apenas dejás de
-tipear.
+ PurpleMD tiene dos paneles:
 
-Solo tené esto presente: **no hay autoguardado**. Para que algo quede
-guardado, apretá «Guardar» o \`Ctrl\`/\`Cmd\`+\`S\`.
+ - En **Desktop**, escribís a la **izquierda** y ves cómo queda a la **derecha**.
+- En **Mobile**, escribís **arriba** y ves la vista previa **abajo**.
 
-## Tus primeros pasos
+ La vista previa se actualiza sola apenas dejás de tipear.
 
-1. En el panel izquierdo, escribí un nombre en «Proyecto nuevo» y
-   apretá «Crear». Un proyecto es tu espacio: trabajo, recetas, ideas,
-   lo que sea.
-2. Con el proyecto elegido, creá tu primera nota en «Nota nueva
-   (ruta)». Podés meterle carpetas, algo así como \`recetas/tortas\`.
-3. Escribí tranquilo: mientras no apretes «Guardar», nada cambia.
+ Solo tené presente algo importante: **no hay autoguardado**. Para guardar lo que escribiste, apretá **«Guardar»** o usá \`Ctrl\`/\`Cmd\` + \`S\`.
 
-## Qué le podés poner al texto
+ ## Tus primeros pasos
 
-Títulos, listas, casillas para tareas, **negrita**, *cursiva*,
-\`código\`, texto tachado, citas y hasta tablas. La barra que aparece
-arriba del editor hace la mayor parte sin que tengas que acordarte de
-nada.
+ 1. En **Desktop**, usá el panel izquierdo. En **Mobile**, abrí el **Explorador** con el botón correspondiente.
+2. En **«Proyecto nuevo»**, escribí un nombre y apretá **«Crear»**. Un proyecto es tu espacio de trabajo: puede ser para trabajo, recetas, ideas o lo que quieras.
+3. Con el proyecto seleccionado, creá tu primera nota desde **«Nota nueva (ruta)»**. Podés organizarla en carpetas, por ejemplo: \`recetas/tortas\`.
+4. Escribí tranquilo: mientras no aprietes **«Guardar»**, los cambios no se guardan.
 
-| Atajo | Qué hace |
-|---|---|
-| \`Ctrl\`/\`Cmd\`+\`S\` | Guarda lo que escribiste |
-| \`Tab\` | Escribe dos espacios |
+ ## Qué podés escribir
+
+ Markdown te permite usar títulos, listas, casillas para tareas, **negrita**, _cursiva_, \`código\`, ~~texto tachado~~, citas y hasta tablas.
+
+ La barra de herramientas que aparece arriba del editor hace la mayor parte del trabajo por vos.
+
+ | Atajo | Qué hace |
+| --- | --- |
+| \`Ctrl\`/\`Cmd\` + \`S\` | Guarda lo que escribiste |
+| \`Tab\` | Inserta dos espacios |
 | \`Escape\` | Cierra lo que esté abierto |
 
-> Un consejo queda así, con un \`>\` al principio.
+> Un consejo queda así, escribiendo \`>\` al principio.
 
-## Llevártelo puesto
+ ## Llevátelo con vos
 
-- **«Descargar .md»** baja la nota tal cual la ves.
-- **«Exportar ▾» → «Exportar .pdf»** la convierte en PDF.
-- **«Exportar ▾» → «Exportar .zip»** se lleva el proyecto entero.
+ - **«Menú ▾» → «Descargar .md»** descarga la nota tal cual está.
+- **«Menú ▾» → «Exportar .pdf»** convierte la nota en PDF.
+- **«Menú ▾» → «Exportar .zip»** exporta el proyecto entero.
 
-## Unas cositas más
+ ## Unas cositas más
 
-- **Sin cuentas ni registro**: cada navegador tiene su espacio propio,
-  así que lo tuyo no se cruza con lo de otra persona.
-- **Sin buscador** (por ahora): para moverte, usá el árbol de la
-  izquierda.
-- **Sin sincronización entre equipos**: cada equipo tiene lo suyo.
+ - **Sin cuentas ni registro:** cada navegador tiene su propio espacio, así que tus datos no se mezclan con los de otra persona.
+- **Sin buscador (por ahora):** para moverte entre tus notas, usá el árbol del Explorador.
+- **Sin sincronización entre equipos:** cada equipo tiene su propio espacio.
 
-## Si querés apoyar el proyecto
+ ## Si querés apoyar el proyecto
 
-Si PurpleMD te sirvió, hay dos maneras fáciles de dar una mano:
+ Si PurpleMD te sirvió, hay un par de maneras fáciles de darle una mano:
 
-- **Compartilo**: «Compartir PurpleMD» —está en el menú ☰ y también en
-  «Exportar ▾»— lo manda por X, LinkedIn, Mastodon o correo, o le
-  pasás el link a quien le pueda servir. ¿Querés compartir *tu*
-  proyecto en vez del editor? «Exportar ▾» → «Exportar .zip» y mandás
-  el archivo.
-- **Dejá la marca de agua**: al exportar a PDF, no apagues «Marca de
-  agua en el PDF». Es un detalle chico, pero ayuda a que lo conozca
-  más gente. 💜
+ - **Compartilo:** **«Compartir PurpleMD»**, disponible en el menú ☰ y también en **«Menú ▾»**, te permite compartir PurpleMD por X, LinkedIn, Mastodon o correo. También podés pasarle el link a quien creas que le pueda servir. ¿Querés compartir _tu_ proyecto en lugar del editor? Usá **«Menú ▾» → «Exportar .zip»** y mandale el archivo.
+ - **Contribuí:** si sabés programar, documentar, traducir o testear, mirá [\`CONTRIBUTING.md\`](https://github.com/ltrecanao/purplemd/blob/main/CONTRIBUTING.md) en GitHub para ver cómo sumar código, reportar bugs o proponer mejoras. El repo está en [github.com/ltrecanao/purplemd](https://github.com/ltrecanao/purplemd) — también lo tenés en el menú ☰ → «Ver en GitHub».
 
-## Cuando ya no la necesites
+ ## Cuando ya no la necesites
 
-Vaciá esta nota y escribí la tuya: si está vacía, PurpleMD no vuelve a
-llenarla. Y si borrás el proyecto «Bienvenida», se crea de nuevo la
-próxima vez que abras PurpleMD.
+ Esta nota es solo una bienvenida. Cuando quieras, vaciala y escribí la tuya: si queda vacía, PurpleMD no va a volver a llenarla.
+
+ Y si borrás el proyecto **«Bienvenida»**, se va a crear de nuevo la próxima vez que abras PurpleMD.
 `;
 
 /**
@@ -3283,6 +3416,8 @@ async function iniciar() {
   // contra `zona[data-vista]`: al recargar tiene que mostrar «Editor y
   // previsualización», el estado inicial.
   sincronizarOpcionesVista(zona.dataset.vista);
+  // Activar scroll sincronizado si la vista inicial es "ambos"
+  if (zona.dataset.vista === "ambos") activarScrollSincronizado();
   inicializarToolbar(); // Toolbar Markdown estilo Office
   refrescarGuardado();
   refrescarHabilitacion();

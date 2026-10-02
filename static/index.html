@@ -5,11 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>PurpleMD</title>
   <meta name="description" content="Editor de markdown ligero: notas en proyectos con subcarpetas y previsualización.">
+  <link rel="icon" type="image/svg+xml" href="/static/assets/corazon.svg">
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <header class="topbar">
-    <h1 class="marca">PurpleMD</h1>
+    <!-- Marca como SVG (trazados embebidos): idéntica en cualquier
+         sistema, sin depender de las fuentes del visitante. La variante
+         oscura se sirve con la misma regla que el CSS
+         (`prefers-color-scheme`), porque el MD oscuro no se lee sobre
+         el fondo #14111d. -->
+    <h1 class="marca">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="/static/assets/wordmark-oscuro.svg">
+        <img src="/static/assets/wordmark.svg" alt="PurpleMD" width="131" height="26">
+      </picture>
+    </h1>
     <div class="acciones">
       <!-- Badge con namespace del usuario (localStorage) -->
       <span id="namespace-badge" class="badge" title="Tu identificador único en este navegador" hidden></span>
@@ -40,10 +51,24 @@
           </div>
           <div class="menu-overflow-grupo" role="group" aria-label="Archivo">
             <button type="button" id="descargar" class="menu-overflow-item" role="menuitem" data-accion="descargar" title="Descarga el contenido actual del editor" disabled>Descargar .md</button>
+            <button type="button" id="exportar-pdf" class="menu-overflow-item" role="menuitem" data-accion="pdf" title="Exporta la nota abierta a PDF" disabled>Exportar .pdf</button>
             <button type="button" id="exportar-zip" class="menu-overflow-item" role="menuitem" data-accion="zip" title="Exporta el proyecto completo" disabled>Exportar .zip</button>
           </div>
           <div class="menu-overflow-grupo" role="group" aria-label="Difusión">
             <button type="button" id="compartir" class="menu-overflow-item" role="menuitem" data-accion="compartir" title="Comparte PurpleMD en redes">Compartir PurpleMD</button>
+            <!-- Link externo: `<a>` con `role="menuitem"` hereda el ciclo
+                 de vida del menú (al clickearlo se cierra y devuelve el
+                 foco al trigger) y permite abrir en pestaña nueva o
+                 copiar el enlace. -->
+            <a class="menu-overflow-item" role="menuitem"
+               href="https://github.com/ltrecanao/purplemd"
+               target="_blank" rel="noopener noreferrer"
+               title="Ver el código de PurpleMD en GitHub">
+              <svg class="menu-item-icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+              </svg>
+              Ver en GitHub
+            </a>
           </div>
         </div>
       </div>
@@ -62,29 +87,33 @@
         <input type="radio" name="vista" id="vista-editor" class="solo-lectores" data-vista="editor">
         <label for="vista-editor">Solo editor</label>
       </fieldset>
-      <!-- Descarga en superficie ancha: mismo manejador y misma
-           habilitación que el ítem del menú ☰, por `data-accion`. -->
-      <button type="button" class="btn acciones-descargar" data-accion="descargar" title="Descarga el contenido actual del editor" disabled>Descargar .md</button>
-      <!-- Menú «Exportar»: superficie ancha de las exportaciones.
+      <!-- Menú «Menú ▾»: superficie ancha del menú de acciones
+           (descargar, exportar, compartir y repo), en el mismo orden
+           que los grupos «Archivo» y «Difusión» del menú ☰.
            Patrón «Menu Button» de la WAI-ARIA APG con el mismo ciclo de
            vida que el ☰; el panel se ancla bajo su trigger y alineado a
            la derecha, nunca a ancho completo (ese es el patrón del
            menú angosto). El caret va `aria-hidden` para que el nombre
-           accesible sea solo «Exportar». -->
-      <div class="menu-exportar">
-        <button type="button" class="btn menu-exportar-trigger" aria-expanded="false" aria-haspopup="true" title="Exporta la nota abierta o el proyecto completo" disabled>Exportar<span class="menu-exportar-caret" aria-hidden="true">▼</span></button>
-        <div class="menu-exportar-panel" role="menu" aria-label="Exportar" hidden>
-          <button type="button" class="menu-exportar-item" role="menuitem" data-accion="pdf" title="Exporta la nota abierta" disabled>Exportar .pdf</button>
-          <!-- Opción del PDF, no una exportación: es un `menuitemcheckbox`
-               porque alterna un estado (WAI-ARIA APG, patrón «Menu»), igual
-               que los `menuitemradio` de «Vista» en el menú ☰. Va acá y no
-               en el ☰ porque ahí el PDF no existe todavía (sí en la barra
-               de la superficie ancha) y porque es una opción del propio
-               PDF: se lee junto a la acción que modifica. -->
-          <button type="button" class="menu-exportar-item" role="menuitemcheckbox" aria-checked="true" data-accion="pdf-marca" title="Incluye «Generado con PurpleMD ♥» en el pie del PDF exportado">Marca de agua en el PDF</button>
-          <button type="button" class="menu-exportar-item" role="menuitem" data-accion="zip" title="Exporta el proyecto completo" disabled>Exportar .zip</button>
+           accesible sea solo «Menú». -->
+      <div class="menu-acciones">
+        <button type="button" class="btn menu-acciones-trigger" aria-expanded="false" aria-haspopup="true" title="Más acciones: descargar, exportar, compartir o ver el repositorio" disabled>Menú<span class="menu-acciones-caret" aria-hidden="true">▼</span></button>
+        <div class="menu-acciones-panel" role="menu" aria-label="Acciones adicionales" hidden>
+          <button type="button" class="menu-acciones-item" role="menuitem" data-accion="descargar" title="Descarga el contenido actual del editor" disabled>Descargar .md</button>
+          <button type="button" class="menu-acciones-item" role="menuitem" data-accion="pdf" title="Exporta la nota abierta" disabled>Exportar .pdf</button>
+          <button type="button" class="menu-acciones-item" role="menuitem" data-accion="zip" title="Exporta el proyecto completo" disabled>Exportar .zip</button>
           <hr style="border:none;border-top:1px solid var(--borde);margin:4px 0">
-          <button type="button" class="menu-exportar-item" role="menuitem" data-accion="compartir" title="Comparte PurpleMD en redes">Compartir PurpleMD</button>
+          <button type="button" class="menu-acciones-item" role="menuitem" data-accion="compartir" title="Comparte PurpleMD en redes">Compartir PurpleMD</button>
+          <!-- Mismo link que en el menú ☰: superficie ancha (>=48rem)
+               también necesita la entrada al repositorio. -->
+          <a class="menu-acciones-item" role="menuitem"
+             href="https://github.com/ltrecanao/purplemd"
+             target="_blank" rel="noopener noreferrer"
+             title="Ver el código de PurpleMD en GitHub">
+            <svg class="menu-item-icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+            </svg>
+            Ver en GitHub
+          </a>
         </div>
       </div>
       <button type="button" id="guardar" class="btn btn-acento" disabled>Guardar</button>

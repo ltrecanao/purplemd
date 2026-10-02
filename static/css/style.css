@@ -122,6 +122,15 @@ body {
   color: var(--acento);
 }
 
+/* La marca es una imagen: la altura fija conserva el ritmo de la barra
+   (el wordmark mide 563×112, así que el ancho sale solo). Si la imagen
+   no carga, el `alt` hereda el estilo del bloque de arriba. */
+.marca img {
+  display: block;
+  height: 1.65rem;
+  width: auto;
+}
+
 /* `flex-wrap` es la regla del corte: a 768–959px la barra puede ir en
    dos filas en vez de truncar etiquetas, quitar «.md», achicar la font
    ni bajar los targets de 44px (WCAG 2.5.5). */
@@ -246,10 +255,10 @@ body {
   gap: 2px;
 }
 
-/* Ítems del menú ☰ y del menú «Exportar»: misma caja, mismo ciclo de
+/* Ítems del menú ☰ y del menú «Menú ▾»: misma caja, mismo ciclo de
    vida visual, distinta superficie. */
 .menu-overflow-item,
-.menu-exportar-item {
+.menu-acciones-item {
   display: flex;
   align-items: center;
   gap: var(--esp-2);
@@ -269,33 +278,35 @@ body {
 }
 
 .menu-overflow-item:hover:not(:disabled),
-.menu-exportar-item:hover:not(:disabled) {
+.menu-acciones-item:hover:not(:disabled) {
   background: var(--acento-suave);
 }
 
 .menu-overflow-item:active:not(:disabled),
-.menu-exportar-item:active:not(:disabled) {
+.menu-acciones-item:active:not(:disabled) {
   background: var(--borde);
 }
 
 .menu-overflow-item:disabled,
-.menu-exportar-item:disabled {
+.menu-acciones-item:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   pointer-events: none;
 }
 
-/* Ítem «Marca de agua en el PDF»: el ✓ hace visible el estado del
-   `menuitemcheckbox` (WCAG 1.4.1: el estado nunca va solo con color) y se
-   alinea a la derecha, como en los menús de sistema. Va en `--texto` y no
-   en el acento porque es el único color garantizado a AAA 7:1 sobre
-   cualquier fondo del menú en los dos temas. Hereda del bloque de arriba
-   los 44px, el foco y los estados hover/active/disabled. */
-.menu-exportar-item[aria-checked="true"]::after {
-  content: "✓";
-  margin-left: auto;
-  font-weight: 700;
-  color: var(--texto);
+/* Los dos links del menú («Ver en GitHub» en ☰ y en «Menú ▾»):
+   mismo estilo que los botones, sin subrayado ni color de enlace. */
+a.menu-overflow-item,
+a.menu-acciones-item {
+  text-decoration: none;
+}
+
+/* Icono inline de los menús (logo de GitHub): hereda el color del ítem
+   (`currentColor`), así sigue el tema claro/oscuro. */
+.menu-item-icono {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: none;
 }
 
 /* --- Barra de acciones (superficie ancha: >= 48rem) --- */
@@ -305,8 +316,7 @@ body {
    `min-width: 48rem` (al final de la hoja) muestra la barra y oculta el
    ☰ a la vez. */
 .segmentado,
-.acciones-descargar,
-.menu-exportar {
+.menu-acciones {
   display: none;
 }
 
@@ -362,20 +372,20 @@ body {
   outline-offset: 2px;
 }
 
-/* Menú «Exportar»: APG «Menu Button». El panel se ancla bajo su trigger
+/* Menú «Menú ▾»: APG «Menu Button». El panel se ancla bajo su trigger
    y alineado a la derecha (`position: absolute`), nunca a ancho
    completo: eso es el patrón móvil del menú ☰. */
-.menu-exportar {
+.menu-acciones {
   position: relative;
   align-items: center;
 }
 
-.menu-exportar-caret {
+.menu-acciones-caret {
   margin-left: 0.35em;
   font-size: 0.7em;
 }
 
-.menu-exportar-panel {
+.menu-acciones-panel {
   position: absolute;
   top: calc(100% + var(--esp-1));
   right: 0;
@@ -398,7 +408,7 @@ body {
 .btn,
 .menu-overflow-trigger,
 .menu-overflow-item,
-.menu-exportar-item,
+.menu-acciones-item,
 .proyecto,
 .entrada-nota,
 .carpeta summary {
@@ -424,6 +434,35 @@ body {
   }
 }
 
+/* Icono de red dentro del modal de compartir: `currentColor` hereda el
+   color del texto del botón, así sigue el tema claro/oscuro. */
+.compartir-icono {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+}
+
+/* Modal de compartir: fondo que aparece + caja que sube al centro. */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 8px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
 /* Focus visible mejorado */
 :focus-visible {
   outline: 2px solid var(--acento);
@@ -433,7 +472,7 @@ body {
 .btn:focus-visible,
 .menu-overflow-trigger:focus-visible,
 .menu-overflow-item:focus-visible,
-.menu-exportar-item:focus-visible,
+.menu-acciones-item:focus-visible,
 .proyecto:focus-visible,
 .entrada-nota:focus-visible,
 .carpeta summary:focus-visible {
@@ -1245,8 +1284,8 @@ body {
    corte. Un solo corte (no 60rem): a 48rem el layout ya es ancho
    (explorador en columna, badge visible), así que la franja 48–60rem
    queda cubierta por construcción y ninguna capacidad se queda sin
-   superficie. En ancho no hay hamburguesa: visualizador, descarga y
-   exportaciones viven en la barra. */
+   superficie. En ancho no hay hamburguesa: el visualizador vive en la
+   barra y descarga, exportaciones, compartir y repo en su menú «Menú ▾». */
 @media (min-width: 48rem) {
   .menu-overflow {
     display: none;
@@ -1256,11 +1295,7 @@ body {
     display: flex;
   }
 
-  .acciones-descargar {
-    display: inline-flex;
-  }
-
-  .menu-exportar {
+  .menu-acciones {
     display: flex;
   }
 
