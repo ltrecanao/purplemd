@@ -2171,6 +2171,21 @@ async function compartirApp() {
   const urlCodificada = encodeURIComponent(url);
   const opciones = [
     {
+      label: "Copiar enlace",
+      url: null,
+      icono: '<svg class="compartir-icono" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1z"/><path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0z"/></svg>',
+      accion: async () => {
+        try {
+          await navigator.clipboard.writeText(url);
+          mostrarToast(null, "Compartir", "¡Enlace copiado al portapapeles! 💜");
+        } catch {
+          // Sin API de portapapeles (contexto no seguro o permiso denegado).
+          mostrarToast(null, "Compartir", "No se pudo copiar el enlace.", "error");
+        }
+        cleanup();
+      },
+    },
+    {
       label: "X (Twitter)",
       url: `https://x.com/intent/tweet?text=${codificada}&url=${urlCodificada}`,
       icono: '<svg class="compartir-icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>',
@@ -2279,11 +2294,11 @@ async function compartirApp() {
     `;
     btn.onmouseenter = () => btn.style.background = "var(--acento-suave)";
     btn.onmouseleave = () => btn.style.background = "transparent";
-    btn.onclick = () => {
+    btn.onclick = opt.accion ?? (() => {
       window.open(opt.url, "_blank", "noopener,noreferrer");
       cleanup();
       mostrarToast(null, "Compartir", "¡Gracias por compartir PurpleMD! 💜");
-    };
+    });
     panel.append(btn);
   });
 
@@ -3284,7 +3299,7 @@ function inicializarToolbar() {
 const PROYECTO_BIENVENIDA = "Bienvenida";
 const NOTA_BIENVENIDA = "nota-de-bienvenida";
 
-const CONTENIDO_BIENVENIDA = `# ¡Hola! Bienvenido/a a PurpleMD 👋
+const CONTENIDO_BIENVENIDA = `# ¡Hola! Bienvenido/a a PurpleMD 💜
 
  Tomate un minuto para leer esta nota: te cuenta lo más importante para empezar. Después, hacela tuya: podés vaciarla o escribir encima.
 
@@ -3325,6 +3340,15 @@ const CONTENIDO_BIENVENIDA = `# ¡Hola! Bienvenido/a a PurpleMD 👋
  - **«Menú ▾» → «Descargar .md»** descarga la nota tal cual está.
 - **«Menú ▾» → «Exportar .pdf»** convierte la nota en PDF.
 - **«Menú ▾» → «Exportar .zip»** exporta el proyecto entero.
+
+ ## Plantillas para arrancar más rápido
+
+ En el explorador vas a encontrar el proyecto **«Plantillas»**, con documentos listos para copiar, completar y exportar a PDF:
+
+ - **empresas/**: propuesta comercial, presupuesto, contrato de servicios, informe técnico, ficha de cliente y orden de trabajo.
+ - **clientes/**: CV, carta de presentación, apuntes de estudio, presupuesto, detalle de cobro y guía paso a paso.
+
+ Los campos a completar van entre corchetes, por ejemplo \`[FECHA]\` o \`[MONTO]\`. Abrí la que te sirva, hacé una copia en tu proyecto y rellená. Si editás o borrás alguna en «Plantillas», se respeta: no vuelve a crearse.
 
  ## Unas cositas más
 
@@ -3409,6 +3433,74 @@ async function asegurarBienvenida() {
   return hayNota && estado.proyectos.some((p) => p.name === nsProject(PROYECTO_BIENVENIDA));
 }
 
+// ------------------------------------------------------------- Plantillas
+// Documentos de ejemplo (propuesta, presupuesto, CV, guías) que viven como
+// recursos .md en `plantillas/`, servidos por /plantillas. El manifiesto
+// `plantillas/indice.json` es el que enumera qué copiar: agregar una
+// plantilla es dropear el archivo y sumarlo ahí, sin tocar este código.
+// Mismo criterio que la bienvenida: idempotente y no destructiva, las
+// notas que el usuario editó (o borró) no se vuelven a crear.
+
+const MANIFIESTO_PLANTILLAS = "/plantillas/indice.json";
+
+/**
+ * Carga las plantillas de `plantillas/indice.json` en su proyecto.
+ *
+ * Pide el árbol una sola vez y solo crea las notas que falten: en cada
+ * arranque son tres requests (manifiesto, proyecto, árbol) y ninguna
+ * escritura si ya están todas.
+ *
+ * @returns {Promise<void>}
+ */
+async function asegurarPlantillas() {
+  let manifiesto;
+  try {
+    manifiesto = await pedir(MANIFIESTO_PLANTILLAS);
+  } catch (_) {
+    return; // Sin manifiesto (instalación mínima) no hay nada que sembrar.
+  }
+  const proyecto = manifiesto.proyecto;
+  const rutas = manifiesto.plantillas;
+  if (!proyecto || !Array.isArray(rutas) || rutas.length === 0) return;
+
+  const base = `/api/projects/${encodeURIComponent(nsProject(proyecto))}`;
+  if (!(await existeRecurso(`${base}/tree`))) {
+    try {
+      await pedir("/api/projects", conJson("POST", { name: nsProject(proyecto) }));
+    } catch (_) {
+      return; // 409 u otro fallo: sin proyecto no se puede sembrar.
+    }
+  }
+
+  // Árbol actual: lo que ya existe no se toca (ni se descarga).
+  let existentes = new Set();
+  try {
+    const arbol = await pedir(`${base}/tree`);
+    existentes = new Set(arbol.entries.filter((e) => e.type === "note").map((e) => e.path));
+  } catch (_) {
+    return;
+  }
+
+  let creóAlgo = false;
+  for (const ruta of rutas) {
+    if (existentes.has(ruta)) continue;
+    try {
+      // El .md es texto plano, no JSON: `pedir` no sirve acá.
+      const origen = await fetch(`/plantillas/${rutaUrl(`${ruta}.md`)}`);
+      if (!origen.ok) continue;
+      const contenido = await origen.text();
+      await pedir(`${base}/notes`, conJson("POST", { path: ruta, content: contenido }));
+      creóAlgo = true;
+    } catch (_) {
+      // 409 (alguien la creó entre medio) u otro fallo: se omite y listo.
+    }
+  }
+
+  // Recién creada, la lista hay que refrescarla para que el proyecto
+  // aparezca en el explorador (sin deseleccionar el que está abierto).
+  if (creóAlgo) await cargarProyectos();
+}
+
 async function iniciar() {
   inicializarNamespaceBadge();
   actualizarTopbarAlto(); // Fijar --topbar-alto antes de cualquier dropdown
@@ -3433,6 +3525,9 @@ async function iniciar() {
     // y ninguna nota abierta, como hasta ahora.
     await seleccionarProyecto(stripNs(proyectos[0].name));
   }
+  // Las plantillas van después de la bienvenida para no robarle el foco:
+  // solo aparecen en el explorador, sin seleccionarse ni abrirse.
+  await asegurarPlantillas();
   cargarNotificaciones();
   setInterval(cargarNotificaciones, 30000);
 }

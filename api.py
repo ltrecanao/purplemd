@@ -96,6 +96,14 @@ app.add_middleware(
 # /static/js/app.js se sirvan sin escribir endpoints a mano.
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
+# Plantillas de documentos: recursos .md en disco (no van embebidos en el
+# frontend). El mount es solo lectura; la semilla del cliente los copia al
+# proyecto «Plantillas» la primera vez. El `if` evita romper el arranque
+# en instalaciones que no traen el directorio.
+_PLANTILLAS = Path(__file__).parent / "plantillas"
+if _PLANTILLAS.is_dir():
+    app.mount("/plantillas", StaticFiles(directory=_PLANTILLAS, check_dir=True), name="plantillas")
+
 
 class ProyectoCreacion(BaseModel):
     """Payload para crear un proyecto: solo el nombre lógico, sin extensión."""
@@ -560,9 +568,11 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
     """
     cuerpo = renderer.renderizar(nota.content)
     # La marca de agua siempre se incluye en @bottom-left.
-    marca = """      /* Marca de agua a la izquierda con el corazón Unicode \2665 */
+    # `\\2665`: la barra va doble porque el literal es de Python; con una
+    # sola, Python lo lee como escape octal (`¶5`) y el pie no imprime ♥.
+    marca = """      /* Marca de agua a la izquierda con el corazón Unicode \\2665 */
       @bottom-left {
-        content: "Generado con PurpleMD \2665";
+        content: "Generado con PurpleMD \\2665";
         font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
         font-size: 6.5pt;
         font-weight: 600;

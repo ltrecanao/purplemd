@@ -7,7 +7,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import purplemd
-from api import MAX_RENDER_BYTES, app
+from api import MAX_RENDER_BYTES, _html_para_pdf, app
 
 
 class ApiTestCase(unittest.TestCase):
@@ -71,6 +71,63 @@ class IndexYStaticTests(ApiTestCase):
     def test_static_inexistente_da_404(self):
         response = self.client.get("/static/css/no-existe.css")
         self.assertEqual(response.status_code, 404)
+
+
+class PlantillasTests(ApiTestCase):
+    """Las plantillas son recursos en `plantillas/`, listadas en su manifiesto."""
+
+    raiz = Path(__file__).resolve().parent.parent / "plantillas"
+
+    def manifiesto(self) -> dict:
+        response = self.client.get("/plantillas/indice.json")
+        self.assertEqual(response.status_code, 200)
+        return response.json()
+
+    def test_manifiesto_lista_las_doce_plantillas(self):
+        plantillas = self.manifiesto()["plantillas"]
+        self.assertEqual(len(plantillas), 12)
+        self.assertEqual(plantillas[0], "empresas/propuesta-comercial")
+        self.assertEqual(plantillas[-1], "clientes/guia-paso-a-paso")
+
+    def test_cada_plantilla_del_manifiesto_existe_y_se_sirve(self):
+        for ruta in self.manifiesto()["plantillas"]:
+            with self.subTest(ruta=ruta):
+                self.assertTrue((self.raiz / f"{ruta}.md").is_file())
+                response = self.client.get(f"/plantillas/{ruta}.md")
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.text.lstrip().startswith("# "))
+
+    def test_todo_archivo_del_directorio_esta_en_el_manifiesto(self):
+        # Si alguien dropea un .md sin sumarlo al manifiesto, nunca se
+        # cargaría en la app: el CI tiene que quejarse acá.
+        en_disco = {
+            f"{p.parent.relative_to(self.raiz).as_posix()}/{p.stem}"
+            for p in self.raiz.rglob("*.md")
+        }
+        self.assertEqual(en_disco, set(self.manifiesto()["plantillas"]))
+
+    def test_las_plantillas_no_tienen_emojis(self):
+        # La marca de agua del PDF y los encabezados usan fuentes libres:
+        # un emoji podría no tener glifo y salir como cajita.
+        for ruta in self.manifiesto()["plantillas"]:
+            with self.subTest(ruta=ruta):
+                texto = (self.raiz / f"{ruta}.md").read_text(encoding="utf-8")
+                self.assertFalse(any(ord(c) > 0x2100 for c in texto if c not in "—–…·«»"))
+
+    def test_las_plantillas_tienen_un_solo_titulo(self):
+        for ruta in self.manifiesto()["plantillas"]:
+            with self.subTest(ruta=ruta):
+                texto = (self.raiz / f"{ruta}.md").read_text(encoding="utf-8")
+                titulos = sum(1 for linea in texto.splitlines() if linea.startswith("# "))
+                self.assertEqual(titulos, 1)
+
+    def test_los_campos_a_completar_estan_entre_corchetes(self):
+        # Formato único de marcador: [NOMBRE DEL CAMPO]. Un placeholder
+        # suelto sin corchetes se exportaría al PDF como texto normal.
+        propuesta = (self.raiz / "empresas/presupuesto.md").read_text(encoding="utf-8")
+        simple = (self.raiz / "clientes/presupuesto.md").read_text(encoding="utf-8")
+        self.assertIn("[FECHA]", propuesta)
+        self.assertIn("[MONTO", simple)
 
 
 class ProyectosEndpointTests(ApiTestCase):
@@ -437,6 +494,15 @@ class NotasEndpointTests(ApiTestCase):
     def test_exportar_pdf_de_nota_inexistente_responde_404(self):
         response = self.client.get("/api/projects/proyecto/notes/no-existe/pdf")
         self.assertEqual(response.status_code, 404)
+
+    def test_pdf_marca_de_agua_lleva_el_corazon_escaped(self):
+        """El pie imprime «♥», no «¶5»: `\2665` es escape CSS y la
+        barra va doble dentro del literal de Python (con una sola,
+        Python la lee como octal y arruina el carácter)."""
+        nota = purplemd.Nota(project="p", path="x.md", content="# hola", modified=0.0)
+        html = _html_para_pdf(nota)
+        self.assertIn('content: "Generado con PurpleMD \\2665"', html)
+        self.assertNotIn("¶", html)
 
 
     def test_los_endpoints_viejos_de_notas_desaparecieron(self):
