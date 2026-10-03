@@ -3199,97 +3199,202 @@ async function marcarLeida(id) {
   }
 }
 
+// ------------------------------------------------------------- Toolbar
+// Formatos Markdown de la barra de herramientas. Vive a nivel de módulo
+// porque también la usan los atajos de teclado (Ctrl/Cmd+B, I y K): una
+// sola fuente de verdad para que botón y atajo hagan exactamente lo mismo.
+const FORMATOS = {
+  heading1: { prefix: "# ", suffix: "" },
+  heading2: { prefix: "## ", suffix: "" },
+  heading3: { prefix: "### ", suffix: "" },
+  bold: { prefix: "**", suffix: "**" },
+  italic: { prefix: "*", suffix: "*" },
+  strikethrough: { prefix: "~~", suffix: "~~" },
+  code: { prefix: "`", suffix: "`" },
+  codeblock: { prefix: "```\n", suffix: "\n```" },
+  quote: { prefix: "> ", suffix: "" },
+  ul: { prefix: "- ", suffix: "" },
+  ol: { prefix: "1. ", suffix: "" },
+  task: { prefix: "- [ ] ", suffix: "" },
+  link: { prefix: "[", suffix: "](url)" },
+  image: { prefix: "![", suffix: "](url)" },
+  table: { prefix: "| Col1 | Col2 |\n|------|------|\n| ", suffix: " | |\n|  |  |" },
+  hr: { prefix: "\n---\n", suffix: "" },
+};
+
 /**
- * Inicializa la toolbar Markdown estilo Office en el editor.
- * Inserta sintaxis Markdown en la posición del cursor.
+ * Aplica un formato de `FORMATOS` sobre la selección actual del editor.
+ *
+ * La llamada es un `execCommand('insertText')`, que preserva el undo stack
+ * nativo del textarea: no hay que reemplazar `editor.value` a mano.
+ *
+ * La colocación del cursor después de insertar depende del formato y solo
+ * aplica cuando no había selección (con selección la re-selecciona el
+ * navegador, que es lo que el usuario espera):
+ *
+ * - **Bloque** (`#`, `>`, listas, `---`, ```): cursor después del prefijo.
+ * - **En línea** (`**`, `*`, `` ` ``, `~~`): cursor entre prefijo y sufijo.
+ * - **Con placeholder** (enlace, imagen, tabla): el placeholder queda
+ *   seleccionado para que el usuario escriba y lo reemplace.
+ *
+ * @param {string} fmt - Clave de `FORMATOS`, p. ej. `bold`.
  */
-function inicializarToolbar() {
-  const toolbar = document.querySelector('.editor-toolbar');
-  const editor = document.getElementById('editor');
-  if (!toolbar || !editor) return;
+function aplicarFormato(fmt) {
+  const formato = FORMATOS[fmt];
+  // Sin formato desconocido, y sin nota abierta el textarea está `disabled`.
+  if (!formato || editor.disabled) return;
 
-  // Mapeo de botones a sintaxis Markdown
-  const formatos = {
-    heading1: { prefix: '# ', suffix: '' },
-    heading2: { prefix: '## ', suffix: '' },
-    heading3: { prefix: '### ', suffix: '' },
-    bold: { prefix: '**', suffix: '**' },
-    italic: { prefix: '*', suffix: '*' },
-    strikethrough: { prefix: '~~', suffix: '~~' },
-    code: { prefix: '`', suffix: '`' },
-    codeblock: { prefix: '```\n', suffix: '\n```' },
-    quote: { prefix: '> ', suffix: '' },
-    ul: { prefix: '- ', suffix: '' },
-    ol: { prefix: '1. ', suffix: '' },
-    task: { prefix: '- [ ] ', suffix: '' },
-    link: { prefix: '[', suffix: '](url)' },
-    image: { prefix: '![', suffix: '](url)' },
-    table: { prefix: '| Col1 | Col2 |\n|------|------|\n| ', suffix: ' | |\n|  |  |' },
-    hr: { prefix: '\n---\n', suffix: '' },
-    math: { prefix: '$$', suffix: '$$' }
-  };
+  const { prefix, suffix } = formato;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  const seleccion = editor.value.slice(start, end);
+  const nuevoTexto = prefix + seleccion + suffix;
 
-  // Mostrar toolbar cuando hay nota activa
-  const originalSeleccionarNota = window.seleccionarNota || (() => {});
-  // Hook: cuando se habilita el editor, mostramos la toolbar
-  const observer = new MutationObserver(() => {
-    const habilitado = !editor.disabled;
-    toolbar.hidden = !habilitado;
-  });
-  observer.observe(editor, { attributes: true, attributeFilter: ['disabled'] });
-  toolbar.hidden = editor.disabled;
+  editor.focus();
+  document.execCommand("insertText", false, nuevoTexto);
 
-  toolbar.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tool-btn[data-md]');
-    if (!btn) return;
-    const fmt = btn.dataset.md;
-    const f = formatos[fmt];
-    if (!f) return;
+  // Con selección no hay nada que recolocar: el navegador la re-selecciona
+  // sobre lo recién insertado, que es justo lo que el usuario espera.
+  if (!seleccion) {
+    const esBloque =
+      fmt === "heading1" ||
+      fmt === "heading2" ||
+      fmt === "heading3" ||
+      fmt === "quote" ||
+      fmt === "ul" ||
+      fmt === "ol" ||
+      fmt === "task" ||
+      fmt === "hr" ||
+      fmt === "codeblock";
+    const esEnLinea =
+      fmt === "bold" || fmt === "italic" || fmt === "strikethrough" || fmt === "code";
 
-    const { prefix, suffix } = f;
-    const start = editor.selectionStart;
-    const end = editor.selectionEnd;
-    const seleccion = editor.value.slice(start, end);
-    const nuevoTexto = prefix + seleccion + suffix;
-
-    // execCommand('insertText') preserva undo stack nativo
-    editor.focus();
-    document.execCommand('insertText', false, nuevoTexto);
-
-    // Posicionar cursor según formato SIN romper undo:
-    // - Si había selección: la selecciona (comportamiento nativo de insertText)
-    // - Si no había selección:
-    //   - Inline (bold, italic, code, strikethrough): cursor al final (entre prefix/suffix)
-    //   - Block (headings, quote, listas, hr, codeblock): cursor después del prefix
-    //   - Link/image/math/table: placeholder seleccionado (usuario escribe y reemplaza)
-    if (!seleccion) {
-      const isBlock = fmt === 'heading1' || fmt === 'heading2' || fmt === 'heading3' ||
-                      fmt === 'quote' || fmt === 'ul' || fmt === 'ol' || fmt === 'task' ||
-                      fmt === 'hr' || fmt === 'codeblock';
-      const isInline = fmt === 'bold' || fmt === 'italic' || fmt === 'strikethrough' || fmt === 'code';
-
-      if (isBlock) {
-        // Block: mover cursor DESPUÉS del prefix (ej: después de "# ")
-        // Usamos setRangeText con 'end' SOLO para mover cursor, no para insertar
-        // Esto es una operación separada pero necesaria para UX
-        const newStart = start + prefix.length;
-        editor.setRangeText('', newStart, newStart, 'end');
-      } else if (isInline) {
-        // Inline: cursor ENTRE prefix y suffix (ej: **|**)
-        const newStart = start + prefix.length;
-        const newEnd = start + nuevoTexto.length - suffix.length;
-        editor.setRangeText('', newStart, newEnd, 'select');
-      }
-      // link/image/math/table: deja placeholder seleccionado (comportamiento nativo)
+    if (esBloque) {
+      // `setRangeText('', n, n, 'end')` solo mueve el cursor: no reescribe
+      // el texto, así que no rompe el undo stack que acaba de tocar
+      // `execCommand`.
+      const nuevoInicio = start + prefix.length;
+      editor.setRangeText("", nuevoInicio, nuevoInicio, "end");
+    } else if (esEnLinea) {
+      const nuevoInicio = start + prefix.length;
+      const nuevoFin = start + nuevoTexto.length - suffix.length;
+      editor.setRangeText("", nuevoInicio, nuevoFin, "select");
     }
+    // Enlace, imagen y tabla: se deja el placeholder seleccionado.
+  }
 
-    // Actualizar UI en microtask: sin evento sintético = undo preservado
-    Promise.resolve().then(() => {
-      refrescarGuardado();
-      programarPreview();
-    });
+  // Refresco en microtask y sin evento sintético: conserva el undo.
+  Promise.resolve().then(() => {
+    refrescarGuardado();
+    programarPreview();
   });
 }
+
+/**
+ * Muestra u oculta la barra según el editor, y la hace operativa.
+ *
+ * El estado es el `disabled` del textarea: un `MutationObserver` sobre ese
+ * atributo evita tener que enganchar cada operación que habilita el editor.
+ *
+ * La barra lleva `role="toolbar"`, y ese rol exige **un solo tab stop**
+ * (WAI-ARIA APG, patrón «Toolbar»): `Tab` entra y sale de la barra de una
+ * vez, y dentro se navega con las flechas. Con 16 botones tabulables, el
+ * usuario perdería 16 `Tab` entre el editor y la vista previa.
+ */
+function inicializarToolbar() {
+  const toolbar = document.querySelector(".editor-toolbar");
+  if (!toolbar) return;
+
+  const observador = new MutationObserver(() => {
+    toolbar.hidden = editor.disabled;
+  });
+  observador.observe(editor, { attributes: true, attributeFilter: ["disabled"] });
+  toolbar.hidden = editor.disabled;
+
+  toolbar.addEventListener("click", (evento) => {
+    const boton = evento.target.closest(".tool-btn[data-md]");
+    if (boton) aplicarFormato(boton.dataset.md);
+  });
+
+  habilitarRovingToolbar(toolbar);
+}
+
+/**
+ * Da al toolbar su navegación por roving tabindex.
+ *
+ * Un único botón queda en `tabindex="0"` (el que recibe el `Tab`) y el
+ * resto en `-1`; las flechas mueven el foco y consigo actualizan quién es
+ * el tabbable, que es lo que define el patrón.
+ *
+ * @param {HTMLElement} toolbar - El `<div role="toolbar">` del editor.
+ */
+function habilitarRovingToolbar(toolbar) {
+  /** @returns {HTMLElement[]} Botones en orden visual. */
+  const botones = () => [...toolbar.querySelectorAll(".tool-btn")];
+
+  /**
+   * Marca `indice` como el único tabbable y, si se pidió, le da el foco.
+   * @param {number} indice - Posición del botón destino.
+   * @param {boolean} enfocar - Si debe recibir el foco.
+   */
+  function activar(indice, enfocar) {
+    const lista = botones();
+    if (!lista.length) return;
+    // Índice envolvente: las flechas dan la vuelta a la barra.
+    const destino = ((indice % lista.length) + lista.length) % lista.length;
+    lista.forEach((boton, i) => {
+      boton.tabIndex = i === destino ? 0 : -1;
+    });
+    if (enfocar) lista[destino].focus();
+  }
+
+  // Estado inicial: primero tabbable. Se recalcula al abrir la barra
+  // (este listener corre después del del click), así que nunca apunta a un
+  // botón oculto.
+  activar(0, false);
+
+  toolbar.addEventListener("keydown", (evento) => {
+    const actual = botones().indexOf(evento.target);
+    if (actual === -1) return;
+
+    switch (evento.key) {
+      case "ArrowRight":
+        activar(actual + 1, true);
+        break;
+      case "ArrowLeft":
+        activar(actual - 1, true);
+        break;
+      case "Home":
+        activar(0, true);
+        break;
+      case "End":
+        activar(botones().length - 1, true);
+        break;
+      default:
+        return; // Otras teclas (Tab, atajos) siguen su curso.
+    }
+    evento.preventDefault();
+  });
+
+  // Tras `Tab` hacia afuera, el que queda tabbable es el primero: así se
+  // vuelve a entrar siempre por el inicio de la barra.
+  toolbar.addEventListener("focusout", (evento) => {
+    if (!toolbar.contains(evento.relatedTarget)) activar(0, false);
+  });
+}
+
+// Atajos de formato que prometen los `title` de la barra. Se limitan al
+// textarea: con el foco fuera no se toca nada (p. ej. Ctrl+K no secuestra
+// el buscador del navegador salvo que se esté escribiendo en la nota).
+const ATAJOS_FORMATO = { b: "bold", i: "italic", k: "link" };
+
+editor.addEventListener("keydown", (evento) => {
+  if (!(evento.ctrlKey || evento.metaKey) || evento.altKey || evento.shiftKey) return;
+  const formato = ATAJOS_FORMATO[evento.key.toLowerCase()];
+  if (!formato) return;
+  evento.preventDefault();
+  aplicarFormato(formato);
+});
 
 // ---------------------------------------------------------- Bienvenida
 // Nota de entrada del producto: se crea solo si falta y es la que se
@@ -3330,6 +3435,9 @@ const CONTENIDO_BIENVENIDA = `# ¡Hola! Bienvenido/a a PurpleMD 💜
  | Atajo | Qué hace |
 | --- | --- |
 | \`Ctrl\`/\`Cmd\` + \`S\` | Guarda lo que escribiste |
+| \`Ctrl\`/\`Cmd\` + \`B\` | Negrita |
+| \`Ctrl\`/\`Cmd\` + \`I\` | Cursiva |
+| \`Ctrl\`/\`Cmd\` + \`K\` | Convierte lo seleccionado en enlace |
 | \`Tab\` | Inserta dos espacios |
 | \`Escape\` | Cierra lo que esté abierto |
 
