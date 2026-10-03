@@ -22,7 +22,7 @@ dependencies = [
 # Grupo de desarrollo (estándar de uv): `uv sync` lo instala por defecto.
 # fastapi.testclient.TestClient lo necesita para transporte HTTP.
 # pytest es el runner estándar de la industria para Python: habilita
-# `uv run pytest` sobre la suite unittest existente (254 tests) sin
+# `uv run pytest` sobre la suite unittest existente (306 tests) sin
 # reescribirla. Piso 8.4.2: último patch de la serie 8.x.
 [dependency-groups]
 dev = [

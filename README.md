@@ -41,8 +41,8 @@ dependencias en el cliente y sin autoguardado.
   tiempo real · sincronización entre dispositivos · plugins · búsqueda
   de texto · autoguardado · mover contenido entre proyectos · deshacer
   de borrados · adjuntos (solo texto markdown).
-- Tampoco hay servidor MCP, templates ni export a HTML: no hay código ni
-  tests para eso y no forma parte del valor del proyecto.
+- Tampoco hay servidor MCP ni export a HTML: no hay código ni tests para
+  eso y no forma parte del valor del proyecto.
 
 ## Arranque rápido
 
