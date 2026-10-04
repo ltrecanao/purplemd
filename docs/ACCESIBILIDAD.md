@@ -106,20 +106,37 @@ en el frontend.
 | `Ctrl`/`Cmd` + `B` | Negrita en la selección del editor |
 | `Ctrl`/`Cmd` + `I` | Cursiva en la selección del editor |
 | `Ctrl`/`Cmd` + `K` | Convierte la selección del editor en enlace |
+| `Ctrl`/`Cmd` + `Z` | Deshacer en el editor (undo nativo del navegador) |
+| `Ctrl`/`Cmd` + `Y`, `Ctrl`/`Cmd` + `Shift` + `Z` | Rehacer en el editor |
+| `Ctrl`/`Cmd` + `F` | Abre la barra de buscar con el foco en el editor |
+| `Ctrl`/`Cmd` + `H` | Abre la barra con la fila de reemplazar |
+| `Enter` / `Shift` + `Enter` (barra de búsqueda) | Coincidencia siguiente / anterior |
+| `Escape` (barra de búsqueda) | Cierra la barra y devuelve el foco al editor |
 | `Tab` (editor) | Escribe dos espacios |
 | `Shift` + `Tab` (editor) | Sale del `textarea` |
-| `←`/`→`, `Inicio`/`Fin` (barra) | Mueve el foco entre los botones de formato |
+| `←`/`→`, `Inicio`/`Fin` (toolbar) | Mueve el foco entre los botones habilitados |
 
 Los tres atajos de formato comparten mapa con los botones de la barra
 (`FORMATOS` en `static/js/app.js`), así que no pueden divergir: lo que
-promete el `title` de un botón es lo que ejecuta su tecla. Solo actúan
-con el foco dentro del `textarea`, así que `Ctrl+K` no secuestra el
-buscador del navegador salvo que se esté escribiendo en la nota.
+promete el `title` de un botón es lo que ejecuta su tecla. Lo mismo hace
+`data-herr` para los cuatro botones nuevos (deshacer, rehacer, buscar,
+reemplazar): sus atajos entran por la misma función que su clic. Solo
+actúan con el foco dentro del `textarea`, así que `Ctrl+K` no secuestra
+el buscador del navegador salvo que se esté escribiendo en la nota. El
+`Ctrl+Z` de deshacer no se intercepta: manda el undo nativo y su evento
+`input` refresca los botones.
 
 La barra lleva `role="toolbar"`, y ese rol exige **un solo tab stop**
 (WAI-ARIA APG, patrón «Toolbar»): `Tab` entra y sale de la barra de una
-vez, y dentro se navega con las flechas. Con 16 botones tabulables, el
-`Tab` habría costado 16 paradas entre el editor y la vista previa.
+vez, y dentro se navega con las flechas. Con 20 botones tabulables, el
+`Tab` habría costado 20 paradas entre el editor y la vista previa. Los
+botones `disabled` (deshacer y rehacer sin historial) quedan fuera del
+tab stop: un control apagado no recibe foco, y si el que era tabbable
+quedara apagado, `Tab` ya no entraría a la barra.
+
+La barra de búsqueda, en cambio, no lleva `role="toolbar"`: es una
+región `role="search"` con su contador en `aria-live="polite"` («3 de
+12»), y sus botones se tabulan solos.
 
 Los atajos y el resto de la navegación se explican también en la nota de
 bienvenida, que la app crea al arrancar.

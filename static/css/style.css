@@ -810,7 +810,7 @@ a.menu-acciones-item {
   border: 1px solid transparent;
   border-radius: var(--radio);
   background: none;
-  color: var(--texto-tenue);
+  color: var(--texto);
   font: inherit;
   font-size: 0.9rem;
   line-height: 1.5;
@@ -821,6 +821,19 @@ a.menu-acciones-item {
   border-color: var(--borde);
   background: var(--acento-suave);
   color: var(--texto);
+}
+
+/* Apagado (sin coincidencias): se distingue del habilitado a simple
+   vista, no solo por el hover. */
+.btn-mini[disabled] {
+  color: var(--texto-tenue);
+  cursor: default;
+}
+
+.btn-mini[disabled]:hover {
+  border-color: transparent;
+  background: none;
+  color: var(--texto-tenue);
 }
 
 /* Panel de la acción: sigue colgado de la fila que lo abrió, pero va
@@ -989,6 +1002,68 @@ a.menu-acciones-item {
 .tool-btn:focus-visible {
   outline: 2px solid var(--acento);
   outline-offset: 1px;
+}
+
+.tool-btn[disabled] {
+  color: var(--texto-tenue);
+  cursor: default;
+}
+
+.tool-btn[disabled]:hover {
+  background: transparent;
+  color: var(--texto-tenue);
+}
+
+/* --- Barra de buscar y reemplazar --- */
+
+.buscar-barra {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--borde);
+}
+
+.buscar-fila {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.buscar-campo {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.buscar-campo:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+.buscar-contador {
+  min-width: 6ch;
+  color: var(--texto-tenue);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.buscar-opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--texto);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 @media (max-width: 48rem) {

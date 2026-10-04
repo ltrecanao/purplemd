@@ -193,6 +193,11 @@
         <!-- Toolbar Markdown estilo Office -->
         <div class="editor-toolbar" role="toolbar" aria-label="Formato Markdown" hidden>
           <div class="toolbar-group">
+            <button type="button" class="tool-btn" data-herr="deshacer" title="Deshacer - Ctrl+Z" aria-label="Deshacer" disabled>&#8630;</button>
+            <button type="button" class="tool-btn" data-herr="rehacer" title="Rehacer - Ctrl+Shift+Z" aria-label="Rehacer" disabled>&#8631;</button>
+          </div>
+          <div class="toolbar-divider" aria-hidden="true"></div>
+          <div class="toolbar-group">
             <button type="button" class="tool-btn" data-md="heading1" title="Encabezado 1 (#)" aria-label="Encabezado 1">H1</button>
             <button type="button" class="tool-btn" data-md="heading2" title="Encabezado 2 (##)" aria-label="Encabezado 2">H2</button>
             <button type="button" class="tool-btn" data-md="heading3" title="Encabezado 3 (###)" aria-label="Encabezado 3">H3</button>
@@ -221,6 +226,39 @@
           <div class="toolbar-divider" aria-hidden="true"></div>
           <div class="toolbar-group">
             <button type="button" class="tool-btn" data-md="codeblock" title="Bloque de código (```)" aria-label="Bloque de código">{ }</button>
+          </div>
+          <div class="toolbar-divider" aria-hidden="true"></div>
+          <div class="toolbar-group">
+            <button type="button" class="tool-btn" data-herr="buscar" title="Buscar - Ctrl+F" aria-label="Buscar">&#128269;</button>
+            <button type="button" class="tool-btn" data-herr="reemplazar" title="Reemplazar - Ctrl+H" aria-label="Reemplazar">&#128270;</button>
+          </div>
+        </div>
+        <!-- Barra de buscar y reemplazar: se abre con el botón de la
+             toolbar o con Ctrl+F / Ctrl+H y vive justo debajo de la barra
+             de formato, siempre dentro del panel del editor para que se
+             oculte con él. `role="search"` la identifica como región de
+             búsqueda y el contador es `aria-live` para que un lector de
+             pantalla anuncie «3 de 12» al navegar. -->
+        <div class="buscar-barra" role="search" aria-label="Buscar y reemplazar" hidden>
+          <div class="buscar-fila">
+            <label class="solo-lectores" for="buscar-texto">Texto a buscar</label>
+            <input type="search" id="buscar-texto" class="buscar-campo" placeholder="Buscar…" autocomplete="off" spellcheck="false">
+            <span id="buscar-contador" class="buscar-contador" role="status" aria-live="polite"></span>
+            <button type="button" class="tool-btn" data-herr="anterior" title="Coincidencia anterior (Shift+Enter)" aria-label="Coincidencia anterior">&#8593;</button>
+            <button type="button" class="tool-btn" data-herr="siguiente" title="Coincidencia siguiente (Enter)" aria-label="Coincidencia siguiente">&#8595;</button>
+            <label class="buscar-opcion" title="No distingue entre mayúsculas y minúsculas">
+              <input type="checkbox" id="buscar-mayusculas"> Mayúsculas
+            </label>
+            <label class="buscar-opcion" title="Coincide solo con palabras enteras">
+              <input type="checkbox" id="buscar-palabra"> Palabra completa
+            </label>
+            <button type="button" class="tool-btn" data-herr="cerrar-buscar" title="Cerrar la búsqueda (Escape)" aria-label="Cerrar la búsqueda">&#10005;</button>
+          </div>
+          <div class="buscar-fila" data-fila="reemplazo" hidden>
+            <label class="solo-lectores" for="reemplazar-texto">Reemplazar por</label>
+            <input type="search" id="reemplazar-texto" class="buscar-campo" placeholder="Reemplazar por…" autocomplete="off" spellcheck="false">
+            <button type="button" class="btn btn-mini" data-herr="reemplazar-uno" disabled>Reemplazar</button>
+            <button type="button" class="btn btn-mini" data-herr="reemplazar-todos" disabled>Reemplazar todos</button>
           </div>
         </div>
         <label class="solo-lectores" for="editor">Contenido de la nota en markdown</label>

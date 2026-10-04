@@ -184,6 +184,22 @@ const menuAccionesTrigger = document.querySelector(".menu-acciones-trigger");
 const menuAccionesPanel = document.querySelector(".menu-acciones-panel");
 const importarProyectoBtn = document.getElementById("importar-proyecto");
 const importarProyectoArchivo = document.getElementById("importar-proyecto-archivo");
+// Botones de historial de la toolbar: se apagan sin nota o sin historial
+// (ver `refrescarUndoRedo`).
+const botonDeshacer = document.querySelector('.editor-toolbar [data-herr="deshacer"]');
+const botonRehacer = document.querySelector('.editor-toolbar [data-herr="rehacer"]');
+// Barra de buscar y reemplazar, hermana de la toolbar dentro del panel.
+const buscarBarra = document.querySelector(".buscar-barra");
+const buscarTexto = document.getElementById("buscar-texto");
+const buscarContador = document.getElementById("buscar-contador");
+const buscarMayusculas = document.getElementById("buscar-mayusculas");
+const buscarPalabra = document.getElementById("buscar-palabra");
+const buscarFilaReemplazo = buscarBarra.querySelector('[data-fila="reemplazo"]');
+const reemplazarTexto = document.getElementById("reemplazar-texto");
+const botonAnterior = buscarBarra.querySelector('[data-herr="anterior"]');
+const botonSiguiente = buscarBarra.querySelector('[data-herr="siguiente"]');
+const botonReemplazar = buscarBarra.querySelector('[data-herr="reemplazar-uno"]');
+const botonReemplazarTodos = buscarBarra.querySelector('[data-herr="reemplazar-todos"]');
 
 // ---------------------------------------------------------------- Estado
 
@@ -412,6 +428,11 @@ function refrescarHabilitacion() {
   const exportarApagado = !conNota && !conProyecto;
   menuAccionesTrigger.disabled = exportarApagado;
   if (exportarApagado) cerrarMenuAcciones();
+  // Sin nota no hay historial ni texto que buscar: se apagan los dos
+  // botones de historial y se cierra la barra (sin devolver el foco,
+  // porque el textarea está `disabled`).
+  refrescarUndoRedo();
+  if (!conNota) cerrarBuscar(false);
   notaForm.hidden = !conProyecto;
   // Mismo sitio donde se habilita `#nota-ruta`: la fila de importación
   // depende del proyecto activo, que es lo que cambia acá.
@@ -1997,6 +2018,10 @@ async function abrirNota(ruta) {
     );
     estado.nota = nota;
     editor.value = nota.content;
+    // Cargar la nota vacía el undo stack nativo (asignación programática
+    // en Firefox) y cualquier búsqueda de la otra nota ya no aplica.
+    apagarUndoRedo();
+    cerrarBuscar(false);
     // Resetear scroll al inicio al abrir nueva nota
     editor.scrollTop = 0;
     if (previewVisible()) preview.scrollTop = 0;
@@ -2454,7 +2479,21 @@ function cacheGuardar(texto, html) {
 editor.addEventListener("input", () => {
   refrescarGuardado();
   programarPreview();
+  // `execCommand` (formatos, deshacer/rehacer, reemplazar) dispara
+  // `input`, así que con esta misma entrada se refresca el historial.
+  refrescarUndoRedo();
+  // El texto cambió: si la barra está abierta se recalculan las
+  // coincidencias sin tocar la selección del editor (el foco está acá
+  // y moverlo saltaría el cursor a la coincidencia).
+  if (!buscarBarra.hidden) {
+    buscarCoincidencias = calcularCoincidencias();
+    refrescarBuscador();
+  }
 });
+
+// `queryCommandEnabled` solo dice la verdad con el textarea enfocado:
+// recién ahí se vuelven a consultar los botones de historial.
+editor.addEventListener("focus", refrescarUndoRedo);
 
 // Tab escribe dos espacios adentro del textarea en vez de mover el foco;
 // para salir del editor se usa Shift+Tab, así la navegación con teclado
@@ -3298,8 +3337,11 @@ function aplicarFormato(fmt) {
  *
  * La barra lleva `role="toolbar"`, y ese rol exige **un solo tab stop**
  * (WAI-ARIA APG, patrón «Toolbar»): `Tab` entra y sale de la barra de una
- * vez, y dentro se navega con las flechas. Con 16 botones tabulables, el
- * usuario perdería 16 `Tab` entre el editor y la vista previa.
+ * vez, y dentro se navega con las flechas. Con 20 botones tabulables, el
+ * usuario perdería 20 `Tab` entre el editor y la vista previa. Los botones
+ * `disabled` (deshacer/rehacer) quedan fuera del tab stop: un control
+ * apagado no recibe foco, y si el tabbable quedara apagado `Tab` ya no
+ * entraría a la barra (ver `habilitarRovingToolbar`).
  */
 function inicializarToolbar() {
   const toolbar = document.querySelector(".editor-toolbar");
@@ -3311,9 +3353,13 @@ function inicializarToolbar() {
   observador.observe(editor, { attributes: true, attributeFilter: ["disabled"] });
   toolbar.hidden = editor.disabled;
 
+  // Un solo manejador para las dos familias: `data-md` (formatos) y
+  // `data-herr` (deshacer/rehacer, buscar/reemplazar).
   toolbar.addEventListener("click", (evento) => {
-    const boton = evento.target.closest(".tool-btn[data-md]");
-    if (boton) aplicarFormato(boton.dataset.md);
+    const boton = evento.target.closest(".tool-btn");
+    if (!boton || !toolbar.contains(boton)) return;
+    if (boton.dataset.md) aplicarFormato(boton.dataset.md);
+    else manejarHerramienta(boton.dataset.herr);
   });
 
   habilitarRovingToolbar(toolbar);
@@ -3324,17 +3370,20 @@ function inicializarToolbar() {
  *
  * Un único botón queda en `tabindex="0"` (el que recibe el `Tab`) y el
  * resto en `-1`; las flechas mueven el foco y consigo actualizan quién es
- * el tabbable, que es lo que define el patrón.
+ * el tabbable, que es lo que define el patrón. Solo se consideran los
+ * habilitados: `disabled` no puede recibir foco y las flechas no tendrían
+ * por qué pararse ahí.
  *
  * @param {HTMLElement} toolbar - El `<div role="toolbar">` del editor.
  */
 function habilitarRovingToolbar(toolbar) {
-  /** @returns {HTMLElement[]} Botones en orden visual. */
-  const botones = () => [...toolbar.querySelectorAll(".tool-btn")];
+  /** @returns {HTMLElement[]} Botones que pueden recibir foco, en orden visual. */
+  const botones = () => [...toolbar.querySelectorAll(".tool-btn:not([disabled])")];
 
   /**
    * Marca `indice` como el único tabbable y, si se pidió, le da el foco.
-   * @param {number} indice - Posición del botón destino.
+   * Los apagados quedan en `-1` (ya no eran candidatos).
+   * @param {number} indice - Posición del botón destino entre los habilitados.
    * @param {boolean} enfocar - Si debe recibir el foco.
    */
   function activar(indice, enfocar) {
@@ -3342,16 +3391,29 @@ function habilitarRovingToolbar(toolbar) {
     if (!lista.length) return;
     // Índice envolvente: las flechas dan la vuelta a la barra.
     const destino = ((indice % lista.length) + lista.length) % lista.length;
-    lista.forEach((boton, i) => {
-      boton.tabIndex = i === destino ? 0 : -1;
-    });
-    if (enfocar) lista[destino].focus();
+    const objetivo = lista[destino];
+    for (const boton of toolbar.querySelectorAll(".tool-btn")) {
+      boton.tabIndex = boton === objetivo ? 0 : -1;
+    }
+    if (enfocar) objetivo.focus();
   }
 
   // Estado inicial: primero tabbable. Se recalcula al abrir la barra
   // (este listener corre después del del click), así que nunca apunta a un
   // botón oculto.
   activar(0, false);
+
+  // Deshacer/rehacer se apagan con el foco fuera del editor; si el que era
+  // tabbable quedó apagado, `Tab` ya no entraría a la barra: se recalcula.
+  const observadorEstado = new MutationObserver(() => {
+    const tabbable = toolbar.querySelector('.tool-btn[tabindex="0"]');
+    if (tabbable && tabbable.disabled) activar(0, false);
+  });
+  observadorEstado.observe(toolbar, {
+    attributes: true,
+    attributeFilter: ["disabled"],
+    subtree: true,
+  });
 
   toolbar.addEventListener("keydown", (evento) => {
     const actual = botones().indexOf(evento.target);
@@ -3383,18 +3445,385 @@ function habilitarRovingToolbar(toolbar) {
   });
 }
 
-// Atajos de formato que prometen los `title` de la barra. Se limitan al
-// textarea: con el foco fuera no se toca nada (p. ej. Ctrl+K no secuestra
-// el buscador del navegador salvo que se esté escribiendo en la nota).
+// Atajos de formato y de la barra de búsqueda que prometen los `title` de
+// la toolbar. Se limitan al textarea: con el foco fuera no se toca nada
+// (p. ej. Ctrl+F no secuestra el buscador del navegador salvo que se
+// esté escribiendo en la nota). Ctrl+Z no se intercepta: el deshacer
+// nativo ya funciona y su evento `input` refresca el estado de los
+// botones.
 const ATAJOS_FORMATO = { b: "bold", i: "italic", k: "link" };
 
 editor.addEventListener("keydown", (evento) => {
-  if (!(evento.ctrlKey || evento.metaKey) || evento.altKey || evento.shiftKey) return;
-  const formato = ATAJOS_FORMATO[evento.key.toLowerCase()];
+  if (!(evento.ctrlKey || evento.metaKey) || evento.altKey) return;
+  const tecla = evento.key.toLowerCase();
+  if (evento.shiftKey) {
+    // Ctrl+Shift+Z = rehacer (Ctrl+Z queda nativo).
+    if (tecla !== "z") return;
+    evento.preventDefault();
+    ejecutarUndoRedo("redo");
+    return;
+  }
+  if (tecla === "y") {
+    evento.preventDefault();
+    ejecutarUndoRedo("redo");
+    return;
+  }
+  if (tecla === "f" || tecla === "h") {
+    evento.preventDefault();
+    abrirBuscar(tecla === "h");
+    return;
+  }
+  const formato = ATAJOS_FORMATO[tecla];
   if (!formato) return;
   evento.preventDefault();
   aplicarFormato(formato);
 });
+
+// ------------------------------------------ Deshacer, rehacer y buscar
+// Los botones nuevos de la toolbar (`data-herr`) y la barra `.buscar-barra`
+// que vive justo debajo, dentro del panel del editor: se ocultan con él y
+// se cierran al cambiar de nota.
+
+/**
+ * Apaga los dos botones de historial: no hay nada que deshacer.
+ * Se usa al cargar una nota, porque la asignación programática de
+ * `editor.value` vacía el stack nativo (verificado en Firefox), y cada
+ * vez que se cierra.
+ */
+function apagarUndoRedo() {
+  botonDeshacer.disabled = true;
+  botonRehacer.disabled = true;
+}
+
+/**
+ * `queryCommandEnabled` con respaldo: sin soporte se deja habilitado (la
+ * nota abierta es el único requisito) y el click cae en un `execCommand`
+ * que, en el peor caso, no hace nada.
+ * @param {string} comando - `undo` o `redo`.
+ * @returns {boolean} Si el comando se puede ejecutar.
+ */
+function comandoDisponible(comando) {
+  try {
+    return document.queryCommandEnabled(comando);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Sincroniza deshacer/rehacer con el undo stack nativo.
+ *
+ * `queryCommandEnabled` solo dice la verdad con el textarea enfocado:
+ * Firefox devuelve `false` en cualquier otro caso aunque haya historial
+ * (verificado), así que sin foco se conserva el estado anterior y solo se
+ * apaga todo cuando no hay nota.
+ */
+function refrescarUndoRedo() {
+  if (editor.disabled) {
+    apagarUndoRedo();
+    return;
+  }
+  if (document.activeElement !== editor) return;
+  botonDeshacer.disabled = !comandoDisponible("undo");
+  botonRehacer.disabled = !comandoDisponible("redo");
+}
+
+/**
+ * Ejecuta deshacer o rehacer sobre el undo stack nativo.
+ *
+ * `execCommand` actúa sobre el elemento enfocado, así que primero va el
+ * foco al textarea (verificado: con el foco en el botón no hace nada).
+ * El navegador dispara `input` con `historyUndo`/`historyRedo`, que ya
+ * refresca guardado, preview y este estado; el microtask es el mismo
+ * respaldo que usa `aplicarFormato`.
+ * @param {"undo"|"redo"} comando - Acción a ejecutar.
+ */
+function ejecutarUndoRedo(comando) {
+  if (editor.disabled) return;
+  editor.focus();
+  document.execCommand(comando);
+  Promise.resolve().then(() => {
+    refrescarGuardado();
+    programarPreview();
+    refrescarUndoRedo();
+  });
+}
+
+// -------------------------------------------------- Buscar y reemplazar
+
+/** Coincidencias de la última búsqueda: pares `[inicio, fin]` en el texto. */
+let buscarCoincidencias = [];
+/** Índice de la coincidencia seleccionada dentro de `buscarCoincidencias`. */
+let buscarIndice = -1;
+/** La composición de acentos/IME no debe robarle el foco al textarea. */
+let buscandoComposicion = false;
+
+/**
+ * Pinta el contador («3 de 12») y apaga los botones cuando no hay
+ * coincidencias o no hay consulta.
+ */
+function refrescarBuscador() {
+  const total = buscarCoincidencias.length;
+  buscarIndice = total === 0 ? -1 : Math.min(Math.max(buscarIndice, 0), total - 1);
+  if (!buscarTexto.value) buscarContador.textContent = "";
+  else if (!total) buscarContador.textContent = "Sin coincidencias";
+  else buscarContador.textContent = `${buscarIndice + 1} de ${total}`;
+  const hay = total > 0;
+  botonAnterior.disabled = !hay;
+  botonSiguiente.disabled = !hay;
+  botonReemplazar.disabled = !hay;
+  botonReemplazarTodos.disabled = !hay;
+}
+
+/** Borde de palabra Unicode: letras, números y guion bajo cuentan. */
+const CARACTER_PALABRA = /[\p{L}\p{N}_]/u;
+
+/**
+ * ¿La coincidencia `[inicio, fin)` es una palabra entera?
+ * @param {string} texto - Texto ya normalizado (igual que la consulta).
+ * @param {number} inicio - Inicio de la coincidencia.
+ * @param {number} fin - Fin de la coincidencia.
+ * @returns {boolean} Si ningún borde es letra, número o guion bajo.
+ */
+function esBordePalabra(texto, inicio, fin) {
+  const palabraAntes = inicio > 0 && CARACTER_PALABRA.test(texto[inicio - 1]);
+  const palabraDespues = fin < texto.length && CARACTER_PALABRA.test(texto[fin]);
+  return !palabraAntes && !palabraDespues;
+}
+
+/**
+ * Calcula las coincidencias de la consulta sobre el texto actual, sin
+ * solapes (como el buscador del navegador): si «palabra completa»
+ * rechaza una, se avanza un carácter para no perder la siguiente.
+ * @returns {Array<[number, number]>} Pares `[inicio, fin]`.
+ */
+function calcularCoincidencias() {
+  const consulta = buscarTexto.value;
+  const texto = editor.value;
+  if (!consulta) return [];
+  const sensible = buscarMayusculas.checked;
+  const base = sensible ? texto : texto.toLowerCase();
+  const aguja = sensible ? consulta : consulta.toLowerCase();
+  const encontradas = [];
+  let desde = 0;
+  for (;;) {
+    const inicio = base.indexOf(aguja, desde);
+    if (inicio === -1) break;
+    const fin = inicio + aguja.length;
+    if (!buscarPalabra.checked || esBordePalabra(base, inicio, fin)) {
+      encontradas.push([inicio, fin]);
+      desde = fin;
+    } else {
+      desde = inicio + 1;
+    }
+  }
+  return encontradas;
+}
+
+/**
+ * Marca una coincidencia en el textarea y pinta el estado de la barra.
+ *
+ * Desplazar el textarea exige que tenga foco (verificado: Firefox no hace
+ * scroll con `setSelectionRange` sin foco), así que se enfoca, se
+ * selecciona y se devuelve el foco a donde estaba; la selección del campo
+ * de búsqueda se restaura entera (el cursor al tipear, la consulta
+ * completa al reabrirla), así que se sigue escribiendo donde estaba.
+ * @param {number} indice - Índice en `buscarCoincidencias`; -1 para ninguno.
+ */
+function seleccionarCoincidencia(indice) {
+  buscarIndice = indice;
+  if (indice >= 0 && !editor.disabled) {
+    const [inicio, fin] = buscarCoincidencias[indice];
+    const focoPrevio = document.activeElement;
+    const seleccion =
+      focoPrevio && typeof focoPrevio.selectionStart === "number"
+        ? [focoPrevio.selectionStart, focoPrevio.selectionEnd]
+        : null;
+    editor.focus();
+    editor.setSelectionRange(inicio, fin);
+    if (focoPrevio && focoPrevio !== editor) {
+      focoPrevio.focus();
+      if (seleccion && typeof focoPrevio.setSelectionRange === "function") {
+        focoPrevio.setSelectionRange(seleccion[0], seleccion[1]);
+      }
+    }
+  }
+  refrescarBuscador();
+}
+
+/**
+ * Recalcula las coincidencias y marca la primera desde `desde`.
+ * @param {number} [desde] - Inicio mínimo de la coincidencia a marcar; si
+ *   no llega ninguna, envuelve a la primera.
+ */
+function buscar(desde) {
+  buscarCoincidencias = calcularCoincidencias();
+  let indice = -1;
+  if (buscarCoincidencias.length) {
+    const limite = desde === undefined ? -1 : desde;
+    indice = buscarCoincidencias.findIndex(([inicio]) => inicio >= limite);
+    if (indice === -1) indice = 0;
+  }
+  seleccionarCoincidencia(indice);
+}
+
+/**
+ * Avanza o retrocede una coincidencia con envoltura.
+ * @param {number} paso - 1 para la siguiente, -1 para la anterior.
+ */
+function navegarCoincidencia(paso) {
+  if (!buscarCoincidencias.length) return;
+  let indice = buscarIndice + paso;
+  if (indice < 0) indice = buscarCoincidencias.length - 1;
+  if (indice >= buscarCoincidencias.length) indice = 0;
+  seleccionarCoincidencia(indice);
+}
+
+/**
+ * Devuelve el foco a donde estaba antes de una operación que necesita el
+ * textarea enfocado; si ese control quedó apagado, no se toca.
+ * @param {Element} elemento - Control enfocado antes.
+ */
+function devolverFoco(elemento) {
+  if (elemento && !elemento.disabled && document.contains(elemento)) elemento.focus();
+}
+
+/**
+ * Reemplaza la coincidencia activa y queda en la que siga al reemplazo.
+ * Un solo `insertText` sobre la selección: un paso de undo para deshacer.
+ */
+function reemplazarActual() {
+  if (buscarIndice < 0 || editor.disabled) return;
+  const focoPrevio = document.activeElement;
+  const [inicio, fin] = buscarCoincidencias[buscarIndice];
+  const por = reemplazarTexto.value;
+  editor.focus();
+  editor.setSelectionRange(inicio, fin);
+  document.execCommand("insertText", false, por);
+  buscar(inicio + por.length);
+  devolverFoco(focoPrevio);
+}
+
+/**
+ * Reemplaza todas las coincidencias de una: se arma el texto completo y
+ * entra con un único `insertText`, así queda un solo paso de undo.
+ */
+function reemplazarTodas() {
+  if (!buscarCoincidencias.length || editor.disabled) return;
+  const focoPrevio = document.activeElement;
+  const por = reemplazarTexto.value;
+  const texto = editor.value;
+  let nuevo = "";
+  let ultimo = 0;
+  for (const [inicio, fin] of buscarCoincidencias) {
+    nuevo += texto.slice(ultimo, inicio) + por;
+    ultimo = fin;
+  }
+  nuevo += texto.slice(ultimo);
+  editor.focus();
+  editor.select();
+  document.execCommand("insertText", false, nuevo);
+  buscar();
+  devolverFoco(focoPrevio);
+}
+
+/**
+ * Abre la barra, opcionalmente con la fila de reemplazo.
+ * @param {boolean} conReemplazo - true con Ctrl+H o el botón «Reemplazar».
+ */
+function abrirBuscar(conReemplazo) {
+  if (editor.disabled) return;
+  buscarBarra.hidden = false;
+  buscarFilaReemplazo.hidden = !conReemplazo;
+  buscarTexto.focus();
+  buscarTexto.select();
+  buscar();
+}
+
+/**
+ * Cierra la barra y, si se pidió, devuelve el foco al editor.
+ * @param {boolean} devolverAlEditor - true con Escape o el botón ✕.
+ */
+function cerrarBuscar(devolverAlEditor) {
+  buscarBarra.hidden = true;
+  buscarFilaReemplazo.hidden = true;
+  if (devolverAlEditor && !editor.disabled) editor.focus();
+}
+
+/**
+ * Reparte `data-herr` para las dos superficies: la toolbar y la barra de
+ * búsqueda, que viven en elementos distintos, cada una con su listener.
+ * @param {string} herr - Valor de `data-herr`.
+ */
+function manejarHerramienta(herr) {
+  switch (herr) {
+    case "deshacer":
+      ejecutarUndoRedo("undo");
+      break;
+    case "rehacer":
+      ejecutarUndoRedo("redo");
+      break;
+    case "buscar":
+      abrirBuscar(false);
+      break;
+    case "reemplazar":
+      abrirBuscar(true);
+      break;
+    case "anterior":
+      navegarCoincidencia(-1);
+      break;
+    case "siguiente":
+      navegarCoincidencia(1);
+      break;
+    case "cerrar-buscar":
+      cerrarBuscar(true);
+      break;
+    case "reemplazar-uno":
+      reemplazarActual();
+      break;
+    case "reemplazar-todos":
+      reemplazarTodas();
+      break;
+    default:
+      return;
+  }
+}
+
+// La barra queda fuera de `role="toolbar"`, así que sus botones se tabulan
+// solos y la delegación es por `data-herr`.
+buscarBarra.addEventListener("click", (evento) => {
+  const boton = evento.target.closest("[data-herr]");
+  if (!boton || !buscarBarra.contains(boton)) return;
+  manejarHerramienta(boton.dataset.herr);
+});
+
+buscarBarra.addEventListener("keydown", (evento) => {
+  if (evento.key === "Escape") {
+    // `preventDefault` evita que el Escape global cierre el explorador
+    // también (ese manejador mira `defaultPrevented`).
+    evento.preventDefault();
+    cerrarBuscar(true);
+    return;
+  }
+  if (evento.key !== "Enter") return;
+  if (evento.target !== buscarTexto && evento.target !== reemplazarTexto) return;
+  evento.preventDefault();
+  navegarCoincidencia(evento.shiftKey ? -1 : 1);
+});
+
+buscarTexto.addEventListener("input", () => {
+  if (buscandoComposicion) return;
+  buscar();
+});
+buscarTexto.addEventListener("compositionstart", () => {
+  buscandoComposicion = true;
+});
+buscarTexto.addEventListener("compositionend", () => {
+  buscandoComposicion = false;
+  buscar();
+});
+buscarMayusculas.addEventListener("change", () => buscar());
+buscarPalabra.addEventListener("change", () => buscar());
 
 // ---------------------------------------------------------- Bienvenida
 // Nota de entrada del producto: se crea solo si falta y es la que se

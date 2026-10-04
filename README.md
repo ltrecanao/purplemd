@@ -38,9 +38,9 @@ dependencias en el cliente y sin autoguardado.
 
 - Grafos ni wikilinks · autenticación (cada navegador ve solo sus
   proyectos, pero la API no tiene usuarios ni tokens) · colaboración en
-  tiempo real · sincronización entre dispositivos · plugins · búsqueda
-  de texto · autoguardado · mover contenido entre proyectos · deshacer
-  de borrados · adjuntos (solo texto markdown).
+  tiempo real · sincronización entre dispositivos · plugins ·
+  autoguardado · mover contenido entre proyectos · deshacer de
+  borrados · adjuntos (solo texto markdown).
 - Tampoco hay servidor MCP ni export a HTML: no hay código ni tests para
   eso y no forma parte del valor del proyecto.
 
@@ -77,6 +77,8 @@ descarte (el formato OCI la ignora). Verificación, permisos y detalle:
 | Acción | Dónde |
 |---|---|
 | Guardar | Botón *Guardar* o `Ctrl`/`Cmd`+`S` |
+| Buscar / reemplazar | Barra de formato o `Ctrl`/`Cmd`+`F` / `Ctrl`/`Cmd`+`H` |
+| Deshacer / rehacer | Barra de formato o `Ctrl`/`Cmd`+`Z` / `Ctrl`/`Cmd`+`Y` |
 | Cambiar de vista | Segmentado de la barra o menú ☰ → *Visualizador* |
 | Descargar .md | Menú ☰ / *Menú ▾* → *Descargar .md* |
 | Exportar PDF o ZIP | Menú ☰ / *Menú ▾* → *Exportar .pdf* / *Exportar .zip* |
