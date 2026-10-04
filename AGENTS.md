@@ -58,9 +58,9 @@ Los tres checks (`pytest`, `ruff`, `ty`) tienen que salir **verdes antes** de cu
 ## Consistencia de versiones (Python)
 
 - El proyecto vive en **Python 3.13** en todos lados. Archivos que deben coincidir:
-  `render.yaml` (`PYTHON_VERSION`), `Dockerfile` (`FROM python:3.13-slim-…`), CI (`PYTHON_VERSION`),
+  `Dockerfile` (`FROM python:3.13-slim-…`), CI (`PYTHON_VERSION`),
   `pyproject.toml` (`requires-python`, `[tool.ruff] target-version`, `[tool.ty] python-version`).
-- Si cambiás la versión, cambiala en los cinco. El CI ya falla solo si hay divergencia.
+- Si cambiás la versión, cambiala en todos ellos. El CI ya falla solo si hay divergencia.
 
 ## Frontend
 

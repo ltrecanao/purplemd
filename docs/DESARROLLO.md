@@ -87,7 +87,7 @@ falla si alguno baja de AA (4.5:1), si el texto principal baja de AAA
 [ACCESIBILIDAD.md](ACCESIBILIDAD.md).
 
 El workflow `.github/workflows/ci.yml` define cinco jobs: consistencia
-de versiones entre `Dockerfile`, `render.yaml` y `pyproject.toml`, lint,
+de versiones entre `Dockerfile` y `pyproject.toml`, lint,
 type check, tests (instala Pango porque la suite exporta PDFs reales) y
 build de imagen (`podman build --format docker` más un smoke test).
 
@@ -163,25 +163,21 @@ Limitación conocida, verificada con Podman rootless:
 - Solución posible, no implementada: levantar el contenedor con
   `--userns=keep-id` o escribir los archivos con modo `0644`.
 
-## Despliegue en Render
+## Despliegue
 
-[`render.yaml`](../render.yaml) configura un servicio (`name: purplemd`)
-con el buildpack de Python (`runtime: python`), no con el `Dockerfile`:
+El repo se despliega **solo con contenedor**: no hay manifiestos de
+plataforma; el `render.yaml` del buildpack de Python se eliminó. El
+flujo es el de la sección [Contenedor](#contenedor): dentro de la
+imagen, `uvicorn` sirve en `${PORT:-8000}` (si el host inyecta `PORT`,
+se usa ese).
 
-```bash
-uv sync --no-dev
-uv run uvicorn api:app --host 0.0.0.0 --port $PORT
-```
+La instancia pública sigue en
+[purplemd.onrender.com](https://purplemd.onrender.com/): `GET /health`
+responde `200` y Swagger (`/docs`) publica las **20 operaciones** de
+las **13 rutas** de OpenAPI (`/openapi.json`).
 
-Con `PYTHON_VERSION=3.13`.
-
-Servicio en vivo: [purplemd.onrender.com](https://purplemd.onrender.com/).
-`GET /health` responde `200` y Swagger (`/docs`) publica las **20
-operaciones** de las **13 rutas** de OpenAPI (`/openapi.json`).
-
-Advertencia: `render.yaml` fija `PURPLEMD_STORAGE=memory`, así que en
-Render no se escribe nada en disco: las notas viven en RAM y se pierden
-en cualquier restart del proceso (deploy, crash, scale to 0). El modo
-`filesystem` (el defecto, escribe en `./local/purplemd`) no está activo
-ahí porque el disco de Render es efímero y no se agregó un volumen
-montado sobre esa ruta porque no se pudo verificar.
+Con `PURPLEMD_STORAGE=memory` —así corre la demo— no se escribe nada en
+disco: las notas viven en RAM y se pierden en cualquier restart del
+proceso (deploy, crash, scale to 0). El modo `filesystem` (el defecto,
+escribe en `./local/purplemd`) necesita un disco persistente; ver
+volúmenes y permisos en [Contenedor](#contenedor).

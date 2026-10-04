@@ -119,7 +119,7 @@ Hay muchas formas de ayudar, no solo con código:
 
 ### Requisitos
 
-- **Python 3.13+** (la versión vive en `pyproject.toml`, `render.yaml` y
+- **Python 3.13+** (la versión vive en `pyproject.toml` y
   `Dockerfile`: tienen que coincidir).
 - **[uv](https://docs.astral.sh/uv/)** como gestor de paquetes.
 - **Podman** o Docker (solo si querés probar la imagen).
@@ -146,7 +146,7 @@ La app queda en <http://127.0.0.1:8000>.
 | --- | --- |
 | `uv sync --dev` | Instala/actualiza dependencias |
 | `uv run uvicorn api:app --reload` | Servidor dev con recarga |
-| `uv run pytest -q` | Corre la suite (254 tests + 155 subtests) |
+| `uv run pytest -q` | Corre la suite (306 tests + 263 subtests) |
 | `uv run pytest tests/test_api.py -k pdf` | Test específico |
 | `uv run ruff check .` | Lint |
 | `uv run ruff check . --fix` | Lint con auto-corrección |
@@ -161,7 +161,7 @@ Son transversales a toda contribución (ver [AGENTS.md](AGENTS.md)):
 1. **Todo en español**: respuestas, documentación, comentarios y textos de UI.
    Inglés solo para identificadores, nombres propios y comandos.
 2. **Consistencia de versiones de Python**: si cambiás la versión, actualizá
-   `render.yaml`, `Dockerfile`, CI (`PYTHON_VERSION`), `pyproject.toml`
+   `Dockerfile`, CI (`PYTHON_VERSION`), `pyproject.toml`
    (`requires-python`) **y** el CI debe seguir pasando.
 3. **Rutas relativas** en HTML/CSS/JS (subpath de GitHub Pages). La URL de la
    API solo en un archivo de config del frontend, nunca hardcodeada.

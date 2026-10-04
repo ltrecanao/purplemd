@@ -18,17 +18,15 @@ jobs:
       - name: Verificar consistencia Python
         run: |
           set -e
-          RENDER_PY=$(grep -A1 'key: PYTHON_VERSION' render.yaml | grep 'value:' | head -1 | sed 's/.*: *"\?\([^"]*\)"\?.*/\1/')
           DOCKER_PY=$(grep '^FROM python:' Dockerfile | head -1 | sed 's/.*python:\([0-9.]*\).*/\1/')
           PYPROJECT_PY=$(grep 'requires-python' pyproject.toml | sed 's/.*>=\([0-9.]*\).*/\1/')
-          echo "render.yaml: $RENDER_PY"
           echo "Dockerfile: $DOCKER_PY"
           echo "pyproject.toml: $PYPROJECT_PY"
-          if [[ "$RENDER_PY" != "$DOCKER_PY" ]] || [[ "$RENDER_PY" != "$PYPROJECT_PY" ]]; then
+          if [[ "$DOCKER_PY" != "$PYPROJECT_PY" ]]; then
             echo "❌ Versiones inconsistentes"
             exit 1
           fi
-          echo "✅ Versiones consistentes: Python $RENDER_PY"
+          echo "✅ Versiones consistentes: Python $DOCKER_PY"
 
   lint:
     name: Lint (ruff)
