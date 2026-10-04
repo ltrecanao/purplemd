@@ -52,9 +52,8 @@ Además de `/api`, el servidor monta dos directorios de solo lectura:
 Las plantillas no viven en el código: el frontend las lee de
 `/plantillas` y las copia al proyecto «Plantillas» en el primer
 arranque (idempotente y no destructiva). Agregar una plantilla es
-dropear el `.md` en `plantillas/{empresas,clientes}/` y sumarlo al
-manifiesto; un test del CI falla si el directorio y el manifiesto
-divergen.
+dropear el `.md` en `plantillas/` y sumarlo al manifiesto; un test
+del CI falla si el directorio y el manifiesto divergen.
 
 ## Borrado de directorios
 

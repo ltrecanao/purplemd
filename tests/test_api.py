@@ -86,8 +86,8 @@ class PlantillasTests(ApiTestCase):
     def test_manifiesto_lista_las_doce_plantillas(self):
         plantillas = self.manifiesto()["plantillas"]
         self.assertEqual(len(plantillas), 12)
-        self.assertEqual(plantillas[0], "empresas/propuesta-comercial")
-        self.assertEqual(plantillas[-1], "clientes/guia-paso-a-paso")
+        self.assertEqual(plantillas[0], "propuesta-comercial")
+        self.assertEqual(plantillas[-1], "guia-paso-a-paso")
 
     def test_cada_plantilla_del_manifiesto_existe_y_se_sirve(self):
         for ruta in self.manifiesto()["plantillas"]:
@@ -100,11 +100,11 @@ class PlantillasTests(ApiTestCase):
     def test_todo_archivo_del_directorio_esta_en_el_manifiesto(self):
         # Si alguien dropea un .md sin sumarlo al manifiesto, nunca se
         # cargaría en la app: el CI tiene que quejarse acá.
-        en_disco = {
-            f"{p.parent.relative_to(self.raiz).as_posix()}/{p.stem}"
-            for p in self.raiz.rglob("*.md")
-        }
-        self.assertEqual(en_disco, set(self.manifiesto()["plantillas"]))
+        archivos = list(self.raiz.rglob("*.md"))
+        # Las plantillas son planas: ningún subdirectorio (clientes/ y
+        # empresas/ se eliminaron).
+        self.assertTrue(all(p.parent == self.raiz for p in archivos))
+        self.assertEqual({p.stem for p in archivos}, set(self.manifiesto()["plantillas"]))
 
     def test_las_plantillas_no_tienen_emojis(self):
         # La marca de agua del PDF y los encabezados usan fuentes libres:
@@ -124,9 +124,9 @@ class PlantillasTests(ApiTestCase):
     def test_los_campos_a_completar_estan_entre_corchetes(self):
         # Formato único de marcador: [NOMBRE DEL CAMPO]. Un placeholder
         # suelto sin corchetes se exportaría al PDF como texto normal.
-        propuesta = (self.raiz / "empresas/presupuesto.md").read_text(encoding="utf-8")
-        simple = (self.raiz / "clientes/presupuesto.md").read_text(encoding="utf-8")
-        self.assertIn("[FECHA]", propuesta)
+        formal = (self.raiz / "presupuesto-formal.md").read_text(encoding="utf-8")
+        simple = (self.raiz / "presupuesto-servicio.md").read_text(encoding="utf-8")
+        self.assertIn("[FECHA]", formal)
         self.assertIn("[MONTO", simple)
 
 
