@@ -504,6 +504,14 @@ class NotasEndpointTests(ApiTestCase):
         self.assertIn('content: "Generado con PurpleMD \\2665"', html)
         self.assertNotIn("¶", html)
 
+    def test_pdf_las_tareas_quedan_en_su_renglon(self):
+        """WeasyPrint, sin `display: inline-block`, baja el casillero a un
+        renglón propio y el texto de la tarea queda colgado debajo."""
+        nota = purplemd.Nota(project="p", path="x.md", content="# hola", modified=0.0)
+        html = _html_para_pdf(nota)
+        regla = html.split('input[type="checkbox"] {', 1)[1].split("}", 1)[0]
+        self.assertIn("display: inline-block", regla)
+
 
     def test_los_endpoints_viejos_de_notas_desaparecieron(self):
         for metodo in ("get", "post"):

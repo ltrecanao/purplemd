@@ -917,9 +917,11 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
       border-radius: 3px;
     }}
 
-    /* Casillas de tareas */
+    /* Casillas de tareas: en línea con su texto, no en un renglón solo.
+       WeasyPrint las baja a su propia línea y el texto queda colgando. */
 
     input[type="checkbox"] {{
+      display: inline-block;
       margin-right: 0.35em;
       accent-color: var(--accent);
     }}
