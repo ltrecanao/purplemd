@@ -114,11 +114,12 @@ Compuesto por `static/index.html`, `static/css/style.css` y
   con un toast y su **error** en `#importar-estado`, junto a los botones
   de la fila.
 - Al arrancar se asegura la semilla de bienvenida: si el proyecto
-  **Bienvenida** o la nota `primeros-pasos` faltan, los crea —nunca pisa
-  el contenido ya existente, que el usuario puede editar o vaciar— y esa
-  es la nota que se muestra por defecto. Solo si la semilla no se puede
-  crear se vuelve al comportamiento previo: proyecto más reciente y
-  ninguna nota abierta.
+  **Bienvenida** o sus notas `nota-de-bienvenida` y `tutorial` faltan,
+  los crea —nunca pisa el contenido ya existente, que el usuario puede
+  editar o vaciar— y la primera es la que se muestra por defecto. El
+  tutorial se suma aunque la bienvenida sea vieja. Solo si la semilla
+  no se puede crear se vuelve al comportamiento previo: proyecto más
+  reciente y ninguna nota abierta.
 - Dos formularios de creación, de proyecto y de nota (esta última con
   ruta, p. ej. `diseños/logo`); los errores `404`, `409` y `422` se
   muestran ahí, en español y de forma persistente, junto al formulario
@@ -162,6 +163,9 @@ Compuesto por `static/index.html`, `static/css/style.css` y
   mostrarla de nuevo solo se pide si el texto cambió.
 - Los HTML ya renderizados se cachean por hash del texto, con un tope de
   100 entradas; una respuesta vieja no pisa a una más nueva.
+- Los enlaces relativos de la vista previa abren la nota del proyecto
+  activo (la semilla usa `[Hacé el tutorial](tutorial)`); los que tienen
+  esquema o son anclas quedan para el navegador.
 - Guardado manual (botón «Guardar» o `Ctrl`/`Cmd`+`S`): mientras hay
   cambios sin guardar no deja cambiar de nota. El ítem «Descargar .md»
   arma el archivo en el cliente, sin endpoint de descarga; aparece en las

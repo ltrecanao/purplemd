@@ -138,5 +138,7 @@ La barra de búsqueda, en cambio, no lleva `role="toolbar"`: es una
 región `role="search"` con su contador en `aria-live="polite"` («3 de
 12»), y sus botones se tabulan solos.
 
-Los atajos y el resto de la navegación se explican también en la nota de
-bienvenida, que la app crea al arrancar.
+Los enlaces entre notas de la vista previa se tabulan como cualquier
+enlace y se abren con `Enter`. Los atajos y el resto de la navegación
+se explican en las notas de bienvenida y de tutorial, que la app crea
+al arrancar.

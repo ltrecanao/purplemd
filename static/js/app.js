@@ -2435,6 +2435,25 @@ function aplicarPreview(html, texto) {
   pintarEstado(renderEstado, "", "");
 }
 
+// La vista previa navega entre notas: un enlace relativo (p. ej.
+// `[Hacé el tutorial](tutorial)`) abre esa nota del proyecto activo en
+// el editor; sin este oyente el navegador pediría `/tutorial` y caería
+// en el 404. Los enlaces con esquema (`https://…`, `mailto:`), los
+// anclas y los que apuntan a la raíz del sitio quedan como siempre.
+preview.addEventListener("click", (evento) => {
+  const enlace = evento.target.closest("a");
+  if (!enlace) return;
+  // `getAttribute` y no `.href`: la propiedad ya viene resuelta contra
+  // la raíz del sitio (`http://host/tutorial`), que es indistinguible
+  // de un enlace externo.
+  const href = enlace.getAttribute("href") || "";
+  if (!href || href.startsWith("#") || href.startsWith("/")) return;
+  if (/^[a-z][a-z\d+.-]*:/i.test(href)) return;
+  if (!estado.proyectoActivo) return;
+  evento.preventDefault();
+  abrirNota(href);
+});
+
 /**
  * Hash simple (djb2) del texto: no es criptografía, solo detecta
  * repeticiones para no repetir el mismo request.
@@ -3832,65 +3851,37 @@ buscarPalabra.addEventListener("change", () => buscar());
 
 const PROYECTO_BIENVENIDA = "Bienvenida";
 const NOTA_BIENVENIDA = "nota-de-bienvenida";
+// Ruta sin puntos a propósito: `_normalizar_urls_en_links` (renderer.py)
+// mandaría `[texto](tutorial.md)` a `https://tutorial.md`.
+const NOTA_TUTORIAL = "tutorial";
 
 const CONTENIDO_BIENVENIDA = `# ¡Hola! Bienvenido/a a PurpleMD 💜
 
- Tomate un minuto para leer esta nota: te cuenta lo más importante para empezar. Después, hacela tuya: podés vaciarla o escribir encima.
+Tomate un minuto para leer esta nota: te cuenta lo más importante para empezar. Después, hacela tuya: podés vaciarla o escribir encima.
 
- ## Cómo se usa
+Si querés el recorrido completo —los dos paneles, la barra de herramientas, deshacer y rehacer, buscar y reemplazar—, **[Hacé el tutorial](tutorial)**.
 
- PurpleMD tiene dos paneles:
-
- - En **Desktop**, escribís a la **izquierda** y ves cómo queda a la **derecha**.
-- En **Mobile**, escribís **arriba** y ves la vista previa **abajo**.
-
- La vista previa se actualiza sola apenas dejás de tipear.
-
- Solo tené presente algo importante: **no hay autoguardado**. Para guardar lo que escribiste, apretá **«Guardar»** o usá \`Ctrl\`/\`Cmd\` + \`S\`.
-
- ## Tus primeros pasos
+## Tus primeros pasos
 
  1. En **Desktop**, usá el panel izquierdo. En **Mobile**, abrí el **Explorador** con el botón correspondiente.
 2. En **«Proyecto nuevo»**, escribí un nombre y apretá **«Crear»**. Un proyecto es tu espacio de trabajo: puede ser para trabajo, recetas, ideas o lo que quieras.
 3. Con el proyecto seleccionado, creá tu primera nota desde **«Nota nueva (ruta)»**. Podés organizarla en carpetas, por ejemplo: \`recetas/tortas\`.
 4. Escribí tranquilo: mientras no aprietes **«Guardar»**, los cambios no se guardan.
 
- ## Qué podés escribir
+## Dos cosas que conviene saber
 
- Markdown te permite usar títulos, listas, casillas para tareas, **negrita**, _cursiva_, \`código\`, ~~texto tachado~~, citas y hasta tablas.
+- **No hay autoguardado:** para guardar lo que escribiste, apretá **«Guardar»** o usá \`Ctrl\`/\`Cmd\` + \`S\`.
+- **Cada navegador tiene su propio espacio:** sin cuentas ni registro, tus datos no se mezclan con los de otra persona.
 
- La barra de herramientas que aparece arriba del editor hace la mayor parte del trabajo por vos.
+## Plantillas para arrancar más rápido
 
- | Atajo | Qué hace |
-| --- | --- |
-| \`Ctrl\`/\`Cmd\` + \`S\` | Guarda lo que escribiste |
-| \`Ctrl\`/\`Cmd\` + \`B\` | Negrita |
-| \`Ctrl\`/\`Cmd\` + \`I\` | Cursiva |
-| \`Ctrl\`/\`Cmd\` + \`K\` | Convierte lo seleccionado en enlace |
-| \`Tab\` | Inserta dos espacios |
-| \`Escape\` | Cierra lo que esté abierto |
+En el explorador vas a encontrar el proyecto **«Plantillas»**, con documentos listos para copiar, completar y exportar a PDF: propuesta comercial, presupuesto formal, presupuesto de servicio, contrato de servicios, informe técnico, ficha de cliente, orden de trabajo, CV, carta de presentación, apuntes de estudio, detalle de cobro y guía paso a paso.
 
-> Un consejo queda así, escribiendo \`>\` al principio.
+Los campos a completar van entre corchetes, por ejemplo \`[FECHA]\` o \`[MONTO]\`. Abrí la que te sirva, hacé una copia en tu proyecto y rellená. Si editás o borrás alguna en «Plantillas», se respeta: no vuelve a crearse.
 
- ## Llevátelo con vos
+## Unas cositas más
 
- - **«Menú ▾» → «Descargar .md»** descarga la nota tal cual está.
-- **«Menú ▾» → «Exportar .pdf»** convierte la nota en PDF.
-- **«Menú ▾» → «Exportar .zip»** exporta el proyecto entero.
-
- ## Plantillas para arrancar más rápido
-
- En el explorador vas a encontrar el proyecto **«Plantillas»**, con documentos listos para copiar, completar y exportar a PDF:
-
- - **empresas/**: propuesta comercial, presupuesto, contrato de servicios, informe técnico, ficha de cliente y orden de trabajo.
- - **clientes/**: CV, carta de presentación, apuntes de estudio, presupuesto, detalle de cobro y guía paso a paso.
-
- Los campos a completar van entre corchetes, por ejemplo \`[FECHA]\` o \`[MONTO]\`. Abrí la que te sirva, hacé una copia en tu proyecto y rellená. Si editás o borrás alguna en «Plantillas», se respeta: no vuelve a crearse.
-
- ## Unas cositas más
-
- - **Sin cuentas ni registro:** cada navegador tiene su propio espacio, así que tus datos no se mezclan con los de otra persona.
-- **Sin buscador (por ahora):** para moverte entre tus notas, usá el árbol del Explorador.
+- Para moverte entre notas usás el árbol del Explorador; para **encontrar texto adentro de una nota**, \`Ctrl\`/\`Cmd\` + \`F\`.
 - **Sin sincronización entre equipos:** cada equipo tiene su propio espacio.
 
  ## Si querés apoyar el proyecto
@@ -3905,6 +3896,70 @@ const CONTENIDO_BIENVENIDA = `# ¡Hola! Bienvenido/a a PurpleMD 💜
  Esta nota es solo una bienvenida. Cuando quieras, vaciala y escribí la tuya: si queda vacía, PurpleMD no va a volver a llenarla.
 
  Y si borrás el proyecto **«Bienvenida»**, se va a crear de nuevo la próxima vez que abras PurpleMD.
+`;
+
+const CONTENIDO_TUTORIAL = `# Tutorial de PurpleMD
+
+Recorrido completo del editor, en orden. Al terminar, volvé a la [bienvenida](nota-de-bienvenida) o vaciá esta nota: es tuya.
+
+## 1. Los dos paneles
+
+- En **Desktop**, escribís a la **izquierda** y ves cómo queda a la **derecha**.
+- En **Mobile**, escribís **arriba** y ves la vista previa **abajo**.
+
+La vista previa se actualiza sola apenas dejás de tipear, y el segmentado de la barra (o **menú ☰ → Visualizador**) te deja quedarte con un solo panel.
+
+La vista previa también navega: un enlace como [el de la bienvenida](nota-de-bienvenida) abre esa nota en el editor. Enlazar notas es \`[texto](ruta)\`, con una ruta sin puntos.
+
+## 2. La barra de herramientas
+
+Aparece arriba del editor y hace la mayor parte del trabajo por vos: **H1**, **H2** y **H3** para títulos; **negrita**, _cursiva_, ~~tachado~~ y \`código\` en línea; cita, listas con viñetas, numeradas y de tareas; enlace, imagen, tabla, línea horizontal y bloque de código.
+
+Los dos primeros botones son **↶ deshacer** y **↷ rehacer**; los dos últimos abren **buscar** y **reemplazar**.
+
+## 3. Guardar y deshacer
+
+- **No hay autoguardado:** para guardar lo que escribiste, apretá **«Guardar»** o \`Ctrl\`/\`Cmd\` + \`S\`.
+- \`Ctrl\`/\`Cmd\` + \`Z\` deshace; \`Ctrl\`/\`Cmd\` + \`Y\` (o \`Ctrl\`/\`Cmd\` + \`Shift\` + \`Z\`) rehace. Los botones ↶ y ↻ se apagan solos cuando no queda historial.
+- Cambiar de nota limpia el historial: lo que deshiciste no viaja de una nota a otra.
+
+## 4. Buscar y reemplazar
+
+- \`Ctrl\`/\`Cmd\` + \`F\` abre la barra de buscar; \`Ctrl\`/\`Cmd\` + \`H\` la abre con la fila de **Reemplazar**.
+- \`Enter\` pasa a la coincidencia siguiente, \`Shift\` + \`Enter\` a la anterior, y \`Escape\` (o **✕**) cierra la barra y te devuelve el foco al editor.
+- **Mayúsculas** distingue «A» de «a» y **Palabra completa** busca solo palabras enteras; el contador dice «3 de 12».
+- **Reemplazar** cambia la coincidencia actual y **Reemplazar todos** las de una; las dos se deshacen con \`Ctrl\`/\`Cmd\` + \`Z\` de una sola vez.
+
+## 5. Qué podés escribir
+
+Markdown te permite usar títulos, listas, casillas para tareas, **negrita**, _cursiva_, \`código\`, ~~texto tachado~~, citas, tablas y más.
+
+> Un consejo queda así, escribiendo \`>\` al principio.
+
+## 6. Todos los atajos
+
+| Atajo | Qué hace |
+| --- | --- |
+| \`Ctrl\`/\`Cmd\` + \`S\` | Guarda lo que escribiste |
+| \`Ctrl\`/\`Cmd\` + \`B\` | Negrita |
+| \`Ctrl\`/\`Cmd\` + \`I\` | Cursiva |
+| \`Ctrl\`/\`Cmd\` + \`K\` | Convierte lo seleccionado en enlace |
+| \`Ctrl\`/\`Cmd\` + \`Z\` | Deshacer |
+| \`Ctrl\`/\`Cmd\` + \`Y\` o \`Shift\` + \`Z\` | Rehacer |
+| \`Ctrl\`/\`Cmd\` + \`F\` | Buscar en la nota |
+| \`Ctrl\`/\`Cmd\` + \`H\` | Buscar y reemplazar |
+| \`Tab\` | Inserta dos espacios |
+| \`Shift\` + \`Tab\` | Sale del editor |
+| \`Escape\` | Cierra lo que esté abierto |
+
+Los atajos de formato actúan con el cursor dentro del editor: así \`Ctrl\`/\`Cmd\` + \`F\` no secuestra el buscador del navegador, salvo que estés escribiendo.
+
+## 7. Llevátelo con vos
+
+- **«Menú ▾» → «Descargar .md»** descarga la nota tal cual está.
+- **«Menú ▾» → «Exportar .pdf»** convierte la nota en PDF.
+- **«Menú ▾» → «Exportar .zip»** exporta el proyecto entero.
+- **«Menú ▾» → «Compartir PurpleMD»** te deja compartirla por X, LinkedIn, Mastodon o correo.
 `;
 
 /**
@@ -3924,11 +3979,33 @@ async function existeRecurso(ruta) {
 }
 
 /**
- * Crea el proyecto «Bienvenida» y la nota «primeros-pasos» si faltan.
+ * Crea una nota de la semilla si falta, sin tocar la que ya existe.
+ * @param {string} base - Ruta base del proyecto en la API.
+ * @param {string} path - Ruta de la nota.
+ * @param {string} contenido - Texto, solo si va a crearse.
+ * @returns {Promise<{hay: boolean, creó: boolean}>} Si la nota quedó
+ *   (ya existía o se creó) y si esta llamada fue la que la creó.
+ */
+async function asegurarNota(base, path, contenido) {
+  if (await existeRecurso(`${base}/notes/${rutaUrl(path)}`)) return { hay: true, creó: false };
+  try {
+    await pedir(`${base}/notes`, conJson("POST", { path, content: contenido }));
+    return { hay: true, creó: true };
+  } catch (_) {
+    // 409 (ya existe) u otro fallo: no se reintenta en este arranque.
+    return { hay: false, creó: false };
+  }
+}
+
+/**
+ * Crea el proyecto «Bienvenida» con sus dos notas, la de bienvenida y
+ * la del tutorial, si faltan.
  *
- * Es idempotente y no destructiva: si el proyecto o la nota ya existen,
- * no se les toca el contenido (el usuario puede editarlos). Sirve tanto
- * con `PURPLEMD_STORAGE=memory` (donde la semilla se recrea en cada
+ * Es idempotente y no destructiva: si el proyecto o alguna nota ya
+ * existen, no se les toca el contenido (el usuario puede editarlos o
+ * vaciarlos). El tutorial se suma aunque la bienvenida sea vieja, así
+ * que nadie se queda sin las dos. Sirve tanto con
+ * `PURPLEMD_STORAGE=memory` (donde la semilla se recrea en cada
  * arranque) como con `filesystem`.
  *
  * @returns {Promise<boolean>} `true` si la semilla está completa: hay
@@ -3936,7 +4013,6 @@ async function existeRecurso(ruta) {
  */
 async function asegurarBienvenida() {
   const base = `/api/projects/${encodeURIComponent(nsProject(PROYECTO_BIENVENIDA))}`;
-  const rutaNota = `${base}/notes/${rutaUrl(NOTA_BIENVENIDA)}`;
   let creóAlgo = false;
 
   if (!(await existeRecurso(`${base}/tree`))) {
@@ -3949,25 +4025,15 @@ async function asegurarBienvenida() {
     }
   }
 
-  let hayNota = await existeRecurso(rutaNota);
-  if (!hayNota) {
-    try {
-      await pedir(
-        `${base}/notes`,
-        conJson("POST", { path: NOTA_BIENVENIDA, content: CONTENIDO_BIENVENIDA }),
-      );
-      hayNota = true;
-      creóAlgo = true;
-    } catch (_) {
-      // 409 (ya existe) u otro fallo: idem.
-    }
-  }
+  const bienvenida = await asegurarNota(base, NOTA_BIENVENIDA, CONTENIDO_BIENVENIDA);
+  const tutorial = await asegurarNota(base, NOTA_TUTORIAL, CONTENIDO_TUTORIAL);
+  creóAlgo = creóAlgo || bienvenida.creó || tutorial.creó;
 
   // Recién creada, la lista hay que refrescarla para que el proyecto
   // aparezca en el explorador antes de seleccionarlo.
   if (creóAlgo) await cargarProyectos();
 
-  return hayNota && estado.proyectos.some((p) => p.name === nsProject(PROYECTO_BIENVENIDA));
+  return bienvenida.hay && estado.proyectos.some((p) => p.name === nsProject(PROYECTO_BIENVENIDA));
 }
 
 // ------------------------------------------------------------- Plantillas

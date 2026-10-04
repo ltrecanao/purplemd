@@ -31,8 +31,12 @@ dependencias en el cliente y sin autoguardado.
   PurpleMD ♥») y el proyecto completo como `.zip`, con su import.
 - Árbol de carpetas plegable, validación de rutas y tamaños (sin path
   traversal; 1 MB por nota), escrituras atómicas y `GET /health`.
-- Al arrancar crea el proyecto **Bienvenida** con su nota
-  `primeros-pasos` si falta —nunca pisa lo que ya existe—.
+- Al arrancar crea el proyecto **Bienvenida** con sus notas
+  `nota-de-bienvenida` y `tutorial` si faltan —nunca pisa lo que ya
+  existe—.
+- Enlaces entre notas desde la vista previa: `[texto](ruta)` abre esa
+  nota del proyecto activo (es como viaja la bienvenida a su tutorial);
+  los enlaces externos quedan para el navegador.
 
 ## Qué no hace hoy
 
@@ -88,8 +92,8 @@ descarte (el formato OCI la ignora). Verificación, permisos y detalle:
 
 > Superficies: en pantallas angostas (menos de 48rem) todo vive en el
 > menú **☰**; desde 48rem la barra superior muestra el visualizador y el
-> menú **Menú ▾**. La nota de bienvenida que abre la app incluye la
-> tabla de atajos.
+> menú **Menú ▾**. La nota `tutorial` que crea la app incluye la
+> tabla de atajos completa.
 
 ## Almacenamiento
 
