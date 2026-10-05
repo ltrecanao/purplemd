@@ -1403,10 +1403,14 @@ a.menu-acciones-item {
     overflow-y: auto;
   }
 
-  /* Sidebar estrecha: solo iconos/tooltips, texto colapsado. El indicador
-     del explorador NO se oculta: ahí viven sus errores y ahí cae el foco
-     tras eliminar una entrada (WCAG 2.4.3); vacío mide 0 px, así que no
-     cuesta píxeles (ver `.estado:empty`). */
+  /* Sidebar estrecha: el texto de cada ítem colapsa en su tooltip (`title`).
+     El colapso (`font-size: 0` recuperado por
+     `::before { content: attr(title) }`) solo aplica a lo que trae `title`:
+     sin ese reemplazo visible, el texto quedaría en la página sin forma de
+     leerlo. El indicador del explorador NO se oculta: ahí viven sus errores
+     oculta: ahí viven sus errores y ahí cae el foco tras eliminar una
+     entrada (WCAG 2.4.3); vacío mide 0 px, así que no cuesta píxeles
+     (ver `.estado:empty`). */
   .panel-explorador .panel-titulo,
   .panel-explorador .cantidad,
   .panel-explorador .crear label,
@@ -1416,20 +1420,20 @@ a.menu-acciones-item {
     display: none;
   }
 
-  .panel-explorador .proyecto-nombre,
-  .panel-explorador .entrada-nota {
+  .panel-explorador .proyecto-nombre[title],
+  .panel-explorador .entrada-nota[title] {
     font-size: 0;
     padding: 0.5rem;
   }
 
-  .panel-explorador .proyecto-nombre::before,
-  .panel-explorador .entrada-nota::before {
+  .panel-explorador .proyecto-nombre[title]::before,
+  .panel-explorador .entrada-nota[title]::before {
     content: attr(title);
     font-size: 0.85rem;
   }
 
-  .panel-explorador .proyecto:hover .proyecto-nombre::before,
-  .panel-explorador .entrada-nota:hover::before {
+  .panel-explorador .proyecto:hover .proyecto-nombre[title]::before,
+  .panel-explorador .entrada-nota[title]:hover::before {
     content: attr(title);
   }
 
@@ -1438,8 +1442,11 @@ a.menu-acciones-item {
     align-items: stretch;
   }
 
+  /* El valor escrito en un input no puede colapsar: `attr(value)` no es
+     dinámico y un `::before` no puede reemplazar lo que se está escribiendo;
+     solo el placeholder conserva su tamaño. */
   .panel-explorador .crear input {
-    font-size: 0;
+    font-size: 0.85rem;
     padding: 0.4rem;
   }
 
@@ -1447,12 +1454,12 @@ a.menu-acciones-item {
     font-size: 0.85rem;
   }
 
-  .panel-explorador .btn {
+  .panel-explorador .btn[title] {
     font-size: 0;
     padding: 0.4rem;
   }
 
-  .panel-explorador .btn::before {
+  .panel-explorador .btn[title]::before {
     content: attr(title);
     font-size: 0.85rem;
   }

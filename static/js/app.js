@@ -2054,16 +2054,20 @@ async function abrirNota(ruta) {
 async function guardarNota() {
   if (!estado.nota || estado.guardando) return false;
 
+  // Identidad con la que se envía: el PUT puede responder tarde y, mientras
+  // tanto, el usuario puede abrir otra nota o cambiar de proyecto.
+  const notaEnviada = estado.nota;
+
   estado.guardando = true;
   refrescarBotonGuardar();
   pintarEstado(guardarEstado, "trabajando", "Guardando…");
 
   let notaGuardada;
   try {
-    // `estado.nota.project` ya viene CON prefijo del backend: se usa tal
+    // `notaEnviada.project` ya viene CON prefijo del backend: se usa tal
     // cual (prefijarlo de nuevo mandaba un 404, ver la regla de namespace).
     notaGuardada = await pedir(
-      `/api/projects/${encodeURIComponent(estado.nota.project)}/notes/${rutaUrl(estado.nota.path)}`,
+      `/api/projects/${encodeURIComponent(notaEnviada.project)}/notes/${rutaUrl(notaEnviada.path)}`,
       conJson("PUT", { content: editor.value }),
     );
   } catch (error) {
@@ -2074,18 +2078,38 @@ async function guardarNota() {
     return false;
   }
 
+  // Si abrió otra nota (o cambió de proyecto) mientras el PUT estaba en
+  // vuelo, `notaGuardada` ya no describe la nota abierta: pisar `estado.nota`
+  // dejaría el editor con el texto de una nota y el estado con el de otra, y
+  // el siguiente Ctrl+S escribiría el contenido actual encima de la nota
+  // equivocada. Se comparan proyecto y ruta, no identidad de objeto: un
+  // renombrado reescribe `estado.nota` en sitio y sigue siendo la misma
+  // nota abierta.
+  const sigueAbierta =
+    estado.nota !== null &&
+    estado.nota.project === notaGuardada.project &&
+    estado.nota.path === notaGuardada.path;
+
   estado.guardando = false;
-  estado.nota = notaGuardada;
+  if (sigueAbierta) estado.nota = notaGuardada;
   refrescarBotonGuardar();
-  pintarEstado(guardarEstado, "ok", "Guardado");
+
+  if (sigueAbierta) {
+    pintarEstado(guardarEstado, "ok", "Guardado");
+    // Si siguió escribiendo durante el guardado, el indicador vuelve al
+    // estado real en vez de dejar un «Guardado» que ya no es cierto.
+    if (hayCambios()) refrescarGuardado();
+  } else {
+    // El indicador seguía en «Guardando…» (`refrescarGuardado` no lo toca
+    // con un PUT en vuelo): ahora le toca el estado real de lo que quedó
+    // abierto, que puede ser otra nota o ninguna.
+    refrescarGuardado();
+  }
 
   // Las fechas del árbol cambian con el guardado; el listado de proyectos
   // no, porque el directorio del proyecto no se toca al escribir una nota.
   // `notaGuardada.project` conserva el prefijo, como espera `cargarArbol`.
   await cargarArbol(notaGuardada.project);
-  // Si siguió escribiendo durante el guardado, el indicador vuelve al
-  // estado real en vez de dejar un «Guardado» que ya no es cierto.
-  if (hayCambios()) refrescarGuardado();
   return true;
 }
 
