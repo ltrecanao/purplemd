@@ -33,6 +33,7 @@ from purplemd_storage.protocol import (
     Proyecto,
     ProyectoNoExiste,
     ProyectoYaExiste,
+    motivo_omitir_entrada_zip,
     validar_nombre,
     validar_ruta,
 )
@@ -419,8 +420,18 @@ class FilesystemStorage:
 
         try:
             with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zf:
-                # Validar metadata
+                # Validar metadata. El tamaño declarado se mira antes de
+                # leerla: una entrada gigante hecha pasar por `.purplemd.json`
+                # es otra zip bomb, y esta se descomprime antes del bucle.
                 try:
+                    info_meta = zf.getinfo(".purplemd.json")
+                    meta_motivo = motivo_omitir_entrada_zip(info_meta, 0)
+                    if meta_motivo:
+                        resultado["errores"].append({
+                            "path": ".purplemd.json",
+                            "motivo": meta_motivo
+                        })
+                        return resultado
                     meta_raw = zf.read(".purplemd.json")
                     meta = json.loads(meta_raw.decode("utf-8"))
                     if meta.get("version") != 1:
@@ -437,6 +448,7 @@ class FilesystemStorage:
                     return resultado
 
                 # Procesar cada archivo .md
+                descomprimido = 0
                 for zip_info in zf.infolist():
                     if zip_info.filename == ".purplemd.json":
                         continue
@@ -452,6 +464,18 @@ class FilesystemStorage:
                     try:
                         # Validar ruta
                         validar_ruta(ruta_relativa)
+
+                        # Tope antes de descomprimir: `zf.read()` sobre una
+                        # entrada gigante ya habría gastado la memoria.
+                        motivo = motivo_omitir_entrada_zip(zip_info, descomprimido)
+                        if motivo:
+                            resultado["omitidas"] += 1
+                            resultado["errores"].append({
+                                "path": ruta_relativa,
+                                "motivo": motivo
+                            })
+                            continue
+                        descomprimido += zip_info.file_size
 
                         contenido = zf.read(zip_info.filename).decode("utf-8")
 

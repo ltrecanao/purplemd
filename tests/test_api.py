@@ -1,13 +1,18 @@
+import http.server
+import logging
 import os
 import tempfile
+import threading
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 import purplemd
-from api import MAX_RENDER_BYTES, _html_para_pdf, app
+import renderer
+from api import FETCHER_PDF, MAX_RENDER_BYTES, _html_para_pdf, app
 
 
 class ApiTestCase(unittest.TestCase):
@@ -512,6 +517,90 @@ class NotasEndpointTests(ApiTestCase):
         regla = html.split('input[type="checkbox"] {', 1)[1].split("}", 1)[0]
         self.assertIn("display: inline-block", regla)
 
+    def test_pdf_el_bloque_de_codigo_usa_mono_y_la_paleta_por_defecto(self):
+        """El bloque ``` del PDF va monoespaciado y con sus saltos de línea:
+        el resaltado cambia el `<pre><code>` por un `<div class="highlight">`
+        y ese div, sin reglas propias, caía en la fuente del documento y
+        juntaba todo el código en un renglón. Los colores salen de la paleta
+        por defecto de Pygments, no de literales en `api.py`."""
+        nota = purplemd.Nota(
+            project="p", path="x.md", content="```python\nprint(1)\n```", modified=0.0
+        )
+        html = _html_para_pdf(nota)
+        regla = html.split("pre,\n    .highlight {", 1)[1].split("}", 1)[0]
+        self.assertIn("white-space: pre-wrap", regla)
+        self.assertIn('"DejaVu Sans Mono"', regla)
+        self.assertIn(renderer.css_resaltado(), html)
+        self.assertNotIn("#ff79c6", html)
+
+    def test_pdf_las_cadenas_de_fuentes_no_incluyen_la_emoji(self):
+        """Los dígitos del PDF no pueden salir en tipografía de emoji.
+
+        En Debian, `45-generic.conf` y `60-generic.conf` promueven la familia
+        `Noto Color Emoji` por encima de DejaVu Sans en fontconfig en cuanto
+        aparece en la cadena de `font-family`; como esa fuente tiene glifos
+        0-9, todos los números del documento y el contador de página salían
+        con ella. Los emoji siguen resolviéndose igual, por fallback de
+        fontconfig, cuando la fuente pedida no tiene el glifo."""
+        nota = purplemd.Nota(
+            project="p", path="x.md", content="# Números\n123456789", modified=0.0
+        )
+        html = _html_para_pdf(nota)
+        # Solo las declaraciones: el comentario del CSS explica por qué la
+        # familia no puede volver a entrar en la cadena.
+        declaraciones = [
+            linea for linea in html.splitlines() if "font-family:" in linea
+        ]
+        self.assertTrue(declaraciones)
+        for declaracion in declaraciones:
+            self.assertNotIn("Noto Color Emoji", declaracion)
+        cadena = 'font-family: "DejaVu Sans", "Liberation Sans", sans-serif;'
+        self.assertIn(cadena, html)
+
+    def test_pdf_no_toca_la_red(self):
+        """SSRF: el PDF nunca sale a buscar lo que dice la nota.
+
+        Un servidor local en un hilo cuenta las peticiones que llegan; si el
+        endpoint bajara la imagen remota, el conteo no estaría vacío. El
+        recurso se omite y el PDF se genera igual (200)."""
+        peticiones: list[str] = []
+
+        class Contador(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802 (nombre que exige http.server)
+                peticiones.append(self.path)
+                self.send_response(404)
+                self.end_headers()
+
+            def log_message(self, format: str, *args: Any) -> None:  # sin ruido en stderr
+                pass
+
+        servidor = http.server.HTTPServer(("127.0.0.1", 0), Contador)
+        self.addCleanup(servidor.server_close)
+        threading.Thread(target=servidor.serve_forever, daemon=True).start()
+        self.addCleanup(servidor.shutdown)
+
+        puerto = servidor.server_address[1]
+        self.crear_nota(
+            "proyecto", "remota", f"# hola\n\n![img](http://127.0.0.1:{puerto}/a.png)\n"
+        )
+        response = self.client.get("/api/projects/proyecto/notes/remota/pdf")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(peticiones, [])
+
+    def test_el_fetcher_del_pdf_solo_acepta_data(self):
+        """El fetcher del PDF bloquea red (`http`, `https`), disco (`file`)
+        y rutas relativas, y deja pasar solo imágenes inline `data:`."""
+        recurso = FETCHER_PDF("data:image/png;base64,aGVsbG8=")
+        self.assertEqual(recurso.read(), b"hello")
+        for url in (
+            "http://127.0.0.1:9/a.png",
+            "https://ejemplo.com/a.png",
+            "file:///etc/passwd",
+            "adjunto.png",
+        ):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                FETCHER_PDF(url)
+
 
     def test_los_endpoints_viejos_de_notas_desaparecieron(self):
         for metodo in ("get", "post"):
@@ -582,6 +671,21 @@ class ErrorInternoTests(ApiTestCase):
         detalle = str(response.json()["detail"])
         self.assertNotIn("secreto interno", detalle)
         self.assertNotIn("Traceback", detalle)
+
+    def test_el_500_se_registra_con_su_traceback(self):
+        """La respuesta sigue siendo genérica, pero el fallo sí queda en el
+        log: un 500 sin rastro es indiagnóstico en producción."""
+        with (
+            patch("purplemd.listar_proyectos", side_effect=RuntimeError("secreto interno")),
+            self.assertLogs("purplemd", level="ERROR") as captura,
+        ):
+            cliente = TestClient(app, raise_server_exceptions=False)
+            response = cliente.get("/api/projects")
+        self.assertEqual(response.status_code, 500)
+        texto = logging.Formatter().format(captura.records[0])
+        self.assertIn("GET /api/projects", texto)
+        self.assertIn("Traceback (most recent call last)", texto)
+        self.assertIn("RuntimeError: secreto interno", texto)
 
 
 class ProyectoEdicionEndpointTests(ApiTestCase):

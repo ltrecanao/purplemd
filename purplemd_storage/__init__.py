@@ -14,6 +14,8 @@ from purplemd_storage.protocol import (
     DIR_PROYECTOS,
     EXTENSION,
     MAX_BYTES,
+    MAX_IMPORT_TOTAL_BYTES,
+    MAX_IMPORT_ZIP_BYTES,
     MAX_PROFUNDIDAD,
     MAX_RUTA_BYTES,
     Arbol,
@@ -33,6 +35,7 @@ from purplemd_storage.protocol import (
     ProyectoYaExiste,
     Storage,
     TipoEntrada,
+    motivo_omitir_entrada_zip,
     validar_nombre,
     validar_ruta,
 )
@@ -81,11 +84,14 @@ __all__ = [
     "MAX_BYTES",
     "MAX_PROFUNDIDAD",
     "MAX_RUTA_BYTES",
+    "MAX_IMPORT_ZIP_BYTES",
+    "MAX_IMPORT_TOTAL_BYTES",
     "DIR_PROYECTOS",
     "EXTENSION",
     "DIR_DEFECTO",
     "TipoEntrada",
     "validar_nombre",
     "validar_ruta",
+    "motivo_omitir_entrada_zip",
 ]
 

@@ -41,6 +41,26 @@ def _zip_con(*notas, metadata=True, version=1) -> bytes:
     return buffer.getvalue()
 
 
+def _zip_bomba(megabytes: int = 64) -> bytes:
+    """ZIP con una entrada `bomba.md` declarada de `megabytes` MB.
+
+    Comprime a casi nada porque son ceros: el central directory promete
+    megabytes que `zf.read()` tendría que materializar en memoria. Ese es el
+    ataque; la defensa es mirar `file_size` antes de leer.
+    """
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(
+            ".purplemd.json",
+            json.dumps({"project": "p", "exported_at": "x", "version": 1}),
+        )
+        with zf.open("bomba.md", "w") as destino:
+            trozo = b"\0" * (1024 * 1024)
+            for _ in range(megabytes):
+                destino.write(trozo)
+    return buffer.getvalue()
+
+
 class ApiZipTestCase(unittest.TestCase):
     """Base: directorio de datos aislado y cliente HTTP."""
 
@@ -143,6 +163,41 @@ class ImportTests(ApiZipTestCase):
             "/api/projects/x/import", files={"file": ("notas.txt", b"hola", "text/plain")}
         )
         self.assertEqual(r.status_code, 422)
+
+    def test_zip_sobre_el_tope_de_subida_responde_413(self):
+        """El tope se aplica sobre el archivo subido y antes de importar:
+        no se crea nada y el ZIP ni se abre."""
+        with patch("api.MAX_IMPORT_ZIP_BYTES", 10):
+            r = self._importar("gigante", _zip_con(("nota", "x")))
+        self.assertEqual(r.status_code, 413)
+        self.assertIn("10 bytes", r.json()["detail"])
+        self.assertEqual(self.client.get("/api/projects/gigante/tree").status_code, 404)
+
+    def test_zip_bomba_no_llega_a_descomprimirse(self):
+        """La entrada gigante se descarta por el `file_size` del central
+        directory y **antes** de `zf.read()`: medir después de leer ya habría
+        costado la memoria, que es justo lo que busca la zip bomb. Si el
+        `zf.read()` llega a materializar `bomba.md`, el test falla."""
+        original = zipfile.ZipFile.read
+
+        def leer_sin_bomba(self, nombre, *args, **kwargs):
+            entrada = getattr(nombre, "filename", nombre)
+            if str(entrada).startswith("bomba"):
+                raise AssertionError(f"zf.read() materializó {entrada}")
+            return original(self, nombre, *args, **kwargs)
+
+        with patch.object(zipfile.ZipFile, "read", leer_sin_bomba):
+            r = self._importar("p", _zip_bomba())
+
+        self.assertEqual(r.status_code, 200, r.text)
+        cuerpo = r.json()
+        self.assertEqual(cuerpo["creadas"], 0)
+        motivo = f"supera {purplemd.MAX_BYTES} bytes ({64 * 1024 * 1024})"
+        self.assertTrue(
+            any(e["path"] == "bomba" and e["motivo"] == motivo for e in cuerpo["errores"]),
+            cuerpo["errores"],
+        )
+        self.assertFalse((self.directorio / "projects" / "p" / "bomba.md").exists())
 
     def test_zip_corrupto_responde_con_error_reportado(self):
         r = self._importar("rotto", b"esto no es un zip")
@@ -257,6 +312,24 @@ class ContratoBackendsTests(unittest.TestCase):
         self.assertEqual(r["creadas"], 1)
         self.assertEqual(r["omitidas"], 1)
         self.assertTrue(any("bytes" in e["motivo"] for e in r["errores"]))
+
+    def test_el_total_descomprimido_tambien_esta_acotado(self):
+        """Cada nota puede estar en el límite, pero la suma de todas no:
+        un ZIP de notas chicas no puede descomprimir media memoria."""
+        notas = [(f"nota{i}", "x" * purplemd.MAX_BYTES) for i in range(5)]
+        zip_bytes = _zip_con(*notas)
+        tope = 3 * purplemd.MAX_BYTES
+        with patch("purplemd_storage.protocol.MAX_IMPORT_TOTAL_BYTES", tope):
+            resultados = [
+                MemoryStorage().importar_proyecto("destino", zip_bytes),
+                self._filesystem().importar_proyecto("destino", zip_bytes),
+            ]
+        self.assertEqual(resultados[0], resultados[1])
+        self.assertEqual(resultados[0]["creadas"], 3)
+        self.assertTrue(
+            any("descomprimidos" in e["motivo"] for e in resultados[0]["errores"]),
+            resultados[0]["errores"],
+        )
 
 
 if __name__ == "__main__":

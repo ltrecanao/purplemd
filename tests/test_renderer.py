@@ -1,4 +1,6 @@
+import logging
 import unittest
+from unittest.mock import patch
 
 import renderer
 
@@ -132,6 +134,17 @@ class RobustezTests(unittest.TestCase):
     def test_contenido_con_extension_md_invalida_no_importa(self):
         # El renderer no toca el sistema de archivos: cualquier texto pasa.
         self.assertIsInstance(renderer.renderizar("../../etc/passwd"), str)
+
+    def test_el_fallback_se_registra_en_el_log(self):
+        """Si el render explota, el `<pre>` salva la vista previa, pero el
+        fallo no puede quedar en silencio: va al log con su traceback."""
+        with patch("renderer._md.render", side_effect=RuntimeError("parser roto")):
+            with self.assertLogs("purplemd", level="WARNING") as captura:
+                html = renderer.renderizar("# hola")
+        self.assertEqual(html, "<pre># hola</pre>")
+        texto = logging.Formatter().format(captura.records[0])
+        self.assertIn("RuntimeError: parser roto", texto)
+        self.assertIn("Traceback (most recent call last)", texto)
 
 
 if __name__ == "__main__":

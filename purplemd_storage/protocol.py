@@ -9,6 +9,7 @@ módulo separado, evita importaciones circulares entre:
 - purplemd.py (núcleo que usa el protocolo)
 """
 
+import zipfile
 from dataclasses import dataclass
 from typing import Literal, Protocol, runtime_checkable
 
@@ -16,6 +17,11 @@ from typing import Literal, Protocol, runtime_checkable
 MAX_BYTES = 1_048_576
 MAX_PROFUNDIDAD = 10
 MAX_RUTA_BYTES = 200
+# Un ZIP importado pesa a lo sumo MAX_IMPORT_ZIP_BYTES y en total se
+# descomprimen MAX_IMPORT_TOTAL_BYTES (5× el tope de subida: el texto de las
+# notas comprime ~3×, con margen). Los dos topes se miran antes de leer.
+MAX_IMPORT_ZIP_BYTES = 10 * 1024 * 1024
+MAX_IMPORT_TOTAL_BYTES = 50 * 1024 * 1024
 DIR_PROYECTOS = "projects"
 EXTENSION = ".md"
 DIR_DEFECTO = "./local/purplemd"
@@ -204,12 +210,15 @@ __all__ = [
     "MAX_BYTES",
     "MAX_PROFUNDIDAD",
     "MAX_RUTA_BYTES",
+    "MAX_IMPORT_ZIP_BYTES",
+    "MAX_IMPORT_TOTAL_BYTES",
     "DIR_PROYECTOS",
     "EXTENSION",
     "DIR_DEFECTO",
     "TipoEntrada",
     "validar_nombre",
     "validar_ruta",
+    "motivo_omitir_entrada_zip",
 ]
 
 
@@ -271,4 +280,20 @@ def validar_ruta(ruta: str) -> str:
         except NombreInvalido as exc:
             raise NombreInvalido(f"la ruta {ruta!r} es inválida: {exc}") from exc
     return "/".join(partes)
+
+
+def motivo_omitir_entrada_zip(zip_info: zipfile.ZipInfo, acumulado: int) -> str | None:
+    """Motivo para descartar una entrada del ZIP antes de descomprimir, o None.
+
+    La decisión se toma sobre `file_size` (central directory) y **antes** de
+    `zf.read()`: leer primero y medir después ya habría costado la memoria,
+    que es justo lo que busca una zip bomb. `acumulado` es la suma de
+    `file_size` de las entradas ya aceptadas y acota el total que puede
+    descomprimir un solo ZIP. Para `.purplemd.json` se llama con `acumulado=0`.
+    """
+    if zip_info.file_size > MAX_BYTES:
+        return f"supera {MAX_BYTES} bytes ({zip_info.file_size})"
+    if acumulado + zip_info.file_size > MAX_IMPORT_TOTAL_BYTES:
+        return f"el ZIP supera los {MAX_IMPORT_TOTAL_BYTES} bytes descomprimidos"
+    return None
 

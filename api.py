@@ -44,6 +44,7 @@ HTML (vía `renderer`). Qué expone cada endpoint:
 Desarrollo local: uvicorn api:app --reload
 """
 
+import logging
 import os  # noqa: F401 (usado en tests para patch)
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,20 +52,29 @@ from typing import Annotated, Literal
 
 import weasyprint
 from fastapi import FastAPI, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, field_validator
+from weasyprint.urls import URLFetcher
 
 import purplemd
 import renderer
-from purplemd_storage import get_storage
+from purplemd_storage import MAX_IMPORT_ZIP_BYTES, get_storage
 
 # Tope de markdown para POST /api/render. El HTML renderizado puede pesar
 # varios veces más que la entrada, y el parseo corre en el hilo del request:
 # 200 KB bastan para cualquier nota real y evitan requests que cuelen el
 # evento durante segundos.
 MAX_RENDER_BYTES = 200 * 1024
+
+# SSRF: WeasyPrint baja por su cuenta toda URL que aparezca en el HTML del
+# PDF (imágenes remotas, `file://`, rutas relativas), lo que deja al servidor
+# hablando con la red interna o leyendo disco en nombre de quien pidió el PDF.
+# Este fetcher solo acepta `data:` (imágenes inline); el resto se rechaza
+# antes de tocar la red y WeasyPrint omite el recurso sin romper el documento.
+FETCHER_PDF = URLFetcher(allowed_protocols={"data"})
 
 # Página del frontend servida en GET /. Se resuelve relativa a este archivo
 # y no al cwd para que funcione igual desde cualquier directorio.
@@ -74,6 +84,12 @@ INDEX_HTML = Path(__file__).parent / "static" / "index.html"
 # endpoints. `get_storage()` lee PURPLEMD_STORAGE en cada llamada, así que
 # cambios en la variable de entorno surten efecto en caliente (útil en tests).
 _storage = get_storage()
+
+# Logger del proceso, compartido con `renderer`. Los mensajes salen por el
+# manejador raíz (stderr en uvicorn) y los tests los capturan con
+# `assertLogs("purplemd")`. Todo 500 se registra con su traceback: responder
+# un 500 sin dejar rastro hace imposible diagnosticar el fallo en producción.
+logger = logging.getLogger("purplemd")
 
 app = FastAPI(
     title="purplemd",
@@ -382,7 +398,9 @@ def _manejar_movimiento_invalido(
 
 @app.exception_handler(Exception)
 def _manejar_error_interno(request: Request, exc: Exception) -> JSONResponse:
-    """Último recurso: 500 genérico, sin exponer el stack trace ni datos internos."""
+    """Último recurso: 500 genérico, con el traceback en el log y sin
+    exponer el stack ni datos internos en la respuesta."""
+    logger.error("500 en %s %s", request.method, request.url.path, exc_info=exc)
     return _respuesta_error(500, "error interno al procesar la solicitud")
 
 
@@ -447,12 +465,26 @@ def exportar_proyecto(project: str) -> Response:
 
 @app.post("/api/projects/{project}/import")
 async def importar_proyecto(project: str, file: UploadFile = File(...)) -> dict:
-    """Importa un proyecto desde ZIP; 404 si no existe, 422 si el ZIP es inválido."""
+    """Importa un proyecto desde ZIP; lo crea si no existe.
+
+    413 si el archivo supera MAX_IMPORT_ZIP_BYTES y 422 si la ruta no sirve
+    o el archivo no es `.zip`. Descomprimir y escribir el ZIP es trabajo
+    bloqueante, así que corre en el threadpool: el event loop sigue
+    atendiendo el resto de las peticiones.
+    """
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=422, detail="El archivo debe ser .zip")
-    zip_bytes = await file.read()
-    resultado = purplemd.importar_proyecto(project, zip_bytes, storage=_storage)
-    return resultado
+    # Leer MAX_IMPORT_ZIP_BYTES + 1 basta para detectar el exceso sin cargar
+    # en memoria un archivo de tamaño desconocido.
+    zip_bytes = await file.read(MAX_IMPORT_ZIP_BYTES + 1)
+    if len(zip_bytes) > MAX_IMPORT_ZIP_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"el ZIP supera los {MAX_IMPORT_ZIP_BYTES} bytes",
+        )
+    return await run_in_threadpool(
+        purplemd.importar_proyecto, project, zip_bytes, storage=_storage
+    )
 
 
 @app.get("/api/projects/{project}/tree", response_model=ArbolProyecto)
@@ -482,7 +514,7 @@ def exportar_pdf(
     """
     nota = purplemd.leer_nota(project, path, storage=_storage)
     html = _html_para_pdf(nota)
-    pdf = weasyprint.HTML(string=html).write_pdf()
+    pdf = weasyprint.HTML(string=html, url_fetcher=FETCHER_PDF).write_pdf()
     return Response(
         content=pdf,
         media_type="application/pdf",
@@ -567,6 +599,11 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
     El número de página @bottom-right es paginación del documento y se emite siempre.
     """
     cuerpo = renderer.renderizar(nota.content)
+    # Paleta del resaltado y fondo de los bloques de código: los dos salen
+    # de Pygments (vía renderer) en vez de estar escritos como literales en
+    # este CSS, así la paleta del PDF es la por defecto del resaltador.
+    paleta = renderer.css_resaltado()
+    fondo = renderer.fondo_resaltado()
     # La marca de agua siempre se incluye en @bottom-left.
     # `\\2665`: la barra va doble porque el literal es de Python; con una
     # sola, Python lo lee como escape octal (`¶5`) y el pie no imprime ♥.
@@ -595,7 +632,7 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
 {marca}      /* Número de página a la derecha */
       @bottom-right {{
         content: "Pág. " counter(page);
-        font-family: "DejaVu Sans", "Liberation Sans", "Noto Color Emoji", sans-serif;
+        font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
         font-size: 6.5pt;
         color: #7b8491;
       }}
@@ -608,7 +645,6 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
         --accent: #483096;
         --line: #483096;
         --soft: #f3f6fa;
-        --code: #20242b;
     }}
     * {{
       box-sizing: border-box;
@@ -620,9 +656,15 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
       padding: 0;
     }}
 
+    /* Cadenas de fuentes del PDF: NUNCA meter "Noto Color Emoji" aquí. En
+       Debian, 45-generic.conf/60-generic.conf promueven esa familia por
+       encima de DejaVu Sans en fontconfig y, como la emoji tiene glifos
+       0-9, todos los números del documento salen en tipografía de emoji.
+       Los emoji (💜, ☰…) siguen resolviendo igual por fallback. */
+
     body {{
       color: var(--text);
-      font-family: "DejaVu Sans", "Liberation Sans", "Noto Color Emoji", sans-serif;
+      font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
       font-size: 8.5pt;
       line-height: 1.38;
       max-width: none;
@@ -635,7 +677,7 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
       padding: 0;
       border: none;
       color: var(--text);
-      font-family: "DejaVu Sans", "Liberation Sans", "Noto Color Emoji", sans-serif;
+      font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
       font-size: 22pt;
       font-weight: 700;
       letter-spacing: -0.4px;
@@ -645,7 +687,7 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
     body > h1:first-child + p {{
       margin: 0 0 0.9em;
       color: var(--accent);
-      font-family: "DejaVu Sans", "Liberation Sans", "Noto Color Emoji", sans-serif;
+      font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
       font-size: 10pt;
       font-weight: 600;
       line-height: 1.35;
@@ -685,7 +727,7 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
     h6 {{
       break-after: avoid;
       color: var(--text);
-      font-family: "DejaVu Sans", "Liberation Sans", "Noto Color Emoji", sans-serif;
+      font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
       font-weight: 700;
       line-height: 1.2;
     }}
@@ -770,98 +812,42 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
       font-size: 0.82em;
     }}
 
-    /* Bloques de código */
+    /* Resaltado de sintaxis: la paleta por defecto de Pygments, generada
+       por renderer.css_resaltado() y no escrita a mano en este archivo.
+       Va antes que las reglas estructurales de abajo para que la que
+       Pygments emite para `pre` no pise el line-height del bloque. */
 
-    pre {{
-      overflow-x: auto;
+{paleta}
+    /* Bloques de código: fuente monoespaciada y saltos de línea intactos.
+       El resaltado cambia `<pre><code>` por un `<div class="highlight">`,
+       que sin estas reglas caía en la fuente del documento y juntaba todo
+       el código en un solo renglón.
+       `white-space: pre-wrap` en vez de `pre`: el PDF no tiene scroll, así
+       que una línea larga se envuelve antes que quedar cortada. */
+
+    pre,
+    .highlight {{
       margin: 0.65em 0;
       padding: 0.75rem;
       border: none;
       border-radius: 4px;
-      background: var(--code);
+      background: {fondo};
+      font-family: "DejaVu Sans Mono", Consolas, monospace;
+      font-size: 6.8pt;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
       break-inside: avoid;
     }}
 
     pre code {{
       padding: 0;
       background: transparent;
-      color: #e6edf3;
-      font-family: "DejaVu Sans Mono", Consolas, monospace;
-      font-size: 6.8pt;
-      line-height: 1.4;
+      color: inherit;
+      font-family: inherit;
+      font-size: inherit;
+      line-height: inherit;
     }}
-
-    /* Resaltado de sintaxis */
-
-    .highlight {{
-      overflow-x: auto;
-      margin: 0.65em 0;
-      padding: 0.75rem;
-      border-radius: 4px;
-      background: var(--code);
-      break-inside: avoid;
-    }}
-
-    .highlight code {{
-      padding: 0;
-      background: transparent;
-      color: #e6edf3;
-    }}
-
-    .highlight .hll {{ background-color: #3b4252; }}
-    .highlight .c {{ color: #718096; font-style: italic; }}
-    .highlight .err {{ color: #ff6b6b; }}
-    .highlight .k {{ color: #ff79c6; }}
-    .highlight .l {{ color: #f8f8f2; }}
-    .highlight .n {{ color: #f8f8f2; }}
-    .highlight .o {{ color: #ff79c6; }}
-    .highlight .p {{ color: #f8f8f2; }}
-    .highlight .cm {{ color: #718096; font-style: italic; }}
-    .highlight .cp {{ color: #ff79c6; }}
-    .highlight .c1 {{ color: #718096; font-style: italic; }}
-    .highlight .cs {{ color: #718096; font-style: italic; }}
-    .highlight .gd {{ color: #ff5555; }}
-    .highlight .ge {{ color: #f8f8f2; text-decoration: underline; }}
-    .highlight .gh {{ color: #f8f8f2; font-weight: bold; }}
-    .highlight .gi {{ color: #50fa7b; }}
-    .highlight .gp {{ color: #f8f8f2; }}
-    .highlight .gs {{ color: #f8f8f2; }}
-    .highlight .gu {{ color: #f8f8f2; font-weight: bold; }}
-    .highlight .kc {{ color: #ff79c6; }}
-    .highlight .kd {{ color: #8be9fd; font-style: italic; }}
-    .highlight .kn {{ color: #ff79c6; }}
-    .highlight .kp {{ color: #ff79c6; }}
-    .highlight .kr {{ color: #ff79c6; }}
-    .highlight .kt {{ color: #8be9fd; }}
-    .highlight .m {{ color: #bd93f9; }}
-    .highlight .s {{ color: #f1fa8c; }}
-    .highlight .na {{ color: #50fa7b; }}
-    .highlight .nb {{ color: #8be9fd; }}
-    .highlight .nc {{ color: #50fa7b; }}
-    .highlight .nf {{ color: #50fa7b; }}
-    .highlight .nt {{ color: #ff79c6; }}
-    .highlight .nv {{ color: #8be9fd; }}
-    .highlight .ow {{ color: #ff79c6; }}
-    .highlight .mb {{ color: #bd93f9; }}
-    .highlight .mf {{ color: #bd93f9; }}
-    .highlight .mi {{ color: #bd93f9; }}
-    .highlight .mo {{ color: #bd93f9; }}
-    .highlight .sa {{ color: #f1fa8c; }}
-    .highlight .sb {{ color: #f1fa8c; }}
-    .highlight .sc {{ color: #f1fa8c; }}
-    .highlight .sd {{ color: #f1fa8c; }}
-    .highlight .s2 {{ color: #f1fa8c; }}
-    .highlight .se {{ color: #f1fa8c; }}
-    .highlight .sh {{ color: #f1fa8c; }}
-    .highlight .si {{ color: #f1fa8c; }}
-    .highlight .sx {{ color: #f1fa8c; }}
-    .highlight .s1 {{ color: #f1fa8c; }}
-    .highlight .ss {{ color: #f1fa8c; }}
-    .highlight .vc {{ color: #8be9fd; font-style: italic; }}
-    .highlight .vg {{ color: #8be9fd; font-style: italic; }}
-    .highlight .vi {{ color: #8be9fd; font-style: italic; }}
-    .highlight .vm {{ color: #8be9fd; font-style: italic; }}
-    .highlight .il {{ color: #bd93f9; }}
 
     /* Citas */
 

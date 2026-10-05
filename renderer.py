@@ -13,6 +13,7 @@ se aplica DESPUÉS del render: Pygments genera HTML seguro (escapa el
 contenido), así que no rompe la sanitización.
 """
 
+import logging
 import re
 from html import escape, unescape
 
@@ -22,6 +23,11 @@ from pygments import highlight
 from pygments.formatters import HtmlFormatter  # type: ignore
 from pygments.lexers import get_lexer_by_name
 from pygments.util import ClassNotFound
+
+# Logger compartido con `api`: un fallo de render no puede quedar en silencio,
+# el fallback a `<pre>` se registra en WARNING con su traceback para que se
+# vea en producción. Los tests lo capturan con `assertLogs("purplemd")`.
+logger = logging.getLogger("purplemd")
 
 # Patron para detectar emails en URLs de links markdown: [texto](email@dominio.com)
 _EMAIL_RE = re.compile(r'^[\w.+-]+@[\w-]+\.[\w.-]+$')
@@ -87,6 +93,32 @@ def _resaltar(html: str) -> str:
     return _BLOQUE.sub(reemplazo, html)
 
 
+# Paleta del resaltado en el export a PDF: la por defecto de Pygments.
+# La vista previa del navegador sí usa la personalizada (dracula, con sus
+# colores escritos a mano en `static/css/style.css`); el PDF en cambio no
+# lleva una tabla de colores propia: la saca de acá.
+_FORMATO_PDF = HtmlFormatter(style="default")
+
+
+def css_resaltado(selector: str = ".highlight") -> str:
+    """Reglas CSS del resaltado con la paleta por defecto de Pygments.
+
+    `_html_para_pdf` las inserta en el `<style>` del documento, de modo que
+    los colores salen del propio Pygments en vez de quedar duplicados como
+    literales en `api.py`.
+    """
+    return _FORMATO_PDF.get_style_defs(selector)
+
+
+def fondo_resaltado() -> str:
+    """Color de fondo de los bloques de código, tomado del mismo estilo.
+
+    El PDF lo usa en `pre` (el bloque sin lenguaje, que no pasa por
+    Pygments) para que los dos tipos de bloque queden con el mismo fondo.
+    """
+    return _FORMATO_PDF.style.background_color or "#ffffff"
+
+
 def renderizar(markdown: str) -> str:
     """Convierte markdown a HTML listo para insertar en la vista previa.
 
@@ -106,5 +138,6 @@ def renderizar(markdown: str) -> str:
     try:
         markdown_normalizado = _normalizar_urls_en_links(markdown)
         return _resaltar(_md.render(markdown_normalizado))
-    except Exception:
+    except Exception as exc:
+        logger.warning("render falló; se devuelve el markdown escapado", exc_info=exc)
         return f"<pre>{escape(markdown)}</pre>"
