@@ -23,7 +23,7 @@ rutas cuelgan de `https://purplemd.onrender.com`.
 | `PATCH` | `/api/projects/{project}/dirs/{path}` | `200`, `404`, `409`, `422` | Renombra o mueve el directorio con su contenido. |
 | `DELETE` | `/api/projects/{project}/dirs/{path}` | `204`, `404`, `409`, `422` | Borra el directorio; con `?recursive=true`, con todo su contenido. |
 | `GET` | `/api/projects/{project}/export` | `200`, `404`, `422` | Exporta el proyecto completo como `.zip`. |
-| `POST` | `/api/projects/{project}/import` | `200`, `422` | Importa un proyecto desde `.zip` (multipart/form-data); lo crea si no existe. |
+| `POST` | `/api/projects/{project}/import` | `200`, `413`, `422` | Importa un proyecto desde `.zip` (multipart/form-data); lo crea si no existe. |
 | `POST` | `/api/render` | `200`, `422` | Convierte markdown en HTML. |
 | `GET` | `/api/notifications` | `200` | Notificaciones no leídas en `{"notifications": [{id, titulo, mensaje}]}`. |
 | `POST` | `/api/notifications` | `201`, `422` | Crea una notificación (recibe `{"titulo", "mensaje"}`). |
@@ -82,7 +82,9 @@ del CI falla si el directorio y el manifiesto divergen.
 Los errores usan `{"detail": "..."}` con mensajes en español. Las
 validaciones de Pydantic vienen como lista de objetos con `loc` y `msg`.
 Un error no previsto responde `500` con
-`{"detail": "error interno al procesar la solicitud"}`, sin stack trace.
+`{"detail": "error interno al procesar la solicitud"}`, sin stack trace en
+la respuesta: el traceback completo queda en el log del servidor
+(logger `purplemd`), que es donde hay que mirarlo.
 
 Cuándo cae cada código de error:
 
@@ -133,6 +135,14 @@ curl -s -X POST http://127.0.0.1:8000/api/render \
   nombre tal cual (con el prefijo), pero el import solo lee su versión, así
   que el archivo puede migrarse entre usuarios e instancias.
 
+## Exportar a PDF
+
+`GET /api/projects/{project}/notes/{path}/pdf` renderiza con WeasyPrint y
+**no sale a la red**: solo incrusta recursos `data:` (imágenes inline en
+base64). Una URL `http(s)://…` o una referencia a un archivo del disco
+dentro de la nota no se baja nunca —el PDF se genera igual, sin ese
+recurso—.
+
 ## Límites
 
 - Nota: `MAX_BYTES = 1_048_576` (1 MB) en
@@ -140,6 +150,11 @@ curl -s -X POST http://127.0.0.1:8000/api/render \
   UTF-8, no caracteres, y aplica al crear y al guardar.
 - Render: `MAX_RENDER_BYTES = 204_800` (200 KB) en `api.py`, por request
   a `/api/render`.
+- Import de ZIP: `MAX_IMPORT_ZIP_BYTES = 10_485_760` (10 MB) en
+  `purplemd_storage/protocol.py`, sobre el archivo subido (`413` si lo
+  supera), y `MAX_IMPORT_TOTAL_BYTES = 52_428_800` (50 MB) sumando lo que
+  descomprime un mismo ZIP. Cada entrada se mira por su `file_size`
+  **antes** de leerla, así que una zip bomb no llega a costar memoria.
 - Nombres de proyecto y segmentos de ruta: sin separadores de ruta, sin
   `..`, sin punto inicial; solo letras y dígitos (acepta tildes y `ñ`),
   espacio, `_` y `-`. Se acepta con o sin `.md`, y la extensión se

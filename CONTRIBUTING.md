@@ -146,7 +146,7 @@ La app queda en <http://127.0.0.1:8000>.
 | --- | --- |
 | `uv sync --dev` | Instala/actualiza dependencias |
 | `uv run uvicorn api:app --reload` | Servidor dev con recarga |
-| `uv run pytest -q` | Corre la suite (306 tests + 263 subtests) |
+| `uv run pytest -q` | Corre la suite (319 tests + 271 subtests) |
 | `uv run pytest tests/test_api.py -k pdf` | Test específico |
 | `uv run ruff check .` | Lint |
 | `uv run ruff check . --fix` | Lint con auto-corrección |
@@ -174,8 +174,9 @@ Son transversales a toda contribución (ver [AGENTS.md](AGENTS.md)):
 7. **Marca de agua en el PDF**: siempre visible en la versión open source.
    No agregar checkbox ni opción para quitarla (es exclusiva de la versión
    enterprise).
-8. **Fuentes 100% libres/comerciales** en el PDF (Liberation Sans, Noto
-   Color Emoji — sin Arial).
+8. **Fuentes 100% libres/comerciales** en el PDF (DejaVu Sans de cuerpo,
+   Liberation Sans de reserva; Noto Color Emoji solo por fallback cuando hay
+   emoji — sin Arial).
 9. **Sin commits/pushes/merges/borrados** sin autorización explícita del
    maintainer.
 

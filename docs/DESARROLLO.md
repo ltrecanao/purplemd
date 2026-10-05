@@ -54,15 +54,16 @@ En la instancia pública las mismas rutas cuelgan de
 ## Pruebas
 
 La suite está escrita con `unittest` (clases `TestCase`), se corre con
-`pytest` y tiene 306 tests, más 263 subtests de `self.subTest()`:
+`pytest` y tiene 319 tests, más 271 subtests de `self.subTest()`:
 
-- 99 en `tests/test_api.py`.
+- 104 en `tests/test_api.py`.
 - 95 en `tests/test_purplemd.py`.
 - 47 en `tests/test_storage.py`.
-- 20 en `tests/test_renderer.py`.
-- 20 en `tests/test_zip.py`.
+- 23 en `tests/test_zip.py`.
+- 21 en `tests/test_renderer.py`.
 - 19 en `tests/test_notificaciones.py`.
 - 6 en `tests/test_contraste.py`.
+- 3 en `tests/test_texto_visible.py`.
 
 ```bash
 uv run pytest -q
@@ -78,7 +79,10 @@ uv run ty check .
 El frontend no tiene suite propia: casi todo lo que usa está cubierto por
 `tests/test_api.py` (proyectos, notas, directorios, PDF y render). El
 export/import de `.zip` cubre `tests/test_zip.py` y las tres rutas de
-`/api/notifications`, `tests/test_notificaciones.py`.
+`/api/notifications`, `tests/test_notificaciones.py`. Del CSS sí hay un
+test por regla que lo pide, leyendo el archivo: la paleta
+(`tests/test_contraste.py`, más abajo) y el texto visible del explorador
+(`tests/test_texto_visible.py`).
 
 La paleta de color se valida sola: `tests/test_contraste.py` lee
 `static/css/style.css`, recalcula los 26 pares de tokens de ambos temas y

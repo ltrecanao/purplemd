@@ -91,6 +91,16 @@ filas: nunca se truncan ni se achican (`style.css`).
 La selección y los estados del segmentado se distinguen también por
 posición/marca, no únicamente por el color de la etiqueta.
 
+## Texto visible en el breakpoint intermedio
+
+Entre 48rem y 60rem el explorador es estrecho y el texto de los ítems que
+llevan `title` colapsa en su tooltip (`font-size: 0` recuperado por un
+`::before` con `attr(title)`). Ese es el único colapso permitido: si el
+elemento no trae `title` que reemplazar, el contenido queda en la página sin
+forma de leerlo (los botones «Crear» e «Importar .md» eran cajas vacías).
+Lo que se escribe en un input nunca colapsa, porque `attr(value)` no es
+dinámico. `tests/test_texto_visible.py` lo hace cumplir.
+
 ## Sin `alert()` ni `confirm()`
 
 Las confirmaciones destructivas son inline, en español, con el aviso de

@@ -62,8 +62,9 @@ Compuesto por `static/index.html`, `static/css/style.css` y
   justo debajo de ella (con scroll interno si el contenido es largo) y
   se cierra con `Escape`, al pulsar el botón de nuevo o al abrir una
   nota. Cambiar de proyecto no cierra el desplegable. Desde 48rem el
-  explorador ya es columna (estrecha y solo iconos hasta 60rem, ancha
-  desde ahí) y el botón «Explorador» no se ve.
+  explorador ya es columna (estrecha hasta 60rem —el texto de cada ítem
+  que lleva `title` se muestra por su tooltip—, ancha desde ahí) y el
+  botón «Explorador» no se ve.
 - Menú «Más acciones» (☰): la superficie angosta (menos de 48rem) de
   vistas y archivo. Agrupa sus ítems en tres grupos con nombre,
   «Visualizador», «Archivo» y «Difusión». «Visualizador» ofrece tres
