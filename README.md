@@ -37,6 +37,8 @@ dependencias en el cliente y sin autoguardado.
 - Enlaces entre notas desde la vista previa: `[texto](ruta)` abre esa
   nota del proyecto activo (es como viaja la bienvenida a su tutorial);
   los enlaces externos quedan para el navegador.
+- Servidor **MCP** integrado para que clientes compatibles con MCP puedan
+consultar y gestionar proyectos y notas mediante herramientas.
 
 ## Qué no hace hoy
 
@@ -45,8 +47,26 @@ dependencias en el cliente y sin autoguardado.
   tiempo real · sincronización entre dispositivos · plugins ·
   autoguardado · mover contenido entre proyectos · deshacer de
   borrados · adjuntos (solo texto markdown).
-- Tampoco hay servidor MCP ni export a HTML: no hay código ni tests para
-  eso y no forma parte del valor del proyecto.
+
+## MCP
+
+Endpoint: `/mcp`
+
+PurpleMD incluye un servidor MCP integrado en la misma aplicación FastAPI, utilizando Streamable HTTP.
+
+Actualmente expone herramientas para consultar y gestionar proyectos y
+notas:
+
+- **list_projects**
+- **get_project_tree**
+- **read_note**
+- **create_note**
+- **update_note**
+- **move_note**
+- **delete_note**
+
+El servidor MCP se inicia automáticamente junto con PurpleMD; no es
+necesario ejecutar un proceso adicional.
 
 ## Arranque rápido
 

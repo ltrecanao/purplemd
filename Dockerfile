@@ -45,7 +45,7 @@ FROM deps AS build
 # el código que la app importa en runtime: los tres módulos sueltos de la
 # raíz y purplemd_storage/ (paquete que api.py y purplemd.py importan), que
 # va en su propia COPY —como static/— para quedar como directorio en /app.
-COPY README.md api.py purplemd.py renderer.py ./
+COPY README.md api.py purplemd.py renderer.py mcp_server.py ./
 COPY purplemd_storage/ ./purplemd_storage/
 COPY static/ ./static/
 # Plantillas: recursos .md servidos por /plantillas y sembrados en la app.

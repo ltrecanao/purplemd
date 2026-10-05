@@ -46,6 +46,7 @@ Desarrollo local: uvicorn api:app --reload
 
 import logging
 import os  # noqa: F401 (usado en tests para patch)
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
@@ -61,6 +62,7 @@ from weasyprint.urls import URLFetcher
 
 import purplemd
 import renderer
+from mcp_server import mcp
 from purplemd_storage import MAX_IMPORT_ZIP_BYTES, get_storage
 
 # Tope de markdown para POST /api/render. El HTML renderizado puede pesar
@@ -91,10 +93,23 @@ _storage = get_storage()
 # un 500 sin dejar rastro hace imposible diagnosticar el fallo en producción.
 logger = logging.getLogger("purplemd")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with mcp.session_manager.run():
+        yield
+
 app = FastAPI(
     title="purplemd",
     description=(
         "Editor de markdown ligero: notas en proyectos con subcarpetas y vista previa en HTML."
+    ),
+    lifespan=lifespan
+)
+
+app.mount(
+    "/mcp",
+    mcp.streamable_http_app(
+        streamable_http_path="/",
     ),
 )
 

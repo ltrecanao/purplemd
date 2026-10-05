@@ -17,6 +17,7 @@ dependencies = [
     "pygments>=2.19.0",
     "weasyprint>=62.0",
     "python-multipart>=0.0.6",
+    "mcp>=2.0.0",
 ]
 
 # Grupo de desarrollo (estándar de uv): `uv sync` lo instala por defecto.
@@ -43,7 +44,7 @@ build-backend = "setuptools.build_meta"
 # `packages`, purplemd_storage/ no viaja en el wheel y la instalación no
 # editable falla con ModuleNotFoundError.
 [tool.setuptools]
-py-modules = ["purplemd", "renderer", "api"]
+py-modules = ["purplemd", "renderer", "api", "mcp_server"]
 packages = ["purplemd_storage"]
 
 # ruff: linting y formateo. target-version va de acuerdo con la versión que
