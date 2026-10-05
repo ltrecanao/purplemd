@@ -3899,9 +3899,9 @@ Si querés el recorrido completo —los dos paneles, la barra de herramientas, d
 
 ## Plantillas para arrancar más rápido
 
-En el explorador vas a encontrar el proyecto **«Plantillas»**, con documentos listos para copiar, completar y exportar a PDF: propuesta comercial, presupuesto formal, presupuesto de servicio, contrato de servicios, informe técnico, ficha de cliente, orden de trabajo, CV, carta de presentación, apuntes de estudio, detalle de cobro y guía paso a paso.
+En el explorador vas a encontrar el proyecto **«Plantillas»**, con documentos listos para copiar, completar y exportar a PDF: propuesta comercial, presupuesto formal, presupuesto de servicio, contrato de servicios, informe técnico, ficha de cliente, orden de trabajo, detalle de cobro y guía paso a paso.
 
-Los campos a completar van entre corchetes, por ejemplo \`[FECHA]\` o \`[MONTO]\`. Abrí la que te sirva, hacé una copia en tu proyecto y rellená. Si editás o borrás alguna en «Plantillas», se respeta: no vuelve a crearse.
+Los campos a completar van entre corchetes, por ejemplo \`[FECHA]\` o \`[MONTO_TOTAL]\`. Abrí la que te sirva, hacé una copia en tu proyecto y rellená. Si editás o borrás alguna en «Plantillas», se respeta: no vuelve a crearse.
 
 ## Unas cositas más
 
@@ -4061,7 +4061,7 @@ async function asegurarBienvenida() {
 }
 
 // ------------------------------------------------------------- Plantillas
-// Documentos de ejemplo (propuesta, presupuesto, CV, guías) que viven como
+// Documentos de ejemplo (propuesta, presupuesto, contratos, guías) que viven como
 // recursos .md en `plantillas/`, servidos por /plantillas. El manifiesto
 // `plantillas/indice.json` es el que enumera qué copiar: agregar una
 // plantilla es dropear el archivo y sumarlo ahí, sin tocar este código.
@@ -4077,25 +4077,28 @@ const MANIFIESTO_PLANTILLAS = "/plantillas/indice.json";
  * arranque son tres requests (manifiesto, proyecto, árbol) y ninguna
  * escritura si ya están todas.
  *
- * @returns {Promise<void>}
+ * Corre en paralelo con la bienvenida y no pinta el explorador, así que
+ * quien la llama es la que refresca la lista si esta creó algo.
+ *
+ * @returns {Promise<boolean>} Si esta llamada creó alguna nota.
  */
 async function asegurarPlantillas() {
   let manifiesto;
   try {
     manifiesto = await pedir(MANIFIESTO_PLANTILLAS);
   } catch (_) {
-    return; // Sin manifiesto (instalación mínima) no hay nada que sembrar.
+    return false; // Sin manifiesto (instalación mínima) no hay nada que sembrar.
   }
   const proyecto = manifiesto.proyecto;
   const rutas = manifiesto.plantillas;
-  if (!proyecto || !Array.isArray(rutas) || rutas.length === 0) return;
+  if (!proyecto || !Array.isArray(rutas) || rutas.length === 0) return false;
 
   const base = `/api/projects/${encodeURIComponent(nsProject(proyecto))}`;
   if (!(await existeRecurso(`${base}/tree`))) {
     try {
       await pedir("/api/projects", conJson("POST", { name: nsProject(proyecto) }));
     } catch (_) {
-      return; // 409 u otro fallo: sin proyecto no se puede sembrar.
+      return false; // 409 u otro fallo: sin proyecto no se puede sembrar.
     }
   }
 
@@ -4105,7 +4108,7 @@ async function asegurarPlantillas() {
     const arbol = await pedir(`${base}/tree`);
     existentes = new Set(arbol.entries.filter((e) => e.type === "note").map((e) => e.path));
   } catch (_) {
-    return;
+    return false;
   }
 
   let creóAlgo = false;
@@ -4123,9 +4126,9 @@ async function asegurarPlantillas() {
     }
   }
 
-  // Recién creada, la lista hay que refrescarla para que el proyecto
-  // aparezca en el explorador (sin deseleccionar el que está abierto).
-  if (creóAlgo) await cargarProyectos();
+  // El refresco del explorador lo hace quien llama, al final del arranque:
+  // pintar la lista acá podría deseleccionar la bienvenida recién abierta.
+  return creóAlgo;
 }
 
 async function iniciar() {
@@ -4141,6 +4144,11 @@ async function iniciar() {
   refrescarGuardado();
   refrescarHabilitacion();
   const proyectos = await cargarProyectos();
+  // La semilla de plantillas es la más lenta (una request por archivo):
+  // arranca en paralelo con la bienvenida. No pinta el explorador ni
+  // selecciona nada, así que no puede robarle el foco a la nota que se
+  // abre abajo.
+  const plantillas = asegurarPlantillas();
   // La nota de bienvenida es la que se muestra por defecto: es el
   // primer contacto con el producto y explica el resto.
   if (await asegurarBienvenida()) {
@@ -4152,9 +4160,9 @@ async function iniciar() {
     // y ninguna nota abierta, como hasta ahora.
     await seleccionarProyecto(stripNs(proyectos[0].name));
   }
-  // Las plantillas van después de la bienvenida para no robarle el foco:
-  // solo aparecen en el explorador, sin seleccionarse ni abrirse.
-  await asegurarPlantillas();
+  // Recién acá, con el foco ya puesto: si la semilla creó algo, el
+  // proyecto «Plantillas» entra en la lista del explorador.
+  if (await plantillas) await cargarProyectos();
   cargarNotificaciones();
   setInterval(cargarNotificaciones, 30000);
 }

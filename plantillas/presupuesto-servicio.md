@@ -1,49 +1,42 @@
-# Presupuesto de [TRABAJO O SERVICIO]
+# Presentación de Servicios: [SERVICIO_TITULO]
+`Proveedor: [PROVEEDOR_NOMBRE]` · `Fecha: [FECHA]`
 
-[NOMBRE Y APELLIDO] — [TU RUBRO] · [FECHA]
+## Definición del Servicio
+**Tipo de Servicio:** [SERVICIO_CATEGORIA]
+**Descripción:** [SERVICIO_DESCRIPCION_BREVE]
+**Modalidad:** `[MODALIDAD_PRESENCIAL_REMOTO]` · `[FRECUENCIA_SERVICIO]`
 
-## Cliente
+## Metodología Operativa
+**Proceso de ejecución:**
+- [ ] **Inicio:** [PASO_1_INICIO]
+- [ ] **Desarrollo:** [PASO_2_DESARROLLO]
+- [ ] **Control:** [PASO_3_CONTROL]
+- [ ] **Cierre:** [PASO_4_CIERRE]
 
-| Campo | Dato |
-| --- | --- |
-| Cliente | [NOMBRE DEL CLIENTE] |
-| Correo o teléfono | [CORREO O TELÉFONO] |
-| Trabajo | [QUÉ SE PIDE, EN UNA LÍNEA] |
-| Fecha de entrega | [FECHA] |
+**Herramientas/Tecnologías a usar:**
+`[HERRAMIENTA_1]` · `[HERRAMIENTA_2]` · `[HERRAMIENTA_3]`
 
-## Qué incluye
+## Niveles de Servicio (SLA)
+| Indicador | Compromiso / Meta | Frecuencia de Reporte |
+| :--- | :--- | :--- |
+| **Tiempo de Respuesta** | [SLA_TIEMPO_RESPUESTA] | [SLA_FREQ_1] |
+| **Calidad/Precisión** | [SLA_CALIDAD] | [SLA_FREQ_2] |
+| **Disponibilidad** | [SLA_DISPONIBILIDAD] | [SLA_FREQ_3] |
 
-| Ítem | Detalle | Cantidad | Importe |
-| --- | --- | --- | --- |
-| 1 | [Trabajo o material] | [CANTIDAD] | [MONTO] |
-| 2 | [Trabajo o material] | [CANTIDAD] | [MONTO] |
-| 3 | [Trabajo o material] | [CANTIDAD] | [MONTO] |
+## Responsabilidades y Acuerdos
+**Del Proveedor:**
+- [RESPONSABILIDAD_PROV_1]
+- [RESPONSABILIDAD_PROV_2]
 
-| Concepto | Importe |
-| --- | --- |
-| Subtotal | [MONTO] |
-| **Total** | **[MONTO TOTAL]** |
+**Del Cliente:**
+- [RESPONSABILIDAD_CLI_1]
+- [RESPONSABILIDAD_CLI_2]
 
-## Forma de pago
+## Plan de Seguimiento
+| Reunión / Control | Objetivo | Periodicidad |
+| :--- | :--- | :--- |
+| [CONTROL_1_NOMBRE] | [CONTROL_1_OBJ] | [CONTROL_1_FREQ] |
+| [CONTROL_2_NOMBRE] | [CONTROL_2_OBJ] | [CONTROL_2_FREQ] |
 
-- Anticipo: [MONTO] ([50 %]) al confirmar el trabajo.
-- Saldo: [MONTO] contra entrega.
-- Medio de pago: [EFECTIVO / TRANSFERENCIA / MERCADO PAGO / OTRO].
-
-## Condiciones
-
-- El presupuesto es válido por [NÚMERO] días desde [FECHA].
-- Incluye [NÚMERO] correcciones; cambios de idea o de diseño se cotizan aparte.
-- Plazo de entrega: [NÚMERO] días hábiles desde que se recibe el anticipo y los materiales.
-
-## Qué necesito de vos
-
-- [ ] [Material, medida o dato que debe proveer el cliente]
-- [ ] [Otra cosa que hace falta para arrancar]
-- [ ] [Confirmación final para empezar]
-
-## Aceptación
-
-Confirmo que estoy de acuerdo con el presupuesto anterior.
-
-Nombre: [NOMBRE DEL CLIENTE] — Fecha: [FECHA]
+**Vigencia del Servicio:** Desde `[FECHA_INICIO]` hasta `[FECHA_FIN]`
+**Aceptación:** `[FIRMA_1_NOMBRE]` · `[FIRMA_1_FECHA]` | `[FIRMA_2_NOMBRE]` · `[FIRMA_2_FECHA]`

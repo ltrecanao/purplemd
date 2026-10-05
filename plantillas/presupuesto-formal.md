@@ -1,48 +1,35 @@
-# Presupuesto N.º [NÚMERO DE PRESUPUESTO]
+# Presupuesto N.º [PRESUPUESTO_NUMERO]
+`Emitido por: [USER_EMPRESA_RUBRO]` · `Fecha: [FECHA_EMISION]`
 
-Emitido por [NOMBRE DE TU EMPRESA] el [FECHA].
+## Datos del Cliente
+**Cliente:** [CLIENTE_NOMBRE] ([CLIENTE_ID])
+**Contacto:** [CLIENTE_EMAIL] · [CLIENTE_TEL]
+**Validez:** [VALIDEZ_DIAS] días desde [FECHA_EMISION]
 
-## Datos
+## Detalle de Inversión
+**Trabajo:** [PRESUPUESTO_CONCEPTO_GENERAL]
 
-| Campo | Dato |
-| --- | --- |
-| Cliente | [NOMBRE DEL CLIENTE] |
-| CUIT / DNI | [IDENTIFICADOR] |
-| Correo | [CORREO DEL CONTACTO] |
-| Validez | [NÚMERO] días desde [FECHA] |
+| Ítem | Descripción | Cant. | Unitario | Total |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | [ITEM_1_DESC] | [ITEM_1_CANT] | [ITEM_1_PRECIO] | [ITEM_1_TOTAL] |
+| 2 | [ITEM_2_DESC] | [ITEM_2_CANT] | [ITEM_2_PRECIO] | [ITEM_2_TOTAL] |
+| **Subtotal** | | | | **[PRESUPUESTO_SUBTOTAL]** |
+| **IVA ([IVA_PORCENTAJE]%)** | | | | **[PRESUPUESTO_IVA]** |
+| **TOTAL** | | | | **[PRESUPUESTO_TOTAL]** |
 
-## Trabajos presupuestados
+## Condiciones de Pago y Entrega
+- **Forma de Pago:** [PAGO_SISTEMA] (Ej: [PAGO_ANTICIPO] al inicio / [PAGO_SALDO] contra entrega).
+- **Plazo de Entrega:** [PLAZO_ENTREGA] días hábiles tras recibir anticipo y materiales.
+- **Correcciones:** Incluye [CANTIDAD_CORRECCIONES] rondas de cambios.
 
-| Ítem | Descripción | Cantidad | Precio unitario |
-| --- | --- | --- | --- |
-| 1 | [Descripción breve del trabajo] | [CANTIDAD] | [MONTO] |
-| 2 | [Descripción breve del trabajo] | [CANTIDAD] | [MONTO] |
-| 3 | [Descripción breve del trabajo] | [CANTIDAD] | [MONTO] |
+## Alcance
+- **Incluye:** [ALCANCE_INCLUYE]
+- **No incluye:** [ALCANCE_EXCLUYE]
 
-| Concepto | Importe |
-| --- | --- |
-| Subtotal | [MONTO] |
-| IVA [21 / 10] % | [MONTO] |
-| **Total** | **[MONTO TOTAL]** |
+## Requerimientos del Cliente
+- [ ] [REQUISITO_CLIENTE_1]
+- [ ] [REQUISITO_CLIENTE_2]
 
-## Forma de pago
+**Observaciones:** [PRESUPUESTO_OBSERVACIONES]
 
-| Cuota | Condición | Importe |
-| --- | --- | --- |
-| 1.ª | [Al inicio / 50 %] | [MONTO] |
-| 2.ª | [Contra entrega] | [MONTO] |
-
-## Incluye
-
-- [Lo que sí cubre el presupuesto]
-- [Lo que sí cubre el presupuesto]
-
-## No incluye
-
-- [Lo que queda fuera, para que quede claro]
-
-## Observaciones
-
-[Condiciones particulares, aclaraciones o datos bancarios para el pago.]
-
-Firma: [NOMBRE] — [FECHA]
+**Aceptación:** `[CLIENTE_FIRMA_NOMBRE]` · `[CLIENTE_FIRMA_FECHA]`

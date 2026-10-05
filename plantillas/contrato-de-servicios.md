@@ -1,86 +1,44 @@
-# Contrato de prestación de servicios
+# Contrato de Prestación de Servicios
 
-Entre [NOMBRE O RAZÓN SOCIAL DE LA CONTRATANTE], CUIT [IDENTIFICADOR], con domicilio en [DIRECCIÓN], en adelante «la contratante», y [NOMBRE O RAZÓN SOCIAL DEL PROVEEDOR], CUIT [IDENTIFICADOR], con domicilio en [DIRECCIÓN], en adelante «el proveedor», se celebra el siguiente contrato.
+Entre **[CONTRATANTE_RAZON_SOCIAL]**, CUIT [CONTRATANTE_CUIT], con domicilio en [CONTRATANTE_DOMICILIO], en adelante «la contratante», y **[PROVEEDOR_RAZON_SOCIAL]**, CUIT [PROVEEDOR_CUIT], con domicilio en [PROVEEDOR_DOMICILIO], en adelante «el proveedor», se acuerda lo siguiente:
 
-## Objeto
+## 1. Objeto y Alcance
+El proveedor prestará los siguientes servicios:
+- [SERVICIO_1]
+- [SERVICIO_2]
+- [SERVICIO_3]
+**Exclusiones:** [EXCLUSIONES_SERVICIOS]
 
-El proveedor prestará a la contratante los servicios detallados en este contrato, con la calidad, plazos y condiciones aquí establecidos.
-
-## Alcance de los servicios
-
-- [Primer servicio incluido]
-- [Segundo servicio incluido]
-- [Tercer servicio incluido]
-
-### Exclusiones
-
-Quedan expresamente fuera del alcance: [actividad excluida], [actividad excluida].
-
-## Plazo
-
-El contrato tiene vigencia desde [FECHA DE INICIO] hasta [FECHA DE FINALIZACIÓN]. Los servicios se ejecutarán durante el siguiente cronograma:
+## 2. Plazos y Cronograma
+Vigencia: desde [FECHA_INICIO] hasta [FECHA_FIN].
 
 | Etapa | Inicio | Fin | Responsable |
-| --- | --- | --- | --- |
-| [Etapa 1] | [FECHA] | [FECHA] | [NOMBRE] |
-| [Etapa 2] | [FECHA] | [FECHA] | [NOMBRE] |
-| [Etapa 3] | [FECHA] | [FECHA] | [NOMBRE] |
+| :--- | :--- | :--- | :--- |
+| [ETAPA_1] | [F_INICIO_1] | [F_FIN_1] | [RESP_1] |
+| [ETAPA_2] | [F_INICIO_2] | [F_FIN_2] | [RESP_2] |
 
-La fecha de inicio podrá postergarse si la contratante no entrega en tiempo los materiales, accesos o aprobaciones requeridos.
+## 3. Obligaciones y Confidencialidad
+**Proveedor:** Ejecutar el servicio con diligencia, mantener secreto profesional y reportar riesgos.
+**Contratante:** Entregar materiales/accesos en tiempo y forma, designar un responsable y abonar los honorarios.
+**Confidencialidad:** Ambas partes no divulgarán información sensible por un periodo de [MESES_CONFIDENCIALIDAD] meses tras finalizar el contrato.
 
-## Obligaciones del proveedor
-
-- Ejecutar los servicios con diligencia y según las buenas prácticas de la disciplina.
-- Mantener confidencialidad sobre toda la información a la que acceda.
-- Informar por escrito cualquier riesgo que pueda afectar los plazos acordados.
-
-## Obligaciones de la contratante
-
-- Proporcionar los materiales, accesos y datos necesarios en las fechas pactadas.
-- Designar un único responsable para recepcionar y aprobar entregas.
-- Abonar los importes en los plazos establecidos en la sección de honorarios.
-
-## Honorarios
-
+## 4. Honorarios y Pago
 | Concepto | Importe | Vencimiento |
-| --- | --- | --- |
-| [Anticipo] | [MONTO] | [FECHA] |
-| [Entrega intermedia] | [MONTO] | [FECHA] |
-| [Entrega final] | [MONTO] | [FECHA] |
-| **Total** | **[MONTO TOTAL]** | |
+| :--- | :--- | :--- |
+| [PAGO_ANTICIPO] | [MONTO_ANTICIPO] | [F_VENCE_ANTICIPO] |
+| [PAGO_FINAL] | [MONTO_FINAL] | [F_VENCE_FINAL] |
+| **Total** | **[MONTO_TOTAL]** | |
 
-- Los importes son [netos / más IVA] y se abonan por [transferencia / débito automático] a [DATOS DE PAGO].
-- El incumplimiento en el pago de una cuota habilita al proveedor a suspender los servicios previo aviso escrito.
+**Condiciones:** Importes [TIPO_IVA] abonados vía [METODO_PAGO] a [DATOS_CUENTA_BANCARIA].
 
-## Propiedad intelectual
+## 5. Propiedad Intelectual y Resolución
+- **Propiedad:** Tras el pago total, la contratante adquiere derechos de uso de los entregables. El proveedor retiene sus metodologías y el derecho de portafolio.
+- **Resolución:** Cualquiera de las partes puede rescindir el contrato con [DIAS_PREAVISO] días de aviso escrito.
 
-Una vez abonado el total, la contratante adquiere los derechos de uso sobre los entregables finales. El proveedor conserva los derechos sobre metodologías, bibliotecas y herramientas propias, así como el derecho a mencionar la prestación en su portafolio, salvo pedido expreso en contrario.
+## 6. Firmas y Notificaciones
+Domicilio contractual: [DOMICILIO_LEGAL] · Email: [EMAIL_LEGAL]
 
-## Confidencialidad
-
-Ambas partes se obligan a no divulgar información técnica, comercial o financiera obtenida durante la ejecución. Esta obligación subsiste por [NÚMERO] meses después de la finalización.
-
-## Resolución
-
-Cualquiera de las partes puede resolver este contrato con [NÚMERO] días de preaviso escrito. En caso de resolución, la contratante abona los servicios efectivamente ejecutados hasta la fecha de notificación.
-
-## Datos bancarios
-
-| Campo | Dato |
-| --- | --- |
-| Banco | [BANCO] |
-| Cuenta CBU / alias | [CBU O ALIAS] |
-| Titular | [TITULAR] |
-
-## Modificaciones
-
-Cualquier cambio al alcance, los plazos o los honorarios deberá constar por escrito y ser firmado por ambas partes.
-
-## Firmas
-
-| Parte | Nombre y apellido | Domicilio | CUIT / DNI | Fecha |
-| --- | --- | --- | --- | --- |
-| Contratante | [NOMBRE] | [DIRECCIÓN] | [IDENTIFICADOR] | [FECHA] |
-| Proveedor | [NOMBRE] | [DIRECCIÓN] | [IDENTIFICADOR] | [FECHA] |
-
-Domicilio contractual para las comunicaciones: [DIRECCIÓN] — correo: [CORREO].
+| Parte | Nombre y Apellido | DNI/CUIT | Firma |
+| :--- | :--- | :--- | :--- |
+| **Contratante** | [CONTRATANTE_FIRMA] | [CONTRATANTE_ID] | ___________ |
+| **Proveedor** | [PROVEEDOR_FIRMA] | [PROVEEDOR_ID] | ___________ |

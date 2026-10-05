@@ -1,75 +1,44 @@
-# Guía paso a paso: [TAREA]
+# Guía: [TAREA_NOMBRE]
+`Cómo [RESULTADO_FINAL] en [CANTIDAD_PASOS] pasos.`
 
-Cómo [qué se logra al final], en [NÚMERO] pasos.
+## Datos y Requisitos
+**Tiempos:** [DURACION_ESTIMADA] | **Dificultad:** [DIFICULTAD] | **Actualización:** [FECHA_ACTUALIZACION]
 
-## Datos
+**Necesitás:**
+- [ ] [REQUISITO_1]
+- [ ] [REQUISITO_2]
+- [ ] [REQUISITO_3]
 
-| Campo | Dato |
-| --- | --- |
-| Tarea | [NOMBRE DE LA TAREA] |
-| Duración estimada | [TIEMPO] |
-| Dificultad | [Baja / media / alta] |
-| Última actualización | [FECHA] |
+## Pasos a Seguir
+### 1. [PASO_1_TITULO]
+[PASO_1_DESC]
+- [ ] Completado
 
-## Qué necesitás antes
+### 2. [PASO_2_TITULO]
+[PASO_2_DESC]
+- [ ] Completado
 
-- [ ] [Requisito o material 1]
-- [ ] [Requisito o material 2]
-- [ ] [Requisito o material 3]
+### 3. [PASO_3_TITULO]
+[PASO_3_DESC]
+- [ ] Completado
 
-## Pasos
+### 4. [PASO_4_TITULO]
+[PASO_4_DESC]
+- [ ] Completado
 
-### 1. [Título del primer paso]
+### 5. [PASO_5_TITULO]
+[PASO_5_DESC]
+- [ ] Completado
 
-[Explicación corta: qué se hace y por qué. Si hay un dato concreto, ponelo: una ruta, un botón, una proporción.]
+## Verificación y Soporte
+**Checklist final:**
+- [ ] [VERIFICACION_1]
+- [ ] [VERIFICACION_2]
 
-- [ ] Realizar el paso
+**Problemas Comunes:**
+| Falla | Causa | Solución |
+| :--- | :--- | :--- |
+| [FALLA_1] | [CAUSA_1] | [SOLUCION_1] |
 
-### 2. [Título del segundo paso]
-
-[Explicación.]
-
-- [ ] Realizar el paso
-
-### 3. [Título del tercer paso]
-
-[Explicación.]
-
-- [ ] Realizar el paso
-
-### 4. [Título del cuarto paso]
-
-[Explicación.]
-
-- [ ] Realizar el paso
-
-### 5. [Título del último paso]
-
-[Explicación.]
-
-- [ ] Realizar el paso
-
-## Verificación final
-
-Para comprobar que quedó bien:
-
-- [ ] [Qué tiene que ser cierto al terminar]
-- [ ] [Otra comprobación]
-- [ ] [Otra comprobación]
-
-## Problemas frecuentes
-
-| Problema | Causa probable | Solución |
-| --- | --- | --- |
-| [Qué falla] | [Por qué pasa] | [Qué hacer] |
-| [Qué falla] | [Por qué pasa] | [Qué hacer] |
-| [Qué falla] | [Por qué pasa] | [Qué hacer] |
-
-## Consejos
-
-- [Consejo breve que evita el error más común]
-- [Consejo para ahorrar tiempo]
-
-## Dónde pedir ayuda
-
-[Foro, canal, persona o enlace de soporte.]
+**Tips:** [CONSEJO_AHORRO_TIEMPO]
+**Soporte:** [SOPORTE_CONTACTO_O_LINK]

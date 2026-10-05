@@ -1,68 +1,40 @@
-# Propuesta comercial — [NOMBRE DE TU EMPRESA]
+# Propuesta Comercial: [PROPUESTA_TITULO]
+`Preparado para: [CLIENTE_NOMBRE]` · `Fecha: [FECHA]`
 
-Documento preparado para [CLIENTE] el [FECHA].
+## Contexto y Objetivo
+**Cliente:** [CLIENTE_CONTACTO] · [CLIENTE_EMAIL]
+**Necesidad:** [PROPUESTA_CONTEXTO]
+**Objetivo:** [PROPUESTA_OBJETIVO]
 
-## Datos del cliente
+## Alcance y Entregables
+**Actividades incluidas:**
+- [ ] [ALCANCE_1]
+- [ ] [ALCANCE_2]
+- [ ] [ALCANCE_3]
+**Exclusiones:** [PROPUESTA_EXCLUYE]
 
-| Campo | Dato |
-| --- | --- |
-| Cliente | [NOMBRE DEL CLIENTE] |
-| Contacto | [NOMBRE DEL CONTACTO] |
-| Correo | [CORREO DEL CONTACTO] |
-| Teléfono | [TELÉFONO] |
+**Entregables Finales:**
+| Entregable | Formato | Fecha Est. |
+| :--- | :--- | :--- |
+| [ENTREGABLE_1] | [ENT_1_FORMATO] | [ENT_1_FECHA] |
+| [ENTREGABLE_2] | [ENT_2_FORMATO] | [ENT_2_FECHA] |
 
-## Contexto
-
-[Cuéntame brevemente qué necesita el cliente y por qué me está buscando. Dos o tres líneas alcanzan.]
-
-## Objetivo del trabajo
-
-[Describí qué se quiere lograr. Empezá con un verbo: «Implementar», «Rediseñar», «Migrar».]
-
-## Alcance
-
-- [ ] [Primer entregable o actividad incluida]
-- [ ] [Segundo entregable o actividad incluida]
-- [ ] [Tercer entregable o actividad incluida]
-
-### No incluido
-
-- [Actividad que queda fuera, para que no haya malentendidos]
-
-## Entregables
-
-| Entregable | Formato | Fecha estimada |
-| --- | --- | --- |
-| [Primer entregable] | [PDF / archivo / visita] | [FECHA] |
-| [Segundo entregable] | [PDF / archivo / visita] | [FECHA] |
-
-## Cronograma
-
+## Cronograma de Trabajo
 | Etapa | Inicio | Fin |
-| --- | --- | --- |
-| [Reunión de arranque] | [FECHA] | [FECHA] |
-| [Desarrollo] | [FECHA] | [FECHA] |
-| [Revisión y cierre] | [FECHA] | [FECHA] |
+| :--- | :--- | :--- |
+| [ETAPA_1_NOMBRE] | [ET_1_INICIO] | [ET_1_FIN] |
+| [ETAPA_2_NOMBRE] | [ET_2_INICIO] | [ET_2_FIN] |
+| [ETAPA_3_NOMBRE] | [ET_3_INICIO] | [ET_3_FIN] |
 
-## Inversión
-
+## Inversión y Condiciones
 | Concepto | Importe |
-| --- | --- |
-| [Primer concepto] | [MONTO] |
-| [Segundo concepto] | [MONTO] |
-| **Total** | **[MONTO TOTAL]** |
+| :--- | :--- |
+| [INVERSION_ITEM_1] | [INVERSION_MONTO_1] |
+| [INVERSION_ITEM_2] | [INVERSION_MONTO_2] |
+| **Total** | **[INVERSION_TOTAL]** |
 
-- Forma de pago: [50 % al inicio y 50 % contra entrega / otras condiciones].
-- Validez de la propuesta: [NÚMERO] días desde [FECHA].
+- **Pago:** [PAGO_CONDICIONES]
+- **Validez:** [VALIDEZ_DIAS] días.
+- **Entrega:** Archivos finales en [FORMATO_ENTREGA] tras acreditación del pago.
 
-## Condiciones
-
-- Los cambios de alcance se cotizan aparte antes de ejecutarse.
-- Los archivos finales se entregan en [FORMATO] una vez acreditado el pago.
-
-## Aceptación
-
-| Nombre | Cargo | Fecha |
-| --- | --- | --- |
-| [NOMBRE] | [CARGO] | [FECHA] |
-| [NOMBRE] | [CARGO] | [FECHA] |
+**Aceptación:** `[FIRMA_1_NOMBRE]` · `[FIRMA_1_FECHA]` | `[FIRMA_2_NOMBRE]` · `[FIRMA_2_FECHA]`

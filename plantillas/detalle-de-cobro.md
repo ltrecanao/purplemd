@@ -1,53 +1,31 @@
-# Detalle de cobro N.º [NÚMERO]
+# Detalle de Cobro N.º [COBRO_NUMERO]
+`[USER_NOMBRE]` — `[USER_RUBRO]` · `[FECHA_EMISION]`
 
-> **Nota:** este documento es un comprobante interno entre las partes. No reemplaza la factura electrónica oficial, que emite [RAZÓN SOCIAL / CUIT] por [SISTEMA / RESPONSABLE].
+> **Nota:** Comprobante interno. No reemplaza la factura oficial de [USER_RAZON_SOCIAL] (CUIT [USER_CUIT]).
 
-[NOMBRE Y APELLIDO] — [TU RUBRO] · [FECHA]
+## Información General
+**Cliente:** [CLIENTE_NOMBRE] ([CLIENTE_ID])
+**Concepto:** [COBRO_CONCEPTO]
+**Período:** [COBRO_PERIODO]
 
-## Datos
+## Desglose de Importes
+| Ítem | Detalle | Cant. | Importe |
+| :--- | :--- | :--- | :--- |
+| 1 | [ITEM_1_DESC] | [ITEM_1_CANT] | [ITEM_1_MONTO] |
+| 2 | [ITEM_2_DESC] | [ITEM_2_CANT] | [ITEM_2_MONTO] |
+| **Total** | | | **[COBRO_TOTAL]** |
 
-| Campo | Dato |
-| --- | --- |
-| Cliente | [NOMBRE DEL CLIENTE] |
-| Documento | [DNI / CUIT] |
-| Concepto | [QUÉ SE COBRA, EN UNA LÍNEA] |
-| Período / fecha | [FECHA O PERÍODO] |
+## Pagos Recibidos
+| Fecha | Medio | Importe | Ref. Operación |
+| :--- | :--- | :--- | :--- |
+| [PAGO_1_FECHA] | [PAGO_1_MEDIO] | [PAGO_1_MONTO] | [PAGO_1_REF] |
+| **Suma** | | **[PAGOS_SUMA]** | |
 
-## Detalle de lo cobrado
+## Estado de Cuenta
+- **Total Trabajo:** [TOTAL_TRABAJO]
+- **Total Abonado:** [TOTAL_ABONADO]
+- **Saldo Pendiente:** **[SALDO_PENDIENTE]** (Vence: [SALDO_VENCIMIENTO])
 
-| Ítem | Detalle | Cantidad | Importe |
-| --- | --- | --- | --- |
-| 1 | [Trabajo o insumo] | [CANTIDAD] | [MONTO] |
-| 2 | [Trabajo o insumo] | [CANTIDAD] | [MONTO] |
-| 3 | [Trabajo o insumo] | [CANTIDAD] | [MONTO] |
+**Observaciones:** [COBRO_OBSERVACIONES]
 
-| Concepto | Importe |
-| --- | --- |
-| Subtotal | [MONTO] |
-| Descuento | [MONTO o «—»] |
-| **Total cobrado** | **[MONTO TOTAL]** |
-
-## Forma de pago
-
-| Fecha | Medio | Importe | Referencia |
-| --- | --- | --- | --- |
-| [FECHA] | [Efectivo / transferencia / otro] | [MONTO] | [NÚMERO DE OPERACIÓN O «—»] |
-| [FECHA] | [Efectivo / transferencia / otro] | [MONTO] | [NÚMERO DE OPERACIÓN O «—»] |
-
-## Saldo
-
-| Campo | Importe |
-| --- | --- |
-| Total del trabajo | [MONTO] |
-| Abonado | [MONTO] |
-| **Saldo pendiente** | **[MONTO o «sin saldo»]** |
-
-Vencimiento del saldo: [FECHA].
-
-## Observaciones
-
-[Si hay algo que aclarar: qué cubre este cobro, qué queda pendiente, condiciones pactadas.]
-
-Recibí conformidad con el detalle anterior.
-
-Nombre: [NOMBRE DEL CLIENTE] — Fecha: [FECHA]
+**Conformidad:** `[CLIENTE_FIRMA_NOMBRE]` · `[CLIENTE_FIRMA_FECHA]`

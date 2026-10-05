@@ -1,44 +1,25 @@
-# Ficha de cliente — [NOMBRE DEL CLIENTE]
+# Ficha de Cliente — [CLIENTE_NOMBRE]
+`Alta: [CLIENTE_FECHA_ALTA]`
 
-Alta el [FECHA].
+## Datos Fiscales y Contacto
+- **Razón Social:** [CLIENTE_RAZON_SOCIAL] ([CLIENTE_CUIT])
+- **Condición Fiscal:** [CLIENTE_TIPO_IVA]
+- **Contacto:** [CLIENTE_CONTACTO_NOMBRE] · [CLIENTE_CONTACTO_EMAIL]
+- **Teléfono:** [CLIENTE_CONTACTO_TEL] · **Domicilio:** [CLIENTE_DOMICILIO]
 
-## Datos generales
+## Preferencias de Comunicación
+- **Canal:** [CLIENTE_CANAL_PREFERIDO]
+- **Horario:** [CLIENTE_HORARIO_PREFERIDO]
+- **Notas:** [CLIENTE_COMUNICACION_NOTAS]
 
-| Campo | Dato |
-| --- | --- |
-| Razón social / nombre | [NOMBRE DEL CLIENTE] |
-| CUIT / DNI | [IDENTIFICADOR] |
-| Responsable frente a AFIP | [RESPONSABLE / IVA / monotributo] |
-| Alta | [FECHA] |
-
-## Contacto
-
-| Dato | Valor |
-| --- | --- |
-| Persona de contacto | [NOMBRE DEL CONTACTO] |
-| Correo | [CORREO DEL CONTACTO] |
-| Teléfono | [TELÉFONO] |
-| Domicilio | [DIRECCIÓN] |
-
-## Preferencias de comunicación
-
-| Canal | Horario | Notas |
-| --- | --- | --- |
-| [Correo / teléfono / mensajería] | [HORARIO] | [Qué prefiere y qué evitar] |
-
-## Trabajos realizados
-
+## Historial de Trabajos
 | Fecha | Trabajo | Importe | Estado |
-| --- | --- | --- | --- |
-| [FECHA] | [Descripción] | [MONTO] | [Pagado / pendiente] |
-| [FECHA] | [Descripción] | [MONTO] | [Pagado / pendiente] |
+| :--- | :--- | :--- | :--- |
+| [TRABAJO_1_FECHA] | [TRABAJO_1_DESC] | [TRABAJO_1_MONTO] | [TRABAJO_1_ESTADO] |
+| [TRABAJO_2_FECHA] | [TRABAJO_2_DESC] | [TRABAJO_2_MONTO] | [TRABAJO_2_ESTADO] |
 
-## Notas internas
+## Notas Internas y Pendientes
+**Observaciones:** [CLIENTE_NOTAS_INTERNAS]
 
-- [Dato útil que conviene recordar: presupuesto aprobado, forma de pago acordada, restricciones.]
-- [Otra aclaración interna.]
-
-## Pendientes
-
-- [ ] [Tarea abierta con este cliente]
-- [ ] [Otra tarea abierta]
+- [ ] [CLIENTE_PENDIENTE_1]
+- [ ] [CLIENTE_PENDIENTE_2]

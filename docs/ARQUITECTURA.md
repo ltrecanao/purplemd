@@ -121,6 +121,11 @@ Compuesto por `static/index.html`, `static/css/style.css` y
   tutorial se suma aunque la bienvenida sea vieja. Solo si la semilla
   no se puede crear se vuelve al comportamiento previo: proyecto más
   reciente y ninguna nota abierta.
+- La semilla de **plantillas** corre en paralelo con la de bienvenida:
+  es la más lenta (una petición por archivo) y no pinta el explorador
+  ni selecciona nada, así que no puede robarle el foco a la nota que se
+  abre abajo. Solo si creó algo, el proyecto «Plantillas» entra en la
+  lista al final del arranque, con el foco ya puesto.
 - Dos formularios de creación, de proyecto y de nota (esta última con
   ruta, p. ej. `diseños/logo`); los errores `404`, `409` y `422` se
   muestran ahí, en español y de forma persistente, junto al formulario

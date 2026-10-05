@@ -88,9 +88,9 @@ class PlantillasTests(ApiTestCase):
         self.assertEqual(response.status_code, 200)
         return response.json()
 
-    def test_manifiesto_lista_las_doce_plantillas(self):
+    def test_manifiesto_lista_las_nueve_plantillas(self):
         plantillas = self.manifiesto()["plantillas"]
-        self.assertEqual(len(plantillas), 12)
+        self.assertEqual(len(plantillas), 9)
         self.assertEqual(plantillas[0], "propuesta-comercial")
         self.assertEqual(plantillas[-1], "guia-paso-a-paso")
 
@@ -113,11 +113,12 @@ class PlantillasTests(ApiTestCase):
 
     def test_las_plantillas_no_tienen_emojis(self):
         # La marca de agua del PDF y los encabezados usan fuentes libres:
-        # un emoji podría no tener glifo y salir como cajita.
+        # un emoji podría no tener glifo y salir como cajita. `→` (U+2192)
+        # queda afuera del filtro: es un glifo de texto, no un emoji a color.
         for ruta in self.manifiesto()["plantillas"]:
             with self.subTest(ruta=ruta):
                 texto = (self.raiz / f"{ruta}.md").read_text(encoding="utf-8")
-                self.assertFalse(any(ord(c) > 0x2100 for c in texto if c not in "—–…·«»"))
+                self.assertFalse(any(ord(c) > 0x2100 for c in texto if c not in "—–…·«»→"))
 
     def test_las_plantillas_tienen_un_solo_titulo(self):
         for ruta in self.manifiesto()["plantillas"]:
@@ -131,8 +132,14 @@ class PlantillasTests(ApiTestCase):
         # suelto sin corchetes se exportaría al PDF como texto normal.
         formal = (self.raiz / "presupuesto-formal.md").read_text(encoding="utf-8")
         simple = (self.raiz / "presupuesto-servicio.md").read_text(encoding="utf-8")
-        self.assertIn("[FECHA]", formal)
-        self.assertIn("[MONTO", simple)
+        self.assertIn("[FECHA_EMISION]", formal)
+        self.assertIn("[SERVICIO_TITULO]", simple)
+        # Nadie reintroduce el otro formato ({{CAMPO}}): sería un segundo
+        # marcador conviviendo con el primero dentro del mismo set.
+        for ruta in self.manifiesto()["plantillas"]:
+            with self.subTest(ruta=ruta):
+                texto = (self.raiz / f"{ruta}.md").read_text(encoding="utf-8")
+                self.assertNotIn("{{", texto)
 
 
 class ProyectosEndpointTests(ApiTestCase):

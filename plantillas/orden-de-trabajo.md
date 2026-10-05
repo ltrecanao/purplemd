@@ -1,57 +1,36 @@
-# Orden de trabajo N.º [NÚMERO]
+# Orden de Trabajo N.º [OT_NUMERO]
+`Cliente: [OT_CLIENTE]` · `Emisión: [OT_FECHA]` · `Vencimiento: [OT_VENCIMIENTO]`
 
-[CLIENTE] — emitida el [FECHA], válida hasta [FECHA DE VENCIMIENTO].
+## Detalle del Trabajo
+**Responsable:** [OT_RESPONSABLE]
+**Descripción:** [OT_DESCRIPCION_TAREA]
 
-## Datos
+**Referencias:** Presupuesto [REF_PRESUPUESTO] · OC [REF_OC]
 
-| Campo | Dato |
-| --- | --- |
-| Cliente | [NOMBRE DEL CLIENTE] |
-| Orden N.º | [NÚMERO] |
-| Fecha | [FECHA] |
-| Responsable | [NOMBRE DE QUIEN ORGANIZA] |
+## Alcance y Recursos
+**Actividades:**
+- [ ] [ACTIVIDAD_1]
+- [ ] [ACTIVIDAD_2]
+- [ ] [ACTIVIDAD_3]
+**Fuera de Alcance:** [OT_EXCLUSIONES]
 
-## Trabajo a realizar
+**Recursos Necesarios:**
+| Recurso | Responsable | Fecha Límite |
+| :--- | :--- | :--- |
+| [RECURSO_1] | [RESP_RECURSO_1] | [F_LIM_1] |
 
-[Describí la tarea en pocas líneas. Si hay una orden de compra o un presupuesto de referencia, mencionalo aquí.]
-
-| Referencia | Número | Fecha |
-| --- | --- | --- |
-| Presupuesto | [NÚMERO] | [FECHA] |
-| Orden de compra | [NÚMERO] | [FECHA] |
-
-## Alcance
-
-- [ ] [Actividad 1]
-- [ ] [Actividad 2]
-- [ ] [Actividad 3]
-
-### Fuera de alcance
-
-- [Lo que no se hace en esta orden]
-
-## Recursos necesarios
-
-| Recurso | Responsable | Fecha límite |
-| --- | --- | --- |
-| [Material / dato / acceso] | [NOMBRE] | [FECHA] |
-| [Material / dato / acceso] | [NOMBRE] | [FECHA] |
-
-## Cronograma de ejecución
-
+## Cronograma y Condiciones
 | Fecha | Actividad | Estado |
-| --- | --- | --- |
-| [FECHA] | [Actividad] | [Pendiente / en curso / hecho] |
-| [FECHA] | [Actividad] | [Pendiente / en curso / hecho] |
+| :--- | :--- | :--- |
+| [CRONO_1_FECHA] | [CRONO_1_ACT] | [CRONO_1_ESTADO] |
+| [CRONO_2_FECHA] | [CRONO_2_ACT] | [CRONO_2_ESTADO] |
 
-## Condiciones
-
-- Importe: [MONTO] — forma de pago: [CONDICIÓN].
-- Cualquier cambio se autoriza por escrito antes de ejecutarse.
+**Condiciones Económicas:**
+- **Importe:** [OT_MONTO]
+- **Forma de Pago:** [OT_PAGO_CONDICION]
 
 ## Autorizaciones
-
 | Nombre | Cargo | Fecha | Firma |
-| --- | --- | --- | --- |
-| [NOMBRE] | [CARGO] | [FECHA] | |
-| [NOMBRE] | [CARGO] | [FECHA] | |
+| :--- | :--- | :--- | :--- |
+| [AUTORIZADOR_1_NOMBRE] | [AUTORIZADOR_1_CARGO] | [AUTORIZADOR_1_FECHA] | ___________ |
+| [AUTORIZADOR_2_NOMBRE] | [AUTORIZADOR_2_CARGO] | [AUTORIZADOR_2_FECHA] | ___________ |
