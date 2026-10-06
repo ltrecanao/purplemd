@@ -128,6 +128,7 @@ app.mount(
     "/mcp",
     mcp.streamable_http_app(
         streamable_http_path="/",
+        transport_security=mcp_security,
     ),
 )
 
