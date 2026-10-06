@@ -114,11 +114,13 @@ mcp_security = TransportSecuritySettings(
         "127.0.0.1",
         "127.0.0.1:8000",
         "purplemd.onrender.com",
+        "*",
     ],
     allowed_origins=[
         "http://localhost:8000",
         "http://127.0.0.1:8000",
         "https://purplemd.onrender.com",
+        "*",
     ],
 )
 
