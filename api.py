@@ -57,6 +57,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ConfigDict, field_validator
 from weasyprint.urls import URLFetcher
 
@@ -104,6 +105,21 @@ app = FastAPI(
         "Editor de markdown ligero: notas en proyectos con subcarpetas y vista previa en HTML."
     ),
     lifespan=lifespan
+)
+
+mcp_security = TransportSecuritySettings(
+    allowed_hosts=[
+        "localhost",
+        "localhost:8000",
+        "127.0.0.1",
+        "127.0.0.1:8000",
+        "purplemd.onrender.com",
+    ],
+    allowed_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "https://purplemd.onrender.com",
+    ],
 )
 
 app.mount(
