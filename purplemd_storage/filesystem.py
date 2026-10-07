@@ -33,10 +33,10 @@ from purplemd_storage.protocol import (
     Proyecto,
     ProyectoNoExiste,
     ProyectoYaExiste,
-    motivo_omitir_entrada_zip,
     validar_nombre,
     validar_ruta,
 )
+from purplemd_storage.zipio import leer_notas_zip
 
 DIR_DEFECTO = "./local/purplemd"
 
@@ -408,121 +408,41 @@ class FilesystemStorage:
         return buffer.getvalue()
 
     def importar_proyecto(self, proyecto: str, zip_bytes: bytes) -> dict:
-        """Importa un proyecto desde bytes ZIP."""
+        """Importa un proyecto desde bytes ZIP.
+
+        La validación del ZIP (metadata, rutas, topes) es común a todos
+        los backends y vive en `zipio`; acá solo se persiste lo que ese
+        módulo devuelve.
+        """
         nombre = validar_nombre(proyecto)
 
-        # Verificar/crear proyecto
+        # Verificar/crear proyecto. El directorio se crea antes de mirar
+        # el ZIP y se queda aunque el ZIP resulte inválido.
         ruta_proyecto = self._ruta_proyecto(nombre)
         if not ruta_proyecto.exists():
             ruta_proyecto.mkdir(parents=True)
 
-        resultado = {"creadas": 0, "actualizadas": 0, "omitidas": 0, "errores": []}
+        lectura = leer_notas_zip(zip_bytes)
+        resultado = lectura.resultado
+        if lectura.abortar:
+            return resultado
 
-        try:
-            with zipfile.ZipFile(BytesIO(zip_bytes), "r") as zf:
-                # Validar metadata. El tamaño declarado se mira antes de
-                # leerla: una entrada gigante hecha pasar por `.purplemd.json`
-                # es otra zip bomb, y esta se descomprime antes del bucle.
-                try:
-                    info_meta = zf.getinfo(".purplemd.json")
-                    meta_motivo = motivo_omitir_entrada_zip(info_meta, 0)
-                    if meta_motivo:
-                        resultado["errores"].append({
-                            "path": ".purplemd.json",
-                            "motivo": meta_motivo
-                        })
-                        return resultado
-                    meta_raw = zf.read(".purplemd.json")
-                    meta = json.loads(meta_raw.decode("utf-8"))
-                    if meta.get("version") != 1:
-                        resultado["errores"].append({
-                            "path": ".purplemd.json",
-                            "motivo": f"versión de export no compatible: {meta.get('version')}"
-                        })
-                        return resultado
-                except (KeyError, json.JSONDecodeError):
-                    resultado["errores"].append({
-                        "path": ".purplemd.json",
-                        "motivo": "ZIP inválido: falta o corrupto .purplemd.json"
-                    })
-                    return resultado
-
-                # Procesar cada archivo .md
-                descomprimido = 0
-                for zip_info in zf.infolist():
-                    if zip_info.filename == ".purplemd.json":
-                        continue
-                    if not zip_info.filename.endswith(EXTENSION):
-                        resultado["omitidas"] += 1
-                        resultado["errores"].append({
-                            "path": zip_info.filename,
-                            "motivo": "no es un archivo .md"
-                        })
-                        continue
-
-                    ruta_relativa = zip_info.filename[:-3]  # quitar .md
-                    try:
-                        # Validar ruta
-                        validar_ruta(ruta_relativa)
-
-                        # Tope antes de descomprimir: `zf.read()` sobre una
-                        # entrada gigante ya habría gastado la memoria.
-                        motivo = motivo_omitir_entrada_zip(zip_info, descomprimido)
-                        if motivo:
-                            resultado["omitidas"] += 1
-                            resultado["errores"].append({
-                                "path": ruta_relativa,
-                                "motivo": motivo
-                            })
-                            continue
-                        descomprimido += zip_info.file_size
-
-                        contenido = zf.read(zip_info.filename).decode("utf-8")
-
-                        # Verificar tamaño
-                        tamano = len(contenido.encode("utf-8"))
-                        if tamano > MAX_BYTES:
-                            resultado["omitidas"] += 1
-                            resultado["errores"].append({
-                                "path": ruta_relativa,
-                                "motivo": f"supera {MAX_BYTES} bytes ({tamano})"
-                            })
-                            continue
-
-                        # Crear o actualizar
-                        destino = self._ruta_nota(nombre, ruta_relativa)
-                        if destino.exists():
-                            self._escribir_atomico(destino, contenido)
-                            resultado["actualizadas"] += 1
-                        else:
-                            destino.parent.mkdir(parents=True, exist_ok=True)
-                            self._escribir_atomico(destino, contenido)
-                            resultado["creadas"] += 1
-
-                    except NombreInvalido as exc:
-                        resultado["omitidas"] += 1
-                        resultado["errores"].append({
-                            "path": ruta_relativa,
-                            "motivo": str(exc)
-                        })
-                    except UnicodeDecodeError:
-                        resultado["omitidas"] += 1
-                        resultado["errores"].append({
-                            "path": ruta_relativa,
-                            "motivo": "no es UTF-8 válido"
-                        })
-                    except Exception as exc:
-                        resultado["omitidas"] += 1
-                        resultado["errores"].append({
-                            "path": ruta_relativa,
-                            "motivo": f"error interno: {exc}"
-                        })
-
-        except zipfile.BadZipFile:
-            resultado["errores"].append({
-                "path": "zip",
-                "motivo": "archivo ZIP corrupto o inválido"
-            })
+        for ruta_logica, contenido in lectura.notas:
+            try:
+                destino = self._ruta_nota(nombre, ruta_logica)
+                if destino.exists():
+                    self._escribir_atomico(destino, contenido)
+                    resultado["actualizadas"] += 1
+                else:
+                    destino.parent.mkdir(parents=True, exist_ok=True)
+                    self._escribir_atomico(destino, contenido)
+                    resultado["creadas"] += 1
+            except Exception as exc:
+                resultado["omitidas"] += 1
+                resultado["errores"].append({
+                    "path": ruta_logica,
+                    "motivo": f"error interno: {exc}",
+                })
 
         return resultado
 

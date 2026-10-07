@@ -6,9 +6,14 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"
 
-# Dependencias de producción: solo lo necesario para servir la API y
-# convertir markdown. Nada de tests ni httpx: eso va en el grupo de
-# desarrollo [dependency-groups].dev.
+# Dependencias de producción: solo lo necesario para servir la API,
+# convertir markdown y hablar con Google. Nada de tests: eso va en el
+# grupo de desarrollo [dependency-groups].dev.
+#
+# httpx es la única dependencia de la integración con Google OAuth 2.0 y
+# Drive: no se usan las librerías `google-auth` / `google-api-python-client`
+# para mantener el árbol de dependencias corto y el código revisable. Su
+# `MockTransport` es además lo que permite testear OAuth y Drive sin red.
 dependencies = [
     "fastapi>=0.126.0",
     "uvicorn>=0.32.0",
@@ -18,6 +23,7 @@ dependencies = [
     "weasyprint>=62.0",
     "python-multipart>=0.0.6",
     "mcp>=2.0.0",
+    "httpx>=0.27.0",
 ]
 
 # Grupo de desarrollo (estándar de uv): `uv sync` lo instala por defecto.
@@ -27,7 +33,6 @@ dependencies = [
 # reescribirla. Piso 8.4.2: último patch de la serie 8.x.
 [dependency-groups]
 dev = [
-    "httpx>=0.27.0",
     "pytest>=8.4.2",
     "ruff>=0.14.0",
     "ty>=0.0.1",
@@ -45,7 +50,7 @@ build-backend = "setuptools.build_meta"
 # editable falla con ModuleNotFoundError.
 [tool.setuptools]
 py-modules = ["purplemd", "renderer", "api", "mcp_server"]
-packages = ["purplemd_storage"]
+packages = ["purplemd_storage", "purplemd_auth"]
 
 # ruff: linting y formateo. target-version va de acuerdo con la versión que
 # corre el proyecto en todos lados (Dockerfile y CI: 3.13).

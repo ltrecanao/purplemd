@@ -2,11 +2,11 @@
 version: "0.1.0"
 schemaVersion: 1
 name: "seguridad"
-description: "Seguridad de PurpleMD: tope a todo lo que entra, SSRF, concurrencia, errores y logging, CORS/cabeceras. Cada regla nace con su test."
+description: "Seguridad de PurpleMD: tope a todo lo que entra, SSRF, concurrencia, errores y logging, CORS/cabeceras y sesión con Google. Cada regla nace con su test."
 tools: [read, write, edit, shell, grep, glob]
 permissions: "read-write"
 model: "sonnet-4"
-tags: [security, ssrf, dos, limits, validation, cors, headers, logging]
+tags: [security, ssrf, dos, limits, validation, cors, headers, logging, auth, oauth, csrf, cookies]
 ---
 
 # Skill: Seguridad
@@ -16,6 +16,9 @@ tags: [security, ssrf, dos, limits, validation, cors, headers, logging]
 > **Toda regla de seguridad nace con su test.** Si nada falla cuando la regla se rompe, la regla no existe.
 > **PurpleMD corre sin autenticación y con una demo pública**: cada visitante es «usuario», y el
 > servidor nunca actúa sobre una URL, un archivo o un ZIP que venga del cliente sin antes acotarlo.
+> Cuando hay credenciales de Google (ver `docs/AUTH.md`), la sesión cambia la amenaza de «todos
+> contra todos» a «cada cuenta contra su propia carpeta», y aparecen CSRF, cookies y secretos como
+> superficie nueva — pero el servidor sigue sin confiar en nada que venga del cliente.
 
 ---
 
@@ -29,8 +32,10 @@ tags: [security, ssrf, dos, limits, validation, cors, headers, logging]
 | Memoria / disco / CPU | zip bombs, subidas sin tope, payloads enormes | ✅ tope antes de leer (413 + `file_size`) + tests |
 | Event loop | trabajo bloqueante dentro de `async def` | ✅ tramo pesado fuera del loop (`def` / `run_in_threadpool`) |
 | Diagnóstico | excepciones tragadas sin registro | ✅ logger `purplemd` con traceback + tests (`logging`, nunca `print` ni `pass`) |
-| API pública | CORS con wildcards, cabeceras ausentes | ⏸️ decisión del dueño (ver AGENTS.md) |
+| API pública | CORS con wildcards, cabeceras ausentes | ✅ origen prod literal + regex localhost, CSP y cabeceras + `tests/test_auth.py` |
+| Sesión con Google | CSRF, cookie forjada, open redirect, token filtrado | ✅ `SameSite=Lax` + chequeo de `Origin` + `state` PKCE + cookie HttpOnly + tests |
 | Estado global | listas que crecen sin límite (notificaciones) | ⚠️ acotar o expirar |
+| Servidor MCP | endpoint sin sesión accesible desde la red | ✅ exige `PURPLEMD_MCP_TOKEN`; 403 con `PURPLEMD_STORAGE=drive` + tests |
 
 ---
 
@@ -88,20 +93,54 @@ tags: [security, ssrf, dos, limits, validation, cors, headers, logging]
 ### 6. CORS, CSRF y cabeceras
 
 - **Sin wildcards** en `allow_origins`, `allow_methods` ni `allow_headers`; origen de producción
-  explícito + `allow_origin_regex` para localhost.
+  explícito (`https://purplemd.onrender.com`) + `allow_origin_regex` para localhost.
 - `allow_credentials=True` solo con orígenes exactos (nunca con regex amplia ni wildcard).
-- Sin tokens no hay CSRF que valga: si algún día hay sesión, revisar que los verbos de escritura
-  no sean «simples» (`POST` multipart lo es).
-- Cabeceras recomendadas si se expone públicamente: `X-Content-Type-Options: nosniff`,
-  `Referrer-Policy`, CSP que no permita scripts externos (el frontend no usa CDN).
+- **CSRF en dos barreras**, y solo cuando hay sesión (es cuando hay algo que forging):
+  1. cookie `SameSite=Lax`: el navegador no la manda en un `POST` cross-site;
+  2. chequeo de `Origin` en los verbos **no seguros**: si viene y el host no coincide con
+     `Host` ⇒ 403. Sin `Origin` no se corta, porque `curl` y los tests no lo mandan.
+- **CSP estricta** en el frontend (`script-src 'self'`, `style-src 'self'`), por eso no puede
+  quedar ni un `style=` ni un `onclick=` en `index.html` (lo verifica
+  `CabecerasTests::test_no_hay_scripts_ni_estilos_inline_en_el_frontend`).
+  **Sin CSP** en `/docs`, `/redoc`, `/openapi.json` y `/mcp`: Swagger carga su JS desde un CDN y
+  la CSP lo rompería.
+- Cabeceras: `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`.
 
 ### 7. Estado global acotado
 
 - Cachés, colas y listas de sesión tienen tope o expiración; crecer sin límite es un DoS lento.
 - Lo que vive en memoria (notificaciones) se documenta como efímero y no se comparte como
   estado autoritativo.
+- Las sesiones por cuenta también: `_MEMORIA_USUARIOS` tope 64,
+  `CuentasEnDisco` tope 1000 y `LimiteCuentasError` ⇒ 503.
 
-### 8. Imagen y dependencias
+### 8. Sesión, tokens y el servidor MCP
+
+- **Alcance OAuth mínimo**: `drive.file` + `drive.appdata` (Google exige el segundo para tocar
+  `appDataFolder`); nunca `auth/drive`.
+- **Cookie de sesión firmada con HMAC-SHA256** de la stdlib, `HttpOnly`, `SameSite=Lax`, 30 días,
+  `Secure` solo bajo HTTPS. Los tokens de Google **no** viajan en la cookie: viven en
+  `{PURPLEMD_DIR}/auth/{sha256(sub)}.json` con permisos `0600`.
+- **Authorization Code + PKCE (`S256`)** con `state` atado a la pestaña en una cookie temporal;
+  `access_type=offline` y `prompt=consent` siempre, porque sin eso Google no entrega refresh token.
+- **`destino` anti open-redirect**: el callback solo puede volver a una ruta interna; cualquier
+  valor externo cae en `/`.
+- **Todo `/api/` exige sesión**, con **dos excepciones** que no tocan
+  storage: `POST /api/render` y `POST /api/pdf`, que reciben markdown y
+  devuelven HTML/PDF sin leer ni escribir nada. Existen para el modo
+  invitado (no hay cuenta y por tanto no hay storage). Nunca agregar una
+  tercera: cualquier endpoint que lea o escriba storage va con sesión.
+  `_RUTAS_STATELESS` en `api.py` es la lista cerrada, y
+  `test_sin_sesion_los_endpoints_de_datos_no_pasan` prueba que todo lo
+  demás sigue respondiendo 401.
+- **MCP no tiene sesión**, así que exige `PURPLEMD_MCP_TOKEN` por `X-PurpleMD-Token`, y con
+  `PURPLEMD_STORAGE=drive` queda 403 aunque el token sea válido (un cliente externo no puede
+  leer el Drive de una cuenta concreta).
+- Un `ConfigAuth` logueado o impreso no puede volcar secretos: `client_secret` y `secret_key`
+  van con `field(repr=False)`.
+
+### 9. Imagen y dependencias
 
 - Usuario no-root en el contenedor, `uv.lock` committeado, `uv sync --frozen` en el build,
   sin secretos en el repo (`.gitignore` cubre `local/`, `.env`).
@@ -146,6 +185,9 @@ grep -n -A3 "^async def" api.py
 - [ ] Todo `read()` de subida con tope, mirado **antes** de descomprimir/escribir.
 - [ ] Todo `except` registra en `logging` y responde sin exponer el stack.
 - [ ] Sin wildcards en CORS; sin cabeceras nuevas rotas.
+- [ ] Ningún secret visible en un `repr`, un log, un `detail` ni una URL.
+- [ ] Cookie de sesión: `HttpOnly` + `SameSite=Lax` + firma HMAC; los tokens de Google, solo en disco `0600`.
+- [ ] Todo endpoint de escritura pasa el chequeo de `Origin` cuando hay sesión.
 - [ ] Cada regla nueva con su test en `tests/`.
 - [ ] `uv run pytest -q`, `ruff`, `ty` en verde.
 

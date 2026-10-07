@@ -25,6 +25,7 @@ rutas cuelgan de `https://purplemd.onrender.com`.
 | `GET` | `/api/projects/{project}/export` | `200`, `404`, `422` | Exporta el proyecto completo como `.zip`. |
 | `POST` | `/api/projects/{project}/import` | `200`, `413`, `422` | Importa un proyecto desde `.zip` (multipart/form-data); lo crea si no existe. |
 | `POST` | `/api/render` | `200`, `422` | Convierte markdown en HTML. |
+| `POST` | `/api/pdf` | `200`, `422` | Convierte markdown en PDF (recibe `{"markdown", "nombre"}`); es el PDF del modo invitado. |
 | `GET` | `/api/notifications` | `200` | Notificaciones no leídas en `{"notifications": [{id, titulo, mensaje}]}`. |
 | `POST` | `/api/notifications` | `201`, `422` | Crea una notificación (recibe `{"titulo", "mensaje"}`). |
 | `POST` | `/api/notifications/{notif_id}/read` | `204` siempre | Marca la notificación como leída; con un id desconocido también `204`. |
@@ -39,6 +40,46 @@ rutas cuelgan de `https://purplemd.onrender.com`.
 
 Los dos `PATCH` (notas y directorios) consumen el mismo cuerpo, con la
 ruta destino completa dentro del proyecto.
+
+## Sesión con Google
+
+Solo existen cuando hay credenciales de Google configuradas (ver
+[AUTH.md](AUTH.md)); **no aparecen en `/docs`** porque van con
+`include_in_schema=False`.
+
+| Método | Ruta | Códigos | Descripción |
+|---|---|---|---|
+| `GET` | `/api/auth/login?destino=/` | `302`, `503` | Redirige al consentimiento de Google. `503` si no hay credenciales. |
+| `GET` | `/api/auth/callback?code=&state=` | `302`, `400`, `502` | Completa el flujo y setea la cookie de sesión. |
+| `GET` | `/api/auth/me` | `200` siempre | `{requiere_sesion, autenticado, email, name, picture, sub, almacen}`. |
+| `POST` | `/api/auth/logout` | `204` | Borra la cookie y los tokens guardados en el servidor. |
+
+`/api/auth/me` responde `200` también sin sesión: «no haber entrado» es
+un estado que el frontend tiene que poder leer, no un error.
+El campo `sub` es el identificador estable de Google (`subject`) y sirve
+para el aislamiento local-first (IndexedDB namespaced por `sub-<hash>`).
+
+### Efecto en el resto de la API
+
+Con credenciales completas:
+
+- Todo `/api/*` que no sea `/api/auth/*` responde **`401`** sin cookie
+  de sesión válida. Dos excepciones: `POST /api/render` y
+  `POST /api/pdf`, que **no tocan storage** — reciben markdown y
+  devuelven HTML/PDF sin leer ni escribir nada. Son las que permiten
+  previsualizar y exportar en modo invitado, donde no hay cuenta y por
+  tanto no hay storage (ver [AUTH.md](AUTH.md)). `/health` y los
+  recursos estáticos tampoco piden sesión: la sonda del contenedor y
+  el frontend tienen que poder cargar para que el usuario pueda entrar.
+- En `POST`, `PUT`, `PATCH` y `DELETE`, un `Origin` cuyo host no
+  coincide con `Host` responde **`403`**. Sin `Origin` no se corta
+  (un `curl` no lo manda).
+- Fallas de Google Drive se traducen así: `401` (token vencido, hay que
+  reconectar la cuenta), `404` (archivo ausente) y `503` (cualquier
+  otro fallo o cuota agotada tras 4 reintentos).
+
+Sin credenciales, ninguno de esos cambios aplica: la API responde igual
+que siempre.
 
 ## Recursos estáticos
 
@@ -76,6 +117,10 @@ del CI falla si el directorio y el manifiesto divergen.
 - `PUT .../notes/{path}`: `{"content": "..."}`.
 - `PATCH` de notas y de directorios: `{"path": "..."}`.
 - `POST /api/render`: `{"markdown": "..."}`.
+- `POST /api/pdf`: `{"markdown": "...", "nombre": "..."}`. `nombre` es la
+  ruta de la nota (se le agrega `.pdf` al bajar el archivo) y pasa por la
+  misma validación de rutas que cualquier otra, porque termina en la
+  cabecera `Content-Disposition`.
 
 ## Errores
 
@@ -88,6 +133,10 @@ la respuesta: el traceback completo queda en el log del servidor
 
 Cuándo cae cada código de error:
 
+- `401`: sin sesión cuando el servidor exige login, o un token de Google
+  que ya no sirve (ver [Sesión con Google](#sesión-con-google)).
+- `403`: `Origin` que no coincide con el host del servidor (CSRF), o el
+  servidor MCP sin `X-PurpleMD-Token`.
 - `404`: recurso inexistente (proyecto, nota o directorio).
 - `409`: crear un proyecto o una nota que ya existe; un `PATCH` cuyo
   destino está ocupado; y `DELETE` de un directorio no vacío sin
@@ -96,6 +145,8 @@ Cuándo cae cada código de error:
   proyecto con `../` y un directorio que terminaría dentro de sí mismo
   o de un ancestro), contenido por encima de 1 MB, markdown por encima
   de 200 KB, y campos faltantes o de más.
+- `503`: Google Drive no está disponible o siguió limitando peticiones
+  tras 4 reintentos; también `PURPLEMD_STORAGE=drive` sin credenciales.
 
 ## Ejemplos
 
@@ -142,6 +193,12 @@ curl -s -X POST http://127.0.0.1:8000/api/render \
 base64). Una URL `http(s)://…` o una referencia a un archivo del disco
 dentro de la nota no se baja nunca —el PDF se genera igual, sin ese
 recurso—.
+
+`POST /api/pdf` hace lo mismo pero sobre markdown crudo en vez de leer
+una nota del storage, y por eso es el único que funciona sin sesión: es
+el que usa el modo invitado, que no tiene nada de dónde leer. Comparte
+con `GET .../pdf` el cuerpo (`_html_de_markdown`), el pie, la paginación
+y el hecho de no salir a la red.
 
 ## Límites
 

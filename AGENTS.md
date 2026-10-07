@@ -47,13 +47,17 @@ Los tres checks (`pytest`, `ruff`, `ty`) tienen que salir **verdes antes** de cu
 
 ## Estructura del código
 
-- `api.py` — FastAPI: las ~20 rutas, validación de entrada, PDF y avisos.
+- `api.py` — FastAPI: las ~20 rutas, validación de entrada, PDF y avisos, **middleware de sesión y
+  cabeceras de seguridad**, y las 4 rutas `/api/auth/*`.
 - `purplemd.py` — lógica de negocio y validaciones, sin saber nada de HTTP.
-- `purplemd_storage/` — interfaz `Storage` con dos implementaciones: `filesystem` (local) y `memory` (demo).
+- `purplemd_storage/` — interfaz `Storage` con tres implementaciones: `filesystem` (local),
+  `memory` (demo) y `drive` (Google Drive del usuario). `zipio.py` trae lo que comparten.
+- `purplemd_auth/` — integración con Google: `config.py` (credenciales), `oauth.py` (Authorization
+  Code + PKCE), `sesiones.py` (cookie firmada HMAC-SHA256) y `tokens.py` (refresh tokens en disco).
 - `renderer.py` — markdown-it con `html: False` (no se inyecta HTML crudo) y resaltado con Pygments.
 - `static/` — frontend sin dependencias: `index.html`, `css/style.css`, `js/app.js`.
 - `plantillas/` — documentos `.md` de ejemplo y su manifiesto `indice.json`; se sirven en `/plantillas`.
-- `docs/` — `API.md`, `ARQUITECTURA.md`, `DESARROLLO.md`, `ACCESIBILIDAD.md`.
+- `docs/` — `API.md`, `ARQUITECTURA.md`, `DESARROLLO.md`, `ACCESIBILIDAD.md`, `AUTH.md`.
 
 ## Consistencia de versiones (Python)
 
@@ -72,6 +76,8 @@ Los tres checks (`pytest`, `ruff`, `ty`) tienen que salir **verdes antes** de cu
 - El frontend no tiene suite propia. Lo que toca la API se testea en `tests/test_api.py` (proyectos, notas,
   directorios, PDF, render), en `tests/test_zip.py` (export/import) y en
   `tests/test_notificaciones.py` (avisos).
+- Lo único del frontend que sí se testea: `tests/test_auth.py::CabecerasTests` lee `index.html` y
+  exige que **no** haya `style=` ni `onclick=` inline, porque la CSP del backend no los permitiría.
 
 ## CORS (FastAPI)
 
@@ -83,21 +89,36 @@ Los tres checks (`pytest`, `ruff`, `ty`) tienen que salir **verdes antes** de cu
 ```python
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://TU-DOMINIO-PROD"],
+    allow_origins=["https://purplemd.onrender.com"],
     allow_origin_regex=r"^http://(127\.0\.0\.1|localhost):\d+$",
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
 ```
 
-> **Pendiente**: `api.py` todavía declara `allow_methods=["*"]`, `allow_headers=["*"]`,
-> `allow_credentials=True` y solo los orígenes de `localhost:8000` (sin origen de producción ni regex).
-> No está corregido: cambiar la configuración de seguridad de la API es una decisión que tomás vos.
+- **Estado**: cumplido en `api.py`. Si cambiás el dominio de producción, cambialo de los dos lados:
+  de `allow_origins` y del README.
+
+## Sesión con Google
+
+- El login **solo está exigido** cuando hay credenciales completas
+  (`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `PURPLEMD_SECRET_KEY`). Sin ellas, la app se
+  comporta exactamente como siempre: sin pantalla de acceso y sin 401. `tests/test_auth.py` cubre
+  los dos lados.
+- Secretos **solo** en variables de entorno. Nunca en el repo, nunca en una URL, nunca en un
+  `repr` (`ConfigAuth` los marca `repr=False` por eso).
+- Con sesión, el aislamiento lo hace el backend (carpeta por `sha256(sub)` o el Drive de la
+  cuenta): el frontend **deja de poner el prefijo** `u_xxxx_` en los nombres de proyecto. Los dos
+  mecanismos conviven según `requiere_sesion`.
+- Ver `docs/AUTH.md` para el flujo completo, las variables y el troubleshooting.
 
 ## Testing
 
 - **Borrá tests de endpoints/funcionalidad eliminada**. Tests deben reflejar comportamiento actual, no histórico.
 - Tests automatizados para reglas críticas (ej: contraste WCAG, consistencia de versiones).
+- **Cada regla de seguridad nueva nace con su test** (regla de `skills/seguridad/SKILL.md`).
+  Las de sesión, CSRF y cabeceras están en `tests/test_auth.py`; las de Drive en
+  `tests/test_drive.py`, que además corre el mismo guion contra los tres backends.
 
 ## Accesibilidad
 

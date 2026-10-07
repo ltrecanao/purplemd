@@ -51,14 +51,49 @@ En la instancia pública las mismas rutas cuelgan de
 [`/docs`](https://purplemd.onrender.com/docs) y
 [`/openapi.json`](https://purplemd.onrender.com/openapi.json).
 
+## Acceso con Google en desarrollo
+
+Con credenciales, el arranque es el mismo y solo cambian las variables:
+
+```bash
+export GOOGLE_CLIENT_ID=....apps.googleusercontent.com
+export GOOGLE_CLIENT_SECRET=...
+export PURPLEMD_SECRET_KEY=$(openssl rand -hex 32)
+uv run uvicorn api:app --reload
+```
+
+Sin las tres, la app se comporta idéntica a la de siempre y avisa en el
+log qué le falta. Con ellas, al abrir `/` aparece la pantalla de acceso.
+
+Para probarlo en local hacen falta dos cosas en Google Cloud: el
+redirect URI `http://localhost:8000/api/auth/callback` en las
+credenciales, y el correo propio en **Usuarios de prueba** de la
+pantalla de consentimiento. El detalle completo (incluida la
+publicación de la app para que los refresh tokens no venzan a los 7
+días) está en [AUTH.md](AUTH.md).
+
+Otras variables útiles en desarrollo:
+
+| Variable | Para probar |
+|---|---|
+| `PURPLEMD_AUTH=off` | Apagar la integración aunque haya credenciales |
+| `PURPLEMD_STORAGE=memory` | Backend efímero (es lo que usa la demo) |
+| `PURPLEMD_STORAGE=drive` | Backend de Drive (exige sesión) |
+| `PURPLEMD_MCP_TOKEN=...` | El token del servidor MCP |
+| `PURPLEMD_DIR=/tmp/purplemd` | Datos en un directorio descartable |
+
 ## Pruebas
 
 La suite está escrita con `unittest` (clases `TestCase`), se corre con
-`pytest` y tiene 319 tests, más 271 subtests de `self.subTest()`:
+`pytest` y tiene 416 tests, más 286 subtests de `self.subTest()`:
 
-- 104 en `tests/test_api.py`.
+- 105 en `tests/test_api.py`.
 - 95 en `tests/test_purplemd.py`.
+- 64 en `tests/test_auth.py` (credenciales, sesiones, OAuth/PKCE,
+  aislamiento, CSRF, cabeceras y MCP).
 - 47 en `tests/test_storage.py`.
+- 33 en `tests/test_drive.py` (contrato de los tres backends, los
+  detalles propios de Drive y la traducción de errores en la API).
 - 23 en `tests/test_zip.py`.
 - 21 en `tests/test_renderer.py`.
 - 19 en `tests/test_notificaciones.py`.
@@ -68,6 +103,10 @@ La suite está escrita con `unittest` (clases `TestCase`), se corre con
 ```bash
 uv run pytest -q
 ```
+
+Ningún test de auth o de Drive toca la red: Google se intercepta con
+`httpx.MockTransport` y Drive se simula con un `DriveFalso` que
+implementa los cuatro endpoints que usa `ClienteDrive`.
 
 Lint y type checking:
 
@@ -82,7 +121,9 @@ export/import de `.zip` cubre `tests/test_zip.py` y las tres rutas de
 `/api/notifications`, `tests/test_notificaciones.py`. Del CSS sí hay un
 test por regla que lo pide, leyendo el archivo: la paleta
 (`tests/test_contraste.py`, más abajo) y el texto visible del explorador
-(`tests/test_texto_visible.py`).
+(`tests/test_texto_visible.py`). Lo único del HTML que se testea: que
+`index.html` no tenga `style=` ni `onclick=` inline, porque la CSP del
+backend no los permitiría (`tests/test_auth.py::CabecerasTests`).
 
 La paleta de color se valida sola: `tests/test_contraste.py` lee
 `static/css/style.css`, recalcula los 26 pares de tokens de ambos temas y
@@ -179,6 +220,16 @@ La instancia pública sigue en
 [purplemd.onrender.com](https://purplemd.onrender.com/): `GET /health`
 responde `200` y Swagger (`/docs`) publica las **20 operaciones** de
 las **13 rutas** de OpenAPI (`/openapi.json`).
+
+Para encender el acceso de Google en producción, las tres variables
+(`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `PURPLEMD_SECRET_KEY`)
+van en las variables de entorno de Render —nunca en el repo— y el
+redirect URI autorizado en Google Cloud tiene que ser exactamente
+`https://purplemd.onrender.com/api/auth/callback`. Si además se usa
+`PURPLEMD_STORAGE=drive`, hay que agregar el origen
+`https://purplemd.onrender.com` a los orígenes CORS permitidos de la
+*Pantalla de consentimiento* de Google. Detalle completo en
+[AUTH.md](AUTH.md).
 
 Con `PURPLEMD_STORAGE=memory` —así corre la demo— no se escribe nada en
 disco: las notas viven en RAM y se pierden en cualquier restart del

@@ -1,24 +1,30 @@
 # Arquitectura
 
-Cómo está armado PurpleMD: datos en disco, backends de persistencia y
-comportamiento del frontend (superficies, menús, caché y semilla). La
-referencia HTTP está en [API.md](API.md) y las reglas de accesibilidad
-en [ACCESIBILIDAD.md](ACCESIBILIDAD.md).
+Cómo está armado PurpleMD: datos en disco, backends de persistencia,
+acceso con Google y comportamiento del frontend (superficies, menús,
+caché y semilla). La referencia HTTP está en [API.md](API.md), el
+acceso en [AUTH.md](AUTH.md) y las reglas de accesibilidad en
+[ACCESIBILIDAD.md](ACCESIBILIDAD.md).
 
 ## Estructura de datos
 
-Todo el contenido vive bajo `{PURPLEMD_DIR}/projects/`, con proyectos y
-subcarpetas. No hay notas sueltas:
+Sin sesión, todo el contenido vive bajo `{PURPLEMD_DIR}/projects/`, con
+proyectos y subcarpetas. No hay notas sueltas:
 
 ```text
 local/purplemd/
-└── projects/
-    ├── cuaderno/
-    │   ├── portada.md
-    │   └── diseños/
-    │       └── logo.md
-    └── otro-proyecto/
-        └── idea.md
+├── projects/                  ← sin login (era sin autenticación)
+│   └── u_AbCdEf12_cuaderno/
+│       └── portada.md
+├── users/
+│   └── 3f2a…e91/             ← sha256(sub) de la cuenta
+│       └── projects/
+│           └── cuaderno/
+│               ├── portada.md
+│               └── diseños/
+│                   └── logo.md
+└── auth/
+    └── 7c1b…44d.json          ← tokens de Google, 0600
 ```
 
 - Cada proyecto es un directorio dentro de `projects/` y cada nota, un
@@ -32,29 +38,93 @@ local/purplemd/
 - Renombrar un proyecto mueve su directorio con todo su contenido;
   eliminarlo lo borra recursivamente.
 
+Con `PURPLEMD_STORAGE=drive` no hay disco local: la misma estructura
+vive en `appDataFolder` del Drive de cada cuenta.
+
 ## Backends de almacenamiento
 
-PurpleMD soporta dos backends de persistencia, seleccionables con la variable
-de entorno `PURPLEMD_STORAGE`:
+PurpleMD soporta tres backends, seleccionables con la variable de
+entorno `PURPLEMD_STORAGE`:
 
 | Backend | Variable | Descripción |
 |---|---|---|
-| **filesystem** | `PURPLEMD_STORAGE=filesystem` (default) | Persistencia en disco local (`{PURPLEMD_DIR}/projects/`). Escrituras atómicas, sobrevive a restarts del proceso. |
-| **memory** | `PURPLEMD_STORAGE=memory` | Solo RAM. Se pierde en cualquier restart (deploy, crash, scale to 0). Ideal para entornos efímeros como Render free tier. |
+| **filesystem** | `PURPLEMD_STORAGE=filesystem` (default) | Persistencia en disco local (`{PURPLEMD_DIR}/projects/`, o `users/{sha256(sub)}/projects/` con sesión). Escrituras atómicas, sobrevive a restarts del proceso. |
+| **memory** | `PURPLEMD_STORAGE=memory` | Solo RAM. Se pierde en cualquier restart (deploy, crash, scale to 0). Ideal para entornos efímeros como Render free tier. Con sesión hay una instancia por cuenta (tope 64). |
+| **drive** | `PURPLEMD_STORAGE=drive` | El Google Drive de cada cuenta, en `appDataFolder`. Exige login: `get_storage()` no puede construirlo sin sesión y devuelve un `ValueError` claro. |
 
-El frontend usa **localStorage** para generar un namespace único por navegador
-(`u_AbCdEf12`). Cada usuario ve solo sus proyectos (`u_AbCdEf12_proyecto`),
-aislando datos casuales sin autenticación real. El prefijo es un detalle de
-transporte: junto a un nombre nunca se muestra (la lista, el título de la
-nota, los formularios de renombrar y los avisos de eliminar lo quitan) y se
-agrega solo al armar cada pedido a la API. La única pista del namespace en
-pantalla es el badge `👤 u_AbCdEf12` de la barra superior.
+Los tres implementan el protocolo `Storage` de
+`purplemd_storage/protocol.py` y responden igual ante el mismo guion de
+operaciones: `tests/test_drive.py::ContratoTresBackendsTests` lo exige.
+
+### El namespace `u_xxxx_` (solo sin login)
+
+Sin sesión, el frontend usa **localStorage** para generar un namespace
+único por navegador (`u_AbCdEf12`). Cada visitante ve solo sus proyectos
+(`u_AbCdEf12_proyecto`), aislando datos casuales sin autenticación real.
+El prefijo es un detalle de transporte: junto a un nombre nunca se
+muestra (la lista, el título de la nota, los formularios de renombrar y
+los avisos de eliminar lo quitan) y se agrega solo al armar cada pedido
+a la API. La única pista del namespace en pantalla es el badge
+`👤 u_AbCdEf12` de la barra superior.
+
+Con login, el prefijo **desaparece**: el backend ya aísla por cuenta, y
+ponerlo duplicaría cada proyecto (`prefijo()` en `static/js/app.js`).
+Lo mismo en **modo invitado**: ahí los datos ya viven en este navegador,
+así que el aislamiento lo da el origen y no el nombre.
+
+### Modo invitado (storage en el navegador)
+
+Elegido desde la pantalla de acceso, guarda proyectos y notas en
+`localStorage` (`purplemd_invitado_datos`) y **el servidor no recibe ni
+conserva nada** de lo que se escribe. `static/js/app.js` engancha en un
+punto único —`pedir()`— y ahí replica las reglas de
+`purplemd_storage/protocol.py` con los mismos números: sin servidor no
+hay quien defienda, así que el cliente es el servidor.
+
+Lo único que sí viaja son `POST /api/render` y `POST /api/pdf`
+(markdown ⇒ HTML/PDF, sin persistir), que por eso son los dos únicos
+`/api/` sin sesión. El `.zip` lo arma y lo lee el navegador con el
+mismo formato que `FilesystemStorage.exportar_proyecto`.
+
+## Sesión y seguridad
+
+Un solo middleware (`_seguridad_y_sesion`) cubre **todas** las rutas,
+incluidas las de los mounts (`/static`, `/mcp`), y corre por fuera del
+router:
+
+1. Si hay credenciales de Google y no hay sesión válida ⇒ **401** en
+   todo `/api/*` que no sea `/api/auth/*`, salvo `_RUTAS_STATELESS`
+   (`/api/render` y `/api/pdf`, que no tocan storage). Las rutas de
+   login siguen accesibles para poder entrar.
+2. En verbos no seguros (`POST`, `PUT`, `PATCH`, `DELETE`), si viene un
+   `Origin` cuyo host no coincide con `Host` ⇒ **403**. Sin `Origin` no
+   se corta (`curl` no lo manda). La primera barrera de CSRF es la
+   cookie `SameSite=Lax`.
+3. Cabeceras de seguridad en el frontend: CSP estricta,
+   `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`.
+   **Sin CSP** en `/docs`, `/redoc`, `/openapi.json` y `/mcp`: Swagger
+   carga su JS desde un CDN.
+
+Detalles del flujo OAuth, de las cookies y de Drive: [AUTH.md](AUTH.md).
 
 ## Frontend
 
 Compuesto por `static/index.html`, `static/css/style.css` y
 `static/js/app.js` (módulo ES, sin dependencias externas).
 
+- **Pantalla de acceso**: al arrancar el JS pregunta
+  `GET /api/auth/me`. Si el servidor exige sesión y no hay sesión, se
+  muestra `#sesion-pantalla` (`role="dialog"`, `aria-modal`) cubriendo
+  toda la app y **no se pide ningún dato más** (evita llenar la app de
+  401). Cualquier respuesta 401 posterior la vuelve a mostrar. El badge
+  de cuenta y el botón «Salir» solo existen con sesión; el badge
+  `👤 u_…` del namespace, solo sin ella.
+- **Dos puertas de entrada al arranque**: sesión con Google o
+  «Continuar sin cuenta». Ambas terminan en `arrancar()` (separado de
+  `iniciar()` para que no se duplique ni el intervalo de avisos). El
+  botón de invitado es el oficial de Google —las medidas de su guía de
+  branding, sin reestilizar— más una acción secundaria y el pie que
+  aclara dónde viven los datos.
 - Tres paneles: explorador (proyectos y árbol), editor y vista previa.
 - En pantallas angostas (menos de 48rem) el explorador no es una
   columna: arranca oculto y es un desplegable superpuesto que se abre

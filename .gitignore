@@ -12,7 +12,12 @@ venv/
 env/
 
 # Datos del editor (NUNCA se commitean)
-local/purplemd/
+local/
+
+# Secretos (NUNCA se commitean; solo por variables de entorno)
+.env
+.env.*
+!.env.example
 
 # IDE
 .vscode/

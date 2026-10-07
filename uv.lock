@@ -632,6 +632,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "markdown-it-py" },
     { name = "mcp" },
     { name = "mdit-py-plugins" },
@@ -643,7 +644,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
@@ -652,6 +652,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.126.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
     { name = "markdown-it-py", specifier = ">=3.0.0" },
     { name = "mcp", specifier = ">=2.0.0" },
     { name = "mdit-py-plugins", specifier = ">=0.4.1" },
@@ -663,7 +664,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.27.0" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "ruff", specifier = ">=0.14.0" },
     { name = "ty", specifier = ">=0.0.1" },

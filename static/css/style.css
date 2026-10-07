@@ -207,6 +207,235 @@ body {
   background: var(--acento);
 }
 
+/* --- Cuenta y pantalla de acceso (integración con Google) --------- */
+
+/* Separador del menú ☰. Va como clase y no como atributo `style`:
+   la CSP del backend no permite estilos inline. */
+.menu-separador {
+  border: none;
+  border-top: 1px solid var(--borde);
+  margin: 4px 0;
+}
+
+.cuenta {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+  min-width: 0;
+}
+
+/* El email es una dirección larga: en la topbar se corta con puntos y
+   el valor completo queda en el `title`. */
+.cuenta-email {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sesion-pantalla {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: var(--esp-4);
+  overflow-y: auto;
+  /* Opaco y a pantalla completa: el editor y el explorador quedan
+     detrás, inutilizables mientras no haya sesión. El degradado es
+     sutil y sale de tokens ya contrastados, no agrega ningún color. */
+  background:
+    radial-gradient(130% 80% at 50% 0%, var(--acento-suave) 0%, transparent 62%),
+    var(--fondo);
+}
+
+.sesion-caja {
+  display: grid;
+  gap: var(--esp-4);
+  justify-items: center;
+  width: 100%;
+  max-width: 24rem;
+  padding: var(--esp-6) var(--esp-6) var(--esp-4);
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: calc(var(--radio) * 2);
+  box-shadow: 0 1px 2px rgb(32 26 53 / 6%), 0 12px 32px -12px rgb(32 26 53 / 18%);
+}
+
+/* --- Marca --- */
+
+.sesion-marca {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-2);
+}
+
+.sesion-logo {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+}
+
+.sesion-logo-fondo {
+  fill: var(--acento);
+}
+
+.sesion-logo-letra {
+  fill: var(--sobre-acento);
+}
+
+.sesion-marca-nombre {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* --- Encabezado --- */
+
+.sesion-encabezado {
+  display: grid;
+  gap: var(--esp-1);
+}
+
+.sesion-titulo {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+.sesion-texto {
+  margin: 0;
+  color: var(--texto-tenue);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+/* --- Botón oficial de Google ---
+   Las medidas no se tocan: son las de la guía de branding de Google
+   (height 40, border 1px #747775, radius 4, Google Sans 14/500 y la «G»
+   de 18px). Se respeta tal cual el peso tipográfico y los colores, que
+   es lo que Google exige para que el botón esté «aprobado». */
+
+.btn-google {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 24px;
+  border: 1px solid #747775;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f1f1f;
+  font-family: "Google Sans", "Roboto", system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.25px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-google:hover {
+  background: #f8fafd;
+  border-color: #5f6368;
+}
+
+.btn-google:active {
+  background: #f1f3f4;
+}
+
+.btn-google:focus-visible {
+  outline: none;
+  box-shadow:
+    0 1px 3px 0 rgb(60 64 67 / 30%),
+    0 4px 8px 3px rgb(60 64 67 / 15%);
+}
+
+.btn-google[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-google-logo {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.btn-google-texto {
+  flex: 1;
+  text-align: center;
+  /* Deja el texto centrado respecto al botón y no al conjunto
+     botón+logo: es como lo dibuja Google. */
+  margin-inline: -18px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn-google {
+    background: #1f1f1f;
+    border-color: #8e918f;
+    color: #e3e3e3;
+  }
+
+  .btn-google:hover {
+    background: #2a2a2a;
+    border-color: #c4c7c5;
+  }
+
+  .btn-google:active {
+    background: #333333;
+  }
+}
+
+/* --- Separador y acción secundaria --- */
+
+.sesion-divisor {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-3);
+  width: 100%;
+  color: var(--texto-tenue);
+  font-size: 0.8rem;
+}
+
+.sesion-divisor::before,
+.sesion-divisor::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--borde);
+}
+
+.sesion-invitado {
+  width: 100%;
+}
+
+.sesion-estado {
+  margin: 0;
+  text-align: center;
+  min-height: 1.2em;
+}
+
+.sesion-caja .sesion-estado {
+  text-align: center;
+}
+
+.sesion-pie {
+  margin: 0;
+  color: var(--texto-tenue);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+/* `.estado` viene alineado a la derecha para acompañar al explorador;
+   acá el diálogo está centrado y ese mismo criterio sigue. */
+.sesion-caja .estado {
+  text-align: center;
+}
+
 /* --- Menú overflow (acciones secundarias en mobile) --- */
 
 .menu-overflow {
@@ -1312,7 +1541,10 @@ a.menu-acciones-item {
   display: flex;
   flex-direction: column;
   gap: var(--esp-2);
-  z-index: 10;
+  /* 10010: por encima de la pantalla de acceso (10000) y de los
+     menús (9999). Un aviso tiene que verse siempre, también cuando
+     la app está tapada esperando un login. */
+  z-index: 10010;
   max-width: min(24rem, calc(100vw - var(--esp-6)));
   pointer-events: none;
 }

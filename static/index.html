@@ -22,8 +22,15 @@
       </picture>
     </h1>
     <div class="acciones">
-      <!-- Badge con namespace del usuario (localStorage) -->
+      <!-- Badge con namespace del usuario (localStorage). Solo aparece
+           cuando NO hay login: con Google conectado el aislamiento lo
+           hace el backend y el prefijo no existe. -->
       <span id="namespace-badge" class="badge" title="Tu identificador único en este navegador" hidden></span>
+      <!-- Cuenta conectada. Oculta hasta que la API confirme la sesión. -->
+      <div id="cuenta" class="cuenta" hidden>
+        <span id="cuenta-email" class="badge" title="Cuenta conectada con Google"></span>
+        <button type="button" id="cuenta-salir" class="btn btn-mini" title="Cierra la sesión y desconecta la cuenta de este servidor">Salir</button>
+      </div>
       <!-- Desplegable del explorador: solo existe en pantallas angostas
            (< 60rem), donde el explorador no es una columna lateral. El
            texto es fijo («Explorador») y `aria-expanded` refleja el estado. -->
@@ -101,7 +108,7 @@
           <button type="button" class="menu-acciones-item" role="menuitem" data-accion="descargar" title="Descarga el contenido actual del editor" disabled>Descargar .md</button>
           <button type="button" class="menu-acciones-item" role="menuitem" data-accion="pdf" title="Exporta la nota abierta" disabled>Exportar .pdf</button>
           <button type="button" class="menu-acciones-item" role="menuitem" data-accion="zip" title="Exporta el proyecto completo" disabled>Exportar .zip</button>
-          <hr style="border:none;border-top:1px solid var(--borde);margin:4px 0">
+          <hr class="menu-separador">
           <button type="button" class="menu-acciones-item" role="menuitem" data-accion="compartir" title="Comparte PurpleMD en redes">Compartir PurpleMD</button>
           <!-- Mismo link que en el menú ☰: superficie ancha (>=48rem)
                también necesita la entrada al repositorio. -->
@@ -123,6 +130,49 @@
   <noscript>
     <p class="noscript">Este editor necesita JavaScript para funcionar.</p>
   </noscript>
+
+  <!-- Pantalla de acceso: solo la muestra el JS cuando este servidor
+       exige login (credenciales de Google configuradas). Cubre toda la
+       app con `aria-modal`, que es la semántica correcta para un diálogo
+       que no deja usar nada de atrás mientras está abierto. -->
+  <div id="sesion-pantalla" class="sesion-pantalla" role="dialog" aria-modal="true" aria-labelledby="sesion-titulo" hidden>
+    <div class="sesion-caja">
+      <div class="sesion-marca">
+        <svg class="sesion-logo" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <rect class="sesion-logo-fondo" width="32" height="32" rx="8" />
+          <path class="sesion-logo-letra" fill-rule="evenodd" d="M8 23V9h3.6l4.4 7.6L20.4 9H24v14h-3.2v-8.4L16.8 20h-1.6l-4-5.4V23H8Z" />
+        </svg>
+        <span class="sesion-marca-nombre">PurpleMD</span>
+      </div>
+
+      <div class="sesion-encabezado">
+        <h2 id="sesion-titulo" class="sesion-titulo">Entrá a PurpleMD</h2>
+        <p class="sesion-texto">Tus proyectos de Markdown, respaldados en tu cuenta de Google.</p>
+      </div>
+
+      <!-- Botón «Sign in with Google» con las medidas de las guías de
+           branding de Google: 40px de alto, borde 1px #747775, radio 4px,
+           Google Sans 14/500 y la «G» multicolor de 18px. No se reestiliza
+           porque la guía prohíbe alterarlo. -->
+      <button type="button" id="sesion-entrar" class="btn-google">
+        <svg class="btn-google-logo" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+        </svg>
+        <span class="btn-google-texto">Continuar con Google</span>
+      </button>
+
+      <div class="sesion-divisor" aria-hidden="true"><span>o</span></div>
+
+      <button type="button" id="sesion-invitado" class="btn sesion-invitado">Continuar sin cuenta</button>
+
+      <p id="sesion-estado" class="estado sesion-estado" role="status" aria-live="polite"></p>
+
+      <p class="sesion-pie">PurpleMD no comparte tus proyectos con nadie. Sin cuenta, todo vive solo en tu navegador y lo exportás cuando quieras.</p>
+    </div>
+  </div>
 
   <div class="app">
     <aside class="panel panel-explorador" id="explorador" aria-labelledby="explorador-titulo">

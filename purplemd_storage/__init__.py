@@ -1,12 +1,19 @@
 """Abstracción de almacenamiento para PurpleMD.
 
 Define el protocolo `Storage` y la factory `get_storage()` que selecciona el
-backend según la variable de entorno `PURPLEMD_STORAGE` (valores: "filesystem"
-o "memory"). Por defecto usa "filesystem".
+backend según la variable de entorno `PURPLEMD_STORAGE` (valores: "filesystem",
+"memory" o "drive"). Por defecto usa "filesystem".
 """
 
 import os
 
+from purplemd_storage.drive import (
+    ClienteDrive,
+    DriveStorage,
+    ErrorDrive,
+    NoEncontradoEnDrive,
+    TokenVencido,
+)
 from purplemd_storage.filesystem import FilesystemStorage
 from purplemd_storage.memory import MemoryStorage
 from purplemd_storage.protocol import (
@@ -46,6 +53,11 @@ def get_storage() -> Storage:
 
     - "filesystem" (defecto): `FilesystemStorage` usando el directorio de datos.
     - "memory": `MemoryStorage` en RAM (ideal para tests rápidos y efímeros).
+    - "drive": **no** se puede construir acá. El storage de Drive pertenece a
+      una cuenta de Google concreta, así que se arma por request en `api.py`
+      a partir de la sesión. Este error es intencional: un caller sin sesión
+      (el servidor MCP, `purplemd` sin `storage=`) tiene que saber que no
+      puede tocar los datos.
 
     La variable se lee en cada llamada para permitir cambios en caliente
     (útil en tests que monkeypatchean os.environ).
@@ -55,8 +67,14 @@ def get_storage() -> Storage:
         return MemoryStorage()
     if backend == "filesystem":
         return FilesystemStorage()
+    if backend == "drive":
+        raise ValueError(
+            "PURPLEMD_STORAGE=drive necesita una sesión de Google: el storage se "
+            "construye por request desde la API, no con get_storage()"
+        )
     raise ValueError(
-        f"PURPLEMD_STORAGE inválido: {backend!r}. Valores válidos: 'filesystem', 'memory'"
+        f"PURPLEMD_STORAGE inválido: {backend!r}. Valores válidos: "
+        "'filesystem', 'memory', 'drive'"
     )
 
 
@@ -65,6 +83,11 @@ __all__ = [
     "get_storage",
     "FilesystemStorage",
     "MemoryStorage",
+    "DriveStorage",
+    "ClienteDrive",
+    "ErrorDrive",
+    "TokenVencido",
+    "NoEncontradoEnDrive",
     "Proyecto",
     "Entrada",
     "Arbol",

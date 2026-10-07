@@ -44,18 +44,31 @@ HTML (vía `renderer`). Qué expone cada endpoint:
 Desarrollo local: uvicorn api:app --reload
 """
 
+import hmac
 import logging
 import os  # noqa: F401 (usado en tests para patch)
+import threading
+import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 import weasyprint
-from fastapi import FastAPI, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -64,7 +77,42 @@ from weasyprint.urls import URLFetcher
 import purplemd
 import renderer
 from mcp_server import mcp
-from purplemd_storage import MAX_IMPORT_ZIP_BYTES, get_storage
+from purplemd_auth import (
+    COOKIE_OAUTH,
+    COOKIE_SESION,
+    TTL_OAUTH_SEG,
+    TTL_SESION_SEG,
+    ConfigAuth,
+    Cuenta,
+    LimiteCuentasError,
+    OAuthError,
+    almacen_de_entorno,
+    cookie_segura,
+    desde_entorno,
+    es_https,
+    firmar,
+    identificador_seguro,
+    intercambiar_codigo,
+    nuevo_state,
+    nuevo_verifier,
+    perfil,
+    proveedor_vigente,
+    url_autorizacion,
+    verificar,
+)
+from purplemd_storage import (
+    DIR_DEFECTO,
+    MAX_IMPORT_ZIP_BYTES,
+    ClienteDrive,
+    DriveStorage,
+    ErrorDrive,
+    FilesystemStorage,
+    MemoryStorage,
+    NoEncontradoEnDrive,
+    Storage,
+    TokenVencido,
+    get_storage,
+)
 
 # Tope de markdown para POST /api/render. El HTML renderizado puede pesar
 # varios veces más que la entrada, y el parseo corre en el hilo del request:
@@ -83,10 +131,148 @@ FETCHER_PDF = URLFetcher(allowed_protocols={"data"})
 # y no al cwd para que funcione igual desde cualquier directorio.
 INDEX_HTML = Path(__file__).parent / "static" / "index.html"
 
-# Instancia global de storage: se crea al importar y se reusa en todos los
-# endpoints. `get_storage()` lee PURPLEMD_STORAGE en cada llamada, así que
-# cambios en la variable de entorno surten efecto en caliente (útil en tests).
-_storage = get_storage()
+# --- Sesión, storage por request y seguridad ---
+#
+# La integración con Google es opt-in: sin credenciales en el entorno,
+# `_config().habilitado` es False y todo funciona como siempre (sin
+# usuarios, sin cookie, la demo pública intacta). Cuando está encendida,
+# la identidad decide **dónde** viven los datos y quién puede verlos.
+
+# Cabeceras de seguridad (regla 6 de `skills/seguridad/SKILL.md`).
+# La CSP no permite scripts ni estilos externos: el frontend no usa CDN.
+CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self'; "
+    "img-src 'self' data: https:; "
+    "font-src 'self'; "
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'"
+)
+CABECERAS_SEGURIDAD = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+}
+# Swagger y el transporte MCP traen su propio marcado: imponerles la CSP
+# del frontend los rompería (Swagger carga su JS desde un CDN).
+_RUTAS_SIN_CSP = ("/docs", "/redoc", "/openapi.json", "/mcp")
+
+# Únicos /api/ que no exigen sesión: no tocan storage (ver
+# `_seguridad_y_sesion`). Son lo que permite previsualizar y exportar a
+# PDF en modo invitado, donde no hay cuenta y por tanto no hay storage.
+_RUTAS_STATELESS = frozenset({"/api/render", "/api/pdf"})
+
+# Verbo que un navegador puede disparar sin preflight; los demás llevan
+# `Origin`, que es lo que el chequeo de CSRF mira.
+_METODOS_SEGUROS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+# Tope de usuarios con backend en memoria a la vez: crecer sin límite es
+# un DoS lento (regla 7 de la skill de seguridad).
+TOPE_USUARIOS_MEMORIA = 64
+_MEMORIA_USUARIOS: dict[str, MemoryStorage] = {}
+_MEMORIA_CANDADO = threading.Lock()
+
+
+def _config() -> ConfigAuth:
+    """Configuración de Google vigente (se lee del entorno en cada request)."""
+    return desde_entorno()
+
+
+def _sesion(request: Request) -> dict | None:
+    """Payload de la sesión de esta petición, o `None` si no hay.
+
+    La cookie alterada, vencida o ausente devuelve `None`: nunca lanza.
+    `sub` además es obligatorio, porque es lo que define el aislamiento:
+    una sesión sin identificador no puede resolver un storage.
+    """
+    config = _config()
+    if not config.habilitado:
+        return None
+    datos = verificar(request.cookies.get(COOKIE_SESION), config.secret_key)
+    if datos is None:
+        return None
+    sub = datos.get("sub")
+    if not isinstance(sub, str) or not sub:
+        return None
+    return datos
+
+
+def _directorio_usuario(sub: str) -> Path:
+    """Carpeta de datos de una cuenta cuando el backend es el filesystem.
+
+    Sin sesión, PurpleMD escribe en `{PURPLEMD_DIR}/projects/`. Con
+    sesión, en `{PURPLEMD_DIR}/users/{hash}/projects/`, con lo que dos
+    cuentas no se pisan aunque compartan volumen. Los proyectos con el
+    prefijo `u_xxxx_` de la era sin autenticación quedan donde estaban,
+    fuera de toda carpeta de usuario (ver docs/AUTH.md).
+    """
+    return Path(os.environ.get("PURPLEMD_DIR", DIR_DEFECTO)) / "users" / identificador_seguro(sub)
+
+
+def _memoria_por_usuario(sub: str) -> MemoryStorage:
+    """Instancia de `MemoryStorage` por cuenta, con tope.
+
+    El backend en memoria es efímero por diseño, así que perder estas
+    instancias al reiniciar no es un problema nuevo.
+    """
+    clave = identificador_seguro(sub)
+    with _MEMORIA_CANDADO:
+        storage = _MEMORIA_USUARIOS.get(clave)
+        if storage is not None:
+            return storage
+        if len(_MEMORIA_USUARIOS) >= TOPE_USUARIOS_MEMORIA:
+            raise HTTPException(
+                status_code=503,
+                detail=f"hay {TOPE_USUARIOS_MEMORIA} sesiones en el backend en memoria",
+            )
+        storage = MemoryStorage()
+        _MEMORIA_USUARIOS[clave] = storage
+        return storage
+
+
+def almacenamiento(request: Request) -> Storage:
+    """Storage que corresponde a esta petición.
+
+    - Sin integración Google: el backend de siempre (`PURPLEMD_STORAGE`).
+    - Con Google y sesión: los datos de **ese** usuario, en su Drive o en
+      su subdirectorio.
+    - Con Google y sin sesión: 401 (el middleware ya lo habría cortado,
+      pero esta función se expone sola en los tests).
+    """
+    config = _config()
+    backend = os.environ.get("PURPLEMD_STORAGE", "filesystem").lower()
+    sesion = _sesion(request)
+
+    if not config.habilitado:
+        if backend == "drive":
+            raise HTTPException(
+                status_code=503,
+                detail="PURPLEMD_STORAGE=drive necesita Google OAuth "
+                "(GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET y PURPLEMD_SECRET_KEY)",
+            )
+        return get_storage()
+
+    if sesion is None:
+        raise HTTPException(
+            status_code=401, detail="sesión requerida: iniciá sesión con Google"
+        )
+
+    sub = sesion["sub"]
+    if backend == "drive":
+        cuentas = almacen_de_entorno()
+        return DriveStorage(ClienteDrive(proveedor_vigente(config, cuentas, sub)))
+    if backend == "memory":
+        return _memoria_por_usuario(sub)
+    return FilesystemStorage(directorio=_directorio_usuario(sub))
+
+
+# Dependencia que FastAPI resuelve una vez por request y cachea: los
+# endpoints la reciben como `almacen: StorageDep`.
+StorageDep = Annotated[Storage, Depends(almacenamiento)]
 
 # Logger del proceso, compartido con `renderer`. Los mensajes salen por el
 # manejador raíz (stderr en uvicorn) y los tests los capturan con
@@ -132,15 +318,108 @@ app.mount(
     ),
 )
 
-# CORS: permite acceder desde http://localhost:8000 (mismo puerto, host distinto
-# para el navegador) además de http://127.0.0.1:8000.
+# CORS: sin wildcards en orígenes, métodos ni cabeceras (regla 6 de
+# `skills/seguridad/SKILL.md`). El frontend lo sirve la misma app en la
+# raíz, así que en el uso normal las llamadas a `/api` son same-origin y
+# CORS no interviene; esto es solo para consumidores externos de la API.
+# `allow_credentials=True` hace que las cookies viajen, por eso el
+# origen de producción va literal y la regex cubre únicamente localhost
+# (el patrón que fija AGENTS.md).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=["https://purplemd.onrender.com"],
+    allow_origin_regex=r"^http://(127\.0\.0\.1|localhost):\d+$",
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Content-Type"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
+
+
+# Seguridad y sesión: un solo middleware para lo que aplica a cualquier
+# ruta, incluidas las de los mounts (`/static`, `/mcp`). Corre por fuera
+# del router, así que también cubre lo que se sirve ahí.
+@app.middleware("http")
+async def _seguridad_y_sesion(request: Request, call_next):
+    """401 sin sesión, 403 con origen ajeno y cabeceras de seguridad.
+
+    El chequeo de `Origin` es la segunda barrera de CSRF; la primera es
+    la cookie `SameSite=Lax`, que el navegador no manda en peticiones
+    cross-site. Solo se aplica con la integración Google encendida,
+    que es cuando existe una sesión que valga la pena forging.
+    """
+    # El preflight lo resuelve CORS: cortarlo acá con un 401 dejaría al
+    # navegador sin poder hacer la petición real.
+    if request.method == "OPTIONS":
+        return call_next(request)
+
+    ruta = request.url.path
+    config = _config()
+    if config.habilitado:
+        if ruta.startswith("/mcp"):
+            rechazo = _rechazar_mcp(request)
+            if rechazo is not None:
+                return rechazo
+        elif ruta.startswith("/api/") and not ruta.startswith("/api/auth/"):
+            # `/api/render` y `/api/pdf` son stateless: reciben markdown y
+            # devuelven HTML/PDF sin leer ni escribir storage. Por eso
+            # pasan sin sesión — es lo que permite previsualizar y exportar
+            # en modo invitado, donde no hay cuenta y, por tanto, no hay
+            # storage. Sus topes de MAX_RENDER_BYTES siguen vigentes (los
+            # cubre un test por endpoint).
+            if ruta not in _RUTAS_STATELESS and _sesion(request) is None:
+                return _respuesta_error(401, "sesión requerida: iniciá sesión con Google")
+        if request.method not in _METODOS_SEGUROS and not _origen_propio(request):
+            return _respuesta_error(403, "origen no permitido para esta operación")
+
+    respuesta = await call_next(request)
+    for nombre, valor in CABECERAS_SEGURIDAD.items():
+        respuesta.headers.setdefault(nombre, valor)
+    if not ruta.startswith(_RUTAS_SIN_CSP):
+        respuesta.headers.setdefault("Content-Security-Policy", CSP)
+    return respuesta
+
+
+def _origen_propio(request: Request) -> bool:
+    """¿El `Origin` del request es este mismo sitio?
+
+    Sin `Origin` no se bloquea: `curl`, los tests y las descargas
+    directas no lo mandan, y un navegador cross-site **siempre** lo manda
+    (lo exige la especificación para las peticiones no simples), así que
+    el hueco no es aprovechable desde un navegador.
+    """
+    origen = request.headers.get("origin")
+    host = request.headers.get("host")
+    if not origen or not host:
+        return True
+    try:
+        partes = urlsplit(origen)
+    except ValueError:
+        return False
+    return partes.scheme in {"http", "https"} and partes.netloc == host
+
+
+def _rechazar_mcp(request: Request) -> JSONResponse | None:
+    """El servidor MCP no tiene sesión de usuario, así que se decide acá.
+
+    - Sin integración Google: no se toca (es el comportamiento actual).
+    - Con Google: exige `PURPLEMD_MCP_TOKEN` en la cabecera
+      `X-PurpleMD-Token`; sin esa variable está apagado.
+    - Con `PURPLEMD_STORAGE=drive`: apagado siempre, porque no hay un
+      Drive al que atribuirle las operaciones de un cliente sin cuenta.
+    """
+    if os.environ.get("PURPLEMD_STORAGE", "").lower() == "drive":
+        return _respuesta_error(
+            403, "el servidor MCP está deshabilitado con PURPLEMD_STORAGE=drive"
+        )
+    esperado = os.environ.get("PURPLEMD_MCP_TOKEN", "")
+    if not esperado:
+        return _respuesta_error(
+            403, "el servidor MCP está deshabilitado: falta PURPLEMD_MCP_TOKEN"
+        )
+    recibido = request.headers.get("x-purplemd-token", "")
+    if not hmac.compare_digest(recibido, esperado):
+        return _respuesta_error(401, "token de MCP inválido")
+    return None
 
 # Montado como ruta (y no como router) para que /static/css/style.css y
 # /static/js/app.js se sirvan sin escribir endpoints a mano.
@@ -267,6 +546,33 @@ class RenderRequest(BaseModel):
                 f"el markdown ocupa {tamano} bytes y el máximo es {MAX_RENDER_BYTES}"
             )
         return value
+
+
+class PdfRequest(RenderRequest):
+    """Markdown a convertir en PDF, con el nombre del archivo de salida.
+
+    Hereda de `RenderRequest` el tope de MAX_RENDER_BYTES: el PDF es tan
+    costoso de componer como el render, no más, y repetir el validador
+    solo serviría para que los dos topes pudieran divergir.
+    """
+
+    nombre: str = "nota"
+
+    @field_validator("nombre")
+    @classmethod
+    def _validar_nombre_pdf(cls, value: str) -> str:
+        """Fija la ruta de salida con las reglas del núcleo (422 si falla).
+
+        `nombre` termina en la cabecera `Content-Disposition`, así que
+        tiene que ser una ruta de verdad: `validar_ruta` valida cada
+        segmento con `validar_nombre`, que no admite comillas, CR ni LF —
+        lo que haría falta para inyectar una cabecera. Es la misma regla
+        que aplica el PDF con storage, así los dos salen idénticos.
+        """
+        try:
+            return purplemd.validar_ruta(value)
+        except purplemd.NombreInvalido as exc:
+            raise ValueError(str(exc)) from exc
 
 
 class ProyectoSalida(BaseModel):
@@ -438,6 +744,49 @@ def _manejar_error_interno(request: Request, exc: Exception) -> JSONResponse:
     return _respuesta_error(500, "error interno al procesar la solicitud")
 
 
+def _sesion_vencida(detalle: str) -> JSONResponse:
+    """401 con la cookie de sesión borrada.
+
+    Sirve tanto para «Google dejó de darnos token» como para «no hay
+    sesión»: en los dos casos el camino de vuelta es el mismo, volver a
+    conectar la cuenta, y dejar la cookie vieja solo haría bucles.
+    """
+    respuesta = _respuesta_error(401, detalle)
+    respuesta.delete_cookie(COOKIE_SESION, path="/")
+    return respuesta
+
+
+@app.exception_handler(TokenVencido)
+def _manejar_token_vencido(request: Request, exc: TokenVencido) -> JSONResponse:
+    """401 cuando el token de Drive no se pudo refrescar (consentimiento revocado)."""
+    logger.warning("token de Drive vencido en %s: %s", request.url.path, exc)
+    return _sesion_vencida(str(exc))
+
+
+@app.exception_handler(OAuthError)
+def _manejar_oauth(request: Request, exc: OAuthError) -> JSONResponse:
+    """401 cuando la credencial de Google ya no sirve."""
+    logger.warning("fallo de OAuth en %s: %s", request.url.path, exc)
+    return _sesion_vencida(str(exc))
+
+
+@app.exception_handler(NoEncontradoEnDrive)
+def _manejar_drive_404(request: Request, exc: NoEncontradoEnDrive) -> JSONResponse:
+    """404 si el archivo desapareció de Drive entre el listado y el acceso."""
+    return _respuesta_error(404, str(exc))
+
+
+@app.exception_handler(ErrorDrive)
+def _manejar_drive(request: Request, exc: ErrorDrive) -> JSONResponse:
+    """503 para todo lo demás de Drive: cuota agotada, red o API caída.
+
+    Es un estado transitorio del proveedor, no un error del pedido, y el
+    detalle va al cliente para que pueda reintentar.
+    """
+    logger.error("Drive en %s %s", request.method, request.url.path, exc_info=exc)
+    return _respuesta_error(503, str(exc))
+
+
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
     """Sirve el frontend (index.html) tal cual está en disco.
@@ -447,49 +796,241 @@ def index() -> FileResponse:
     return FileResponse(INDEX_HTML, media_type="text/html")
 
 
+# --- Autenticación con Google (OAuth 2.0 + PKCE) ---
+#
+# Cuatro rutas, todas públicas (el middleware las salta porque empiezan
+# con `/api/auth/`): el login redirige, el callback recibe, `me` le dice
+# al frontend si hace falta entrar, y `logout` borra la sesión y los
+# tokens guardados en el servidor.
+
+
+def _destino_seguro(destino: str) -> str:
+    """Solo rutas relativas de este mismo sitio.
+
+    El `destino` viaja en una cookie firmada, pero firmada no significa
+    inofensiva: si llegara `https://otro-sitio` el callback terminaría
+    mandando al usuario a una página ajena con la cookie ya puesta.
+    Se descarta todo lo que no sea una ruta interna.
+    """
+    if not destino.startswith("/") or destino.startswith("//") or "\\" in destino:
+        return "/"
+    return destino
+
+
+def _redirect_uri(request: Request, config: ConfigAuth) -> str:
+    """URI de redirección: la configurada, o la de este request."""
+    return config.redirect_uri or str(request.url_for("callback_google"))
+
+
+class SesionSalida(BaseModel):
+    """Estado de la sesión, para que el frontend decida si muestra el login."""
+
+    requiere_sesion: bool
+    autenticado: bool
+    email: str = ""
+    name: str = ""
+    picture: str = ""
+    # `almacen` es el que dice la verdad: qué backend guarda los datos.
+    almacen: str = "filesystem"
+
+
+@app.get("/api/auth/login", include_in_schema=False)
+def login_google(request: Request, destino: str = Query(default="/")) -> RedirectResponse:
+    """Redirige al consentimiento de Google con `state` y PKCE.
+
+    El `verifier` de PKCE y el `state` viajan en una cookie firmada de
+    corta vida: es lo que permite verificar en el callback que ese
+    redireccionamiento lo disparó esta misma pestaña.
+    """
+    config = _config()
+    if not config.habilitado:
+        raise HTTPException(
+            status_code=503,
+            detail="la integración con Google no está configurada en este servidor",
+        )
+    verifier = nuevo_verifier()
+    state = nuevo_state()
+    payload = {"state": state, "verifier": verifier, "destino": _destino_seguro(destino)}
+    respuesta = RedirectResponse(
+        url_autorizacion(config, _redirect_uri(request, config), state, verifier),
+        status_code=302,
+    )
+    respuesta.set_cookie(
+        COOKIE_OAUTH,
+        firmar(payload, config.secret_key, TTL_OAUTH_SEG),
+        max_age=TTL_OAUTH_SEG,
+        **cookie_segura(es_https(request)),
+    )
+    return respuesta
+
+
+@app.get("/api/auth/callback", include_in_schema=False)
+def callback_google(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+) -> RedirectResponse:
+    """Intercambia el código de Google por tokens y arma la sesión.
+
+    Tres verificaciones antes de tocar nada: que el `state` coincida con
+    el de esta pestaña (CSRF del propio flujo), que el intercambio con
+    Google salga bien, y que el perfil traiga un `sub` estable. Si algo
+    falla, no se crea sesión.
+    """
+    config = _config()
+    if not config.habilitado:
+        raise HTTPException(
+            status_code=503,
+            detail="la integración con Google no está configurada en este servidor",
+        )
+    if error:
+        raise HTTPException(status_code=400, detail=f"Google no autorizó el acceso: {error}")
+
+    guardado = verificar(request.cookies.get(COOKIE_OAUTH), config.secret_key)
+    if guardado is None or not state:
+        raise HTTPException(
+            status_code=400,
+            detail="la operación expiró o no coincide con esta pestaña: volvé a intentar",
+        )
+    if not hmac.compare_digest(str(guardado.get("state", "")), state):
+        raise HTTPException(status_code=400, detail="estado de la operación inválido")
+    verifier = guardado.get("verifier")
+    if not isinstance(verifier, str) or not verifier:
+        raise HTTPException(
+            status_code=400, detail="falta el desafío PKCE de esta operación"
+        )
+    if not code:
+        raise HTTPException(status_code=400, detail="falta el código de autorización de Google")
+
+    redirect_uri = _redirect_uri(request, config)
+    try:
+        tokens = intercambiar_codigo(config, redirect_uri, code, verifier)
+        cuenta_google = perfil(tokens["access_token"])
+    except OAuthError as exc:
+        logger.warning("falló el intercambio con Google: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    sub = cuenta_google["sub"]
+    cuentas = almacen_de_entorno()
+    previa = cuentas.obtener(sub)
+    # Google solo entrega `refresh_token` en la primera autorización; en
+    # las siguientes hay que conservar el que ya estaba guardado o la
+    # sesión moriría a la hora.
+    refresh = tokens.get("refresh_token") or (previa.refresh_token if previa else "")
+    cuenta = Cuenta(
+        sub=sub,
+        email=str(cuenta_google.get("email", "")),
+        name=str(cuenta_google.get("name", "")),
+        picture=str(cuenta_google.get("picture", "")),
+        access_token=str(tokens["access_token"]),
+        refresh_token=refresh if isinstance(refresh, str) else "",
+        expires_at=int(time.time()) + int(tokens.get("expires_in", 3600)),
+        scope=str(tokens.get("scope", "")),
+    )
+    try:
+        cuentas.guardar(cuenta)
+    except LimiteCuentasError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    sesion = {
+        "sub": sub,
+        "email": cuenta.email,
+        "name": cuenta.name,
+        "picture": cuenta.picture,
+    }
+    destino = _destino_seguro(str(guardado.get("destino", "/")))
+    respuesta = RedirectResponse(destino, status_code=302)
+    respuesta.delete_cookie(COOKIE_OAUTH, path="/")
+    respuesta.set_cookie(
+        COOKIE_SESION,
+        firmar(sesion, config.secret_key, TTL_SESION_SEG),
+        max_age=TTL_SESION_SEG,
+        **cookie_segura(es_https(request)),
+    )
+    return respuesta
+
+
+@app.get("/api/auth/me", response_model=SesionSalida, include_in_schema=False)
+def estado_de_sesion(request: Request) -> SesionSalida:
+    """Dice al frontend si hay que entrar y con qué cuenta.
+
+    Responde 200 siempre: la ausencia de sesión es un estado, no un
+    error, y el frontend necesita leerlo para mostrar la pantalla de
+    acceso en lugar de recibir un 401 en cada request.
+    """
+    config = _config()
+    sesion = _sesion(request)
+    return SesionSalida(
+        requiere_sesion=config.habilitado,
+        autenticado=sesion is not None,
+        email=(sesion or {}).get("email", ""),
+        name=(sesion or {}).get("name", ""),
+        picture=(sesion or {}).get("picture", ""),
+        almacen=os.environ.get("PURPLEMD_STORAGE", "filesystem").lower(),
+    )
+
+
+@app.post("/api/auth/logout", status_code=204, response_class=Response, include_in_schema=False)
+def cerrar_sesion(request: Request) -> Response:
+    """Borra la sesión del navegador **y** los tokens guardados en el servidor.
+
+    Con eso el access token que abría el Drive del usuario deja de existir
+    del lado de PurpleMD; volver a entrar repite el consentimiento.
+    """
+    sesion = _sesion(request)
+    if sesion is not None:
+        almacen_de_entorno().borrar(sesion["sub"])
+    respuesta = Response(status_code=204)
+    respuesta.delete_cookie(COOKIE_SESION, path="/")
+    return respuesta
+
+
 @app.get("/api/projects", response_model=ListadoProyectos)
-def listar_proyectos() -> ListadoProyectos:
+def listar_proyectos(almacen: StorageDep) -> ListadoProyectos:
     """Lista los proyectos del directorio de datos, más recientes primero."""
     resumenes = [
         ProyectoSalida(name=proyecto.name, modified=proyecto.modified)
-        for proyecto in purplemd.listar_proyectos(storage=_storage)
+        for proyecto in purplemd.listar_proyectos(storage=almacen)
     ]
     return ListadoProyectos(projects=resumenes)
 
 
 @app.post("/api/projects", response_model=ProyectoSalida, status_code=201)
-def crear_proyecto(payload: ProyectoCreacion) -> ProyectoSalida:
+def crear_proyecto(almacen: StorageDep, payload: ProyectoCreacion) -> ProyectoSalida:
     """Crea un proyecto; 409 si ya existe y 422 si el nombre no sirve."""
-    proyecto = purplemd.crear_proyecto(payload.name, storage=_storage)
+    proyecto = purplemd.crear_proyecto(payload.name, storage=almacen)
     return ProyectoSalida(name=proyecto.name, modified=proyecto.modified)
 
 
 @app.patch("/api/projects/{project}", response_model=ProyectoSalida)
-def renombrar_proyecto(project: str, payload: ProyectoRenombre) -> ProyectoSalida:
+def renombrar_proyecto(
+    almacen: StorageDep, project: str, payload: ProyectoRenombre
+) -> ProyectoSalida:
     """Renombra un proyecto; 404, 409 si ya hay otro con ese nombre o 422.
 
     Renombrar al mismo nombre responde 200 con el proyecto tal cual está
     (idempotente, para que reenviar el formulario no falle).
     """
-    proyecto = purplemd.renombrar_proyecto(project, payload.name, storage=_storage)
+    proyecto = purplemd.renombrar_proyecto(project, payload.name, storage=almacen)
     return ProyectoSalida(name=proyecto.name, modified=proyecto.modified)
 
 
 @app.delete("/api/projects/{project}", status_code=204, response_class=Response)
-def eliminar_proyecto(project: str) -> Response:
+def eliminar_proyecto(almacen: StorageDep, project: str) -> Response:
     """Borra el proyecto con todo su contenido de forma recursiva; 404 si no existe.
 
     El borrado es directo y sin vuelta atrás: la confirmación la hace el
     frontend antes de llamar.
     """
-    purplemd.eliminar_proyecto(project, storage=_storage)
+    purplemd.eliminar_proyecto(project, storage=almacen)
     return Response(status_code=204)
 
 
 @app.get("/api/projects/{project}/export")
-def exportar_proyecto(project: str) -> Response:
+def exportar_proyecto(almacen: StorageDep, project: str) -> Response:
     """Exporta el proyecto completo como ZIP; 404 si no existe."""
-    zip_bytes = purplemd.exportar_proyecto(project, storage=_storage)
+    zip_bytes = purplemd.exportar_proyecto(project, storage=almacen)
     return Response(
         content=zip_bytes,
         media_type="application/zip",
@@ -498,7 +1039,9 @@ def exportar_proyecto(project: str) -> Response:
 
 
 @app.post("/api/projects/{project}/import")
-async def importar_proyecto(project: str, file: UploadFile = File(...)) -> dict:
+async def importar_proyecto(
+    almacen: StorageDep, project: str, file: UploadFile = File(...)
+) -> dict:
     """Importa un proyecto desde ZIP; lo crea si no existe.
 
     413 si el archivo supera MAX_IMPORT_ZIP_BYTES y 422 si la ruta no sirve
@@ -517,14 +1060,14 @@ async def importar_proyecto(project: str, file: UploadFile = File(...)) -> dict:
             detail=f"el ZIP supera los {MAX_IMPORT_ZIP_BYTES} bytes",
         )
     return await run_in_threadpool(
-        purplemd.importar_proyecto, project, zip_bytes, storage=_storage
+        purplemd.importar_proyecto, project, zip_bytes, storage=almacen
     )
 
 
 @app.get("/api/projects/{project}/tree", response_model=ArbolProyecto)
-def arbol(project: str) -> ArbolProyecto:
+def arbol(almacen: StorageDep, project: str) -> ArbolProyecto:
     """Árbol recursivo del proyecto; 404 si no existe y 422 si el nombre no sirve."""
-    resultado = purplemd.arbol_proyecto(project, storage=_storage)
+    resultado = purplemd.arbol_proyecto(project, storage=almacen)
     entradas = [
         EntradaArbol(type=entrada.type, path=entrada.path, modified=entrada.modified)
         for entrada in resultado.entries
@@ -533,20 +1076,21 @@ def arbol(project: str) -> ArbolProyecto:
 
 
 @app.post("/api/projects/{project}/notes", response_model=NotaSalida, status_code=201)
-def crear_nota(project: str, payload: NotaCreacion) -> NotaSalida:
+def crear_nota(almacen: StorageDep, project: str, payload: NotaCreacion) -> NotaSalida:
     """Crea una nota creando las carpetas que falten; 404, 409 o 422."""
-    return _salida(purplemd.crear_nota(project, payload.path, payload.content, storage=_storage))
+    return _salida(purplemd.crear_nota(project, payload.path, payload.content, storage=almacen))
 
 
 @app.get("/api/projects/{project}/notes/{path:path}/pdf")
 def exportar_pdf(
+    almacen: StorageDep,
     project: str,
     path: str,
 ) -> Response:
     """Devuelve la nota como PDF con marca de agua "Generado con PurpleMD ♥".
     La marca de agua siempre se incluye. No hay parámetro para omitirla.
     """
-    nota = purplemd.leer_nota(project, path, storage=_storage)
+    nota = purplemd.leer_nota(project, path, storage=almacen)
     html = _html_para_pdf(nota)
     pdf = weasyprint.HTML(string=html, url_fetcher=FETCHER_PDF).write_pdf()
     return Response(
@@ -557,44 +1101,50 @@ def exportar_pdf(
 
 
 @app.get("/api/projects/{project}/notes/{path:path}", response_model=NotaSalida)
-def leer(project: str, path: str) -> NotaSalida:
+def leer(almacen: StorageDep, project: str, path: str) -> NotaSalida:
     """Devuelve una nota con su contenido; 404 si no existe y 422 si la ruta no sirve."""
-    return _salida(purplemd.leer_nota(project, path, storage=_storage))
+    return _salida(purplemd.leer_nota(project, path, storage=almacen))
 
 
 @app.put("/api/projects/{project}/notes/{path:path}", response_model=NotaSalida)
-def guardar(project: str, path: str, payload: ActualizacionNota) -> NotaSalida:
+def guardar(
+    almacen: StorageDep, project: str, path: str, payload: ActualizacionNota
+) -> NotaSalida:
     """Reemplaza el contenido de una nota; 404 si no existe y 422 si es muy grande o binario."""
-    return _salida(purplemd.guardar_nota(project, path, payload.content, storage=_storage))
+    return _salida(purplemd.guardar_nota(project, path, payload.content, storage=almacen))
 
 
 @app.patch("/api/projects/{project}/notes/{path:path}", response_model=NotaSalida)
-def mover_nota(project: str, path: str, payload: RutaNueva) -> NotaSalida:
+def mover_nota(
+    almacen: StorageDep, project: str, path: str, payload: RutaNueva
+) -> NotaSalida:
     """Mueve o renombra una nota dentro del proyecto; 404, 409 destino ocupado o 422.
 
     La respuesta trae la ruta nueva: si el frontend tenía esa nota abierta,
     es su problema de estado, no del backend.
     """
-    return _salida(purplemd.mover_nota(project, path, payload.path, storage=_storage))
+    return _salida(purplemd.mover_nota(project, path, payload.path, storage=almacen))
 
 
 @app.delete(
     "/api/projects/{project}/notes/{path:path}", status_code=204, response_class=Response
 )
-def eliminar_nota(project: str, path: str) -> Response:
+def eliminar_nota(almacen: StorageDep, project: str, path: str) -> Response:
     """Borra la nota; 404 si no existe (el proyecto o la ruta) y 422 si la ruta no sirve."""
-    purplemd.eliminar_nota(project, path, storage=_storage)
+    purplemd.eliminar_nota(project, path, storage=almacen)
     return Response(status_code=204)
 
 
 @app.patch("/api/projects/{project}/dirs/{path:path}", response_model=DirectorioSalida)
-def mover_directorio(project: str, path: str, payload: RutaNueva) -> DirectorioSalida:
+def mover_directorio(
+    almacen: StorageDep, project: str, path: str, payload: RutaNueva
+) -> DirectorioSalida:
     """Mueve o renombra un directorio con su contenido; 404, 409 o 422.
 
     422 si la ruta destino no sirve o si el directorio terminaría dentro de
     sí mismo o de un ancestro propio. Mover a la misma ruta es 200.
     """
-    directorio = purplemd.mover_directorio(project, path, payload.path, storage=_storage)
+    directorio = purplemd.mover_directorio(project, path, payload.path, storage=almacen)
     return DirectorioSalida(
         project=directorio.project, path=directorio.path, modified=directorio.modified
     )
@@ -604,6 +1154,7 @@ def mover_directorio(project: str, path: str, payload: RutaNueva) -> DirectorioS
     "/api/projects/{project}/dirs/{path:path}", status_code=204, response_class=Response
 )
 def eliminar_directorio(
+    almacen: StorageDep,
     project: str,
     path: str,
     recursive: Annotated[
@@ -612,7 +1163,7 @@ def eliminar_directorio(
     ] = False,
 ) -> Response:
     """Borra un directorio; 404 si no existe y 409 si no está vacío y no se pidió recursive."""
-    purplemd.eliminar_directorio(project, path, recursive=recursive, storage=_storage)
+    purplemd.eliminar_directorio(project, path, recursive=recursive, storage=almacen)
     return Response(status_code=204)
 
 
@@ -622,17 +1173,51 @@ def render(payload: RenderRequest) -> RenderResponse:
     return RenderResponse(html=renderer.renderizar(payload.markdown))
 
 
+@app.post("/api/pdf")
+def exportar_pdf_stateless(payload: PdfRequest) -> Response:
+    """Convierte markdown en PDF; el PDF del modo invitado.
+
+    No existe un equivalente con storage: en modo invitado no hay cuenta
+    y por tanto no hay dónde leer la nota, así que el frontend le manda
+    el markdown crudo. Como `/api/render`, no lee ni escribe nada, que es
+    por lo que los dos pasan sin sesión (ver `_seguridad_y_sesion`); su
+    tope de MAX_RENDER_BYTES lo aplica `RenderRequest`, del que hereda.
+    """
+    html = _html_de_markdown(payload.markdown, payload.nombre)
+    pdf = weasyprint.HTML(string=html, url_fetcher=FETCHER_PDF).write_pdf()
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{payload.nombre}.pdf"'
+        },
+    )
+
+
 def _html_para_pdf(nota: purplemd.Nota) -> str:
-    """Envuelve el HTML renderizado en un documento completo con estilos.
+    """Envuelve la nota en un documento PDF completo con estilos.
+
+    Atajo para el PDF con storage; el cuerpo vive en `_html_de_markdown`,
+    que comparten con el PDF stateless del modo invitado.
+    """
+    return _html_de_markdown(nota.content, nota.path)
+
+
+def _html_de_markdown(markdown: str, titulo: str) -> str:
+    """Documento WeasyPrint a partir de markdown crudo.
 
     WeasyPrint necesita un HTML con `<style>` propio para aplicar márgenes,
     tipografía y los colores del resaltado de sintaxis.
     Estilo profesional inspirado en CVs generados por Claude.
 
+    `titulo` va al `<title>` y al nombre del archivo. Quien llama es el
+    que garantiza que es un nombre válido (sin `<`, comillas ni saltos de
+    línea): acá se usa tal cual, como ya hacía el PDF con storage.
+
     La marca de agua "Generado con PurpleMD ♥" siempre se incluye en @bottom-left.
     El número de página @bottom-right es paginación del documento y se emite siempre.
     """
-    cuerpo = renderer.renderizar(nota.content)
+    cuerpo = renderer.renderizar(markdown)
     # Paleta del resaltado y fondo de los bloques de código: los dos salen
     # de Pygments (vía renderer) en vez de estar escritos como literales en
     # este CSS, así la paleta del PDF es la por defecto del resaltador.
@@ -656,7 +1241,7 @@ def _html_para_pdf(nota: purplemd.Nota) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{nota.path}</title>
+  <title>{titulo}</title>
 
   <style>
     @page {{
@@ -1048,5 +1633,19 @@ _nueva_notificacion(
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    """Reporta si se puede persistir; responde 200 con el estado en el body."""
-    return HealthResponse(estado="ok" if _storage.esta_operativo() else "degradado")
+    """Reporta si se puede persistir; responde 200 con el estado en el body.
+
+    `/health` lo consulta el HEALTHCHECK del contenedor cada pocos
+    segundos, así que **no** hace una llamada a Drive: con
+    `PURPLEMD_STORAGE=drive` juzga la configuración, que es lo que sin
+    esa variable ya se resolvía con `esta_operativo()`.
+    """
+    backend = os.environ.get("PURPLEMD_STORAGE", "filesystem").lower()
+    if backend == "drive":
+        return HealthResponse(estado="ok" if _config().habilitado else "degradado")
+    try:
+        almacen = get_storage()
+    except ValueError as exc:
+        logger.error("PURPLEMD_STORAGE inválido: %s", exc)
+        return HealthResponse(estado="degradado")
+    return HealthResponse(estado="ok" if almacen.esta_operativo() else "degradado")

@@ -85,6 +85,51 @@ function obtenerNamespace() {
 const NAMESPACE = obtenerNamespace();
 const NS_PREFIX = NAMESPACE + "_";
 
+// --------------------------------------------------------------- Sesión
+/**
+ * Modo invitado: todo en este navegador, nada en el servidor.
+ *
+ * «Continuar sin cuenta» deja la sesión de Google de lado y pasa a guardar
+ * proyectos y notas en `localStorage`. El backend no recibe ni conserva
+ * nada de lo que se escribe acá: solo sirve los dos endpoints stateless
+ * (`/api/render` y `/api/pdf`), que convierten markdown y se olvidan.
+ *
+ * Dos claves en `localStorage`:
+ *
+ * - `purplemd_invitado`: marca de que el usuario eligió este modo.
+ * - `purplemd_invitado_datos`: el árbol entero serializado.
+ */
+const CLAVE_INVITADO = "purplemd_invitado";
+const CLAVE_INVITADO_DATOS = "purplemd_invitado_datos";
+
+/**
+ * Estado de la sesión con Google, consultado a `/api/auth/me` al arrancar.
+ *
+ * - `requiere`: este servidor exige login (hay credenciales de Google).
+ * - `autenticada`: hay cookie de sesión válida.
+ *
+ * La consecuencia importante para el resto del módulo es `prefijo()`:
+ * sin login el aislamiento lo hace el prefijo `u_xxxx_` en el nombre
+ * del proyecto, y con login lo hace el backend, así que los nombres
+ * llegan planos y prefijarlos duplicaría cada proyecto.
+ */
+const sesion = { requiere: false, autenticada: false, email: "", nombre: "" };
+
+/** ¿Modo invitado activo? Se lee de `localStorage` al arrancar. */
+let invitado = estaInvitado();
+
+/**
+ * ¿Los nombres de proyecto llevan el prefijo de este navegador?
+ *
+ * @returns {boolean} `true` solo cuando no hay login ni modo invitado.
+ */
+function prefijo() {
+  // En modo invitado los datos ya viven en este navegador: el
+  // aislamiento lo da el origen, no el nombre, así que van planos.
+  if (invitado) return false;
+  return !sesion.requiere;
+}
+
 /**
  * Normaliza un nombre de proyecto para la API: garantía de «con prefijo».
  *
@@ -97,6 +142,7 @@ const NS_PREFIX = NAMESPACE + "_";
  * @returns {string} Nombre con el prefijo del namespace.
  */
 function nsProject(name) {
+  if (!prefijo()) return name;
   return name.startsWith(NS_PREFIX) ? name : NS_PREFIX + name;
 }
 
@@ -108,11 +154,13 @@ function nsProject(name) {
  * @returns {string} Nombre sin el prefijo del namespace.
  */
 function stripNs(name) {
+  if (!prefijo()) return name;
   return name.startsWith(NS_PREFIX) ? name.slice(NS_PREFIX.length) : name;
 }
 
 /** Filtra proyectos que pertenecen a este namespace. */
 function filtrarMisProyectos(proyectos) {
+  if (!prefijo()) return proyectos;
   return proyectos.filter(p => p.name.startsWith(NS_PREFIX));
 }
 
@@ -121,9 +169,10 @@ function inicializarNamespaceBadge() {
   const badge = document.getElementById("namespace-badge");
   if (badge) {
     badge.textContent = `👤 ${NAMESPACE}`;
-    // Mostrar en desktop (>= 60rem), ocultar en mobile
+    // Mostrar en desktop (>= 60rem), ocultar en mobile. Con login el
+    // badge no tiene nada que mostrar: el identificador ya no importa.
     const esDesktop = window.matchMedia("(min-width: 60rem)").matches;
-    badge.hidden = !esDesktop;
+    badge.hidden = sesion.requiere || !esDesktop;
   }
 }
 
@@ -133,7 +182,7 @@ function actualizarNamespaceBadge() {
   if (badge) {
     // Mostrar en desktop (>= 60rem) y en sidebar intermedia (>= 48rem)
     const esDesktop = window.matchMedia("(min-width: 48rem)").matches;
-    badge.hidden = !esDesktop;
+    badge.hidden = sesion.requiere || !esDesktop;
   }
 }
 
@@ -238,6 +287,169 @@ let entradasActuales = [];
 // ------------------------------------------------------------------ API
 
 /**
+ * Consulta a la API si hace falta entrar y con qué cuenta.
+ *
+ * `/api/auth/me` responde 200 siempre: «sin sesión» es un estado, no un
+ * error, y el frontend necesita leerlo para mostrar la pantalla de
+ * acceso en vez de recibir un 401 en cada request.
+ *
+ * @returns {Promise<boolean>} `true` si la app puede seguir cargando datos.
+ */
+async function cargarSesion() {
+  try {
+    const datos = await pedir("/api/auth/me");
+    sesion.requiere = Boolean(datos.requiere_sesion);
+    sesion.autenticada = Boolean(datos.autenticado);
+    sesion.email = datos.email || "";
+    sesion.nombre = datos.name || "";
+    if (sesion.autenticada && invitado) {
+      // Se volvió a entrar con Google (p. ej. derechazo a la URL de
+      // consentimiento): con cuenta conectada manda la sesión, y el modo
+      // invitado queda atrás. Sus datos no se borran del navegador, por
+      // si el usuario vuelve a elegirlos.
+      invitado = false;
+      escribirFlagInvitado(false);
+    }
+  } catch (_) {
+    // Sin respuesta no se puede saber si hay login: se asume modo
+    // invitado y, si el backend exige sesión, el 401 de la primera
+    // llamada lo avisa y abre la pantalla de acceso.
+    sesion.requiere = false;
+    sesion.autenticada = false;
+  }
+  pintarSesion();
+  // En modo invitado hay dónde trabajar aunque no haya cuenta: los datos
+  // están en este navegador.
+  return invitado || !sesion.requiere || sesion.autenticada;
+}
+
+/** Pinta la topbar y la pantalla de acceso según el estado de la sesión. */
+function pintarSesion() {
+  const cuenta = document.getElementById("cuenta");
+  const email = document.getElementById("cuenta-email");
+  const salir = document.getElementById("cuenta-salir");
+  const pantalla = document.getElementById("sesion-pantalla");
+  // El invitado ya entró: la pantalla de acceso no vuelve a aparecer.
+  const deboEntrar = sesion.requiere && !sesion.autenticada && !invitado;
+  if (cuenta) cuenta.hidden = !sesion.autenticada && !invitado;
+  if (salir) {
+    // El `title` fijo habla de Google: en modo invitado el botón hace
+    // otra cosa y tiene que decirlo, o promete una desconexión que no
+    // existe.
+    salir.title = invitado
+      ? "Vuelve a la pantalla de acceso. Tus datos quedan guardados en este navegador."
+      : "Cierra la sesión y desconecta la cuenta de este servidor";
+  }
+  if (email) {
+    if (invitado) {
+      email.textContent = "Modo invitado";
+      email.title = "Trabajando sin cuenta: todo se guarda solo en este navegador";
+    } else {
+      const visible = sesion.email || sesion.nombre || "cuenta conectada";
+      email.textContent = visible;
+      email.title = sesion.email ? `Conectado como ${sesion.email}` : "Cuenta conectada con Google";
+    }
+  }
+  if (pantalla) {
+    pantalla.hidden = !deboEntrar;
+    if (!pantalla.hidden) {
+      const mensaje = document.getElementById("sesion-estado");
+      if (mensaje && !mensaje.textContent) mensaje.textContent = "";
+    }
+  }
+  actualizarNamespaceBadge();
+}
+
+/** Muestra la pantalla de acceso: la sesión se perdió o nunca existió. */
+function mostrarPantallaSesion() {
+  sesion.requiere = true;
+  sesion.autenticada = false;
+  pintarSesion();
+}
+
+/**
+ * Navega al consentimiento de Google.
+ *
+ * Es una navegación de nivel superior y no un `fetch`: el callback de
+ * OAuth es una redirección de Google, que el navegador tiene que abrir
+ * como documento nuevo.
+ */
+function entrarConGoogle() {
+  const destino = window.location.pathname + window.location.search;
+  window.location.assign(`/api/auth/login?destino=${encodeURIComponent(destino)}`);
+}
+
+/**
+ * Entra en modo invitado y arranca la app con el almacén local.
+ *
+ * No hay redirección ni recarga: el arranque normal quedó detenido en
+ * `iniciar()` al no haber sesión, así que se retoma desde ahí con
+ * `invitado` ya puesto. `arrancar()` se ejecuta una sola vez por página,
+ * igual que con Google.
+ */
+async function entrarSinCuenta() {
+  const mensaje = document.getElementById("sesion-estado");
+  if (!escribirFlagInvitado(true)) {
+    if (mensaje) {
+      pintarEstado(
+        mensaje,
+        "error",
+        "Este navegador no deja guardar datos locales: probá en una pestaña normal o desactivá el modo privado.",
+      );
+    }
+    return;
+  }
+  invitado = true;
+  if (mensaje) pintarEstado(mensaje, "", "");
+  pintarSesion();
+  await arrancar();
+}
+
+/**
+ * Cierra la sesión (borra cookie y tokens del servidor) y recarga.
+ *
+ * En modo invitado no hay cookie que borrar: se apaga el indicador y se
+ * vuelve a la pantalla de acceso. Los datos **no** se borran — es lo que
+ * promete la pantalla de acceso («todo vive solo en tu navegador») y lo
+ * único que el usuario tiene para volver a su trabajo.
+ */
+async function cerrarSesion() {
+  if (invitado) {
+    if (escribirFlagInvitado(false)) {
+      invitado = false;
+      window.location.assign("/");
+      return;
+    }
+    // Sin forma de apagar el modo, la salida es engañosa: se avisa en vez
+    // de recargar y fingir que cambió algo.
+    mostrarToast(
+      null,
+      "Modo invitado",
+      "No se pudo salir del modo invitado (el navegador bloquea el almacenamiento local).",
+      "error",
+    );
+    return;
+  }
+  try {
+    await pedir("/api/auth/logout", { method: "POST" });
+  } catch (_) {
+    // Aunque la llamada falle, la cookie ya quedó borrada en la
+    // respuesta del servidor: recargar igualmente cierra la sesión.
+  }
+  window.location.assign("/");
+}
+
+/** Registra los oyentes de la pantalla de acceso y de la cuenta. */
+function inicializarSesion() {
+  const entrar = document.getElementById("sesion-entrar");
+  if (entrar) entrar.addEventListener("click", entrarConGoogle);
+  const sinCuenta = document.getElementById("sesion-invitado");
+  if (sinCuenta) sinCuenta.addEventListener("click", () => entrarSinCuenta());
+  const salir = document.getElementById("cuenta-salir");
+  if (salir) salir.addEventListener("click", cerrarSesion);
+}
+
+/**
  * Pide un recurso a la API y devuelve su JSON.
  * @param {string} ruta - Ruta relativa, p. ej. `/api/projects`.
  * @param {RequestInit} [opciones] - Opciones de fetch (método, body, ...).
@@ -245,11 +457,20 @@ let entradasActuales = [];
  * @throws {Error} Con el detalle del backend o un mensaje de red, en español.
  */
 async function pedir(ruta, opciones) {
+  // En modo invitado las rutas de datos no existen en el servidor: las
+  // atiende el almacén local con la misma forma de respuesta.
+  if (invitado && esRutaLocal(ruta)) return pedirLocal(ruta, opciones);
   let respuesta;
   try {
     respuesta = await fetch(ruta, opciones);
   } catch (cause) {
     throw new Error(`no se pudo contactar al servidor (${cause.message})`);
+  }
+  if (respuesta.status === 401) {
+    // Sesión vencida o nunca iniciada: el detalle no importa mostrarlo
+    // en cada request, importa que vuelva a haber forma de entrar.
+    mostrarPantallaSesion();
+    throw new Error("tu sesión terminó: volvé a entrar con Google");
   }
   if (!respuesta.ok) throw new Error(await detalleDeError(respuesta));
   // DELETE responde 204 sin cuerpo: no hay JSON que parsear.
@@ -299,6 +520,923 @@ function conJson(metodo, payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   };
+}
+
+// --------------------------------------------------------- Modo invitado
+//
+// El backend no participa: proyectos, carpetas y notas viven en
+// `localStorage`. Por eso esta sección **replica** las reglas del núcleo
+// (`purplemd_storage/protocol.py`) en vez de reimplementar su criterio:
+// acá el cliente es el servidor, y una nota válida con cuenta tiene que
+// seguir valiéndolo sin cuenta (y al revés). Las excepciones se lanzan
+// como `Error` con el mismo texto que traduce la API a HTTP, así el
+// resto del módulo ni se entera de que cambió el backend.
+
+/** Mide tamaños igual que Python: `len(s.encode("utf-8")). */
+const _codificar = new TextEncoder();
+/** Extensión de nota; la de `purplemd_storage/protocol.py`. */
+const EXTENSION_MD = ".md";
+/** Metadata que todo export válido lleva en la raíz del ZIP. */
+const META_ZIP = ".purplemd.json";
+// Topes idénticos a los de `protocol.py`: si alguno cambia allá, hay que
+// cambiarlo acá. `MAX_BYTES` ya está declarada arriba con la misma nota.
+const MAX_PROFUNDIDAD = 10;
+const MAX_RUTA_BYTES = 200;
+const MAX_ZIP_BYTES = 10 * 1024 * 1024;
+const MAX_ZIP_TOTAL_BYTES = 50 * 1024 * 1024;
+
+/** ¿El usuario eligió trabajar sin cuenta en este navegador? */
+function estaInvitado() {
+  try {
+    return localStorage.getItem(CLAVE_INVITADO) === "1";
+  } catch (_) {
+    // Storage inaccesible: no hay por dónde haber elegido el modo.
+    return false;
+  }
+}
+
+// ------------------------------------------------------------- Validación
+
+/**
+ * Valida un nombre de proyecto o segmento de ruta.
+ *
+ * Réplica de `validar_nombre` de `purplemd_storage/protocol.py`.
+ *
+ * @param {string} name - Con o sin `.md`.
+ * @returns {string} Nombre normalizado, sin extensión.
+ * @throws {Error} En español, igual que `NombreInvalido`.
+ */
+function validarNombreLocal(name) {
+  const nombre = name.toLowerCase().endsWith(EXTENSION_MD)
+    ? name.slice(0, -EXTENSION_MD.length)
+    : name;
+  if (!nombre.trim()) throw new Error("el nombre no puede estar vacío");
+  if (nombre.includes("/") || nombre.includes("\\")) {
+    throw new Error(`el nombre ${JSON.stringify(name)} no puede contener separadores de ruta`);
+  }
+  if (nombre.includes("..")) {
+    throw new Error(`el nombre ${JSON.stringify(name)} no puede contener '..'`);
+  }
+  if (nombre.startsWith(".")) {
+    throw new Error(`el nombre ${JSON.stringify(name)} no puede empezar con '.'`);
+  }
+  const invalidos = [...new Set([...nombre].filter((c) => !esDeNombre(c)))].sort();
+  if (invalidos.length) {
+    throw new Error(
+      `el nombre ${JSON.stringify(name)} contiene caracteres no permitidos: ${invalidos.join("")}`
+    );
+  }
+  return nombre;
+}
+
+/**
+ * ¿El carácter pasa el filtro de `validar_nombre`? Letras y dígitos
+ * *unicode* (los de `str.isalnum`, que admiten tildes y `ñ`) más
+ * espacio, guion y guion bajo.
+ * @param {string} c - Un solo carácter.
+ * @returns {boolean}
+ */
+function esDeNombre(c) {
+  return /[\p{L}\p{N}]/u.test(c) || c === " " || c === "-" || c === "_";
+}
+
+/**
+ * Valida y normaliza la ruta lógica de una nota.
+ * Réplica de `validar_ruta`: cada segmento pasa por `validarNombreLocal`,
+ * con lo que se rechazan `.` y `..`, segmentos vacíos y barras sobrantes.
+ * @param {string} ruta - Ruta relativa al proyecto.
+ * @returns {string} Ruta normalizada, sin `.md`.
+ * @throws {Error} En español, igual que `NombreInvalido`.
+ */
+function validarRutaLocal(ruta) {
+  const sin = ruta.toLowerCase().endsWith(EXTENSION_MD)
+    ? ruta.slice(0, -EXTENSION_MD.length)
+    : ruta;
+  if (!sin.trim()) throw new Error("la ruta de la nota no puede estar vacía");
+  if (sin.startsWith("/") || sin.endsWith("/")) {
+    throw new Error(`la ruta ${JSON.stringify(ruta)} no puede empezar ni terminar con '/'`);
+  }
+  if (_codificar.encode(sin).length > MAX_RUTA_BYTES) {
+    throw new Error(`la ruta ${JSON.stringify(ruta)} supera los ${MAX_RUTA_BYTES} bytes permitidos`);
+  }
+  const segmentos = sin.split("/");
+  if (segmentos.length > MAX_PROFUNDIDAD) {
+    throw new Error(`la ruta ${JSON.stringify(ruta)} supera los ${MAX_PROFUNDIDAD} niveles permitidos`);
+  }
+  return segmentos
+    .map((segmento) => {
+      if (!segmento.trim()) {
+        throw new Error(`la ruta ${JSON.stringify(ruta)} tiene segmentos vacíos`);
+      }
+      try {
+        return validarNombreLocal(segmento);
+      } catch (exc) {
+        throw new Error(`la ruta ${JSON.stringify(ruta)} es inválida: ${exc.message}`);
+      }
+    })
+    .join("/");
+}
+
+/** Acota el contenido de una nota a `MAX_BYTES` (422 en el backend). */
+function verificarTamanioLocal(contenido) {
+  const tamano = _codificar.encode(contenido).length;
+  if (tamano > MAX_BYTES) {
+    throw new Error(`la nota ocupa ${tamano} bytes y el máximo es ${MAX_BYTES}`);
+  }
+}
+
+// ------------------------------------------------------------ Persistencia
+
+/**
+ * Lee el árbol serializado. Un JSON corrupto o un storage vacío no son
+ * un error: se arranca de cero, que es lo que responde el backend ante
+ * un directorio recién creado.
+ * @returns {{proyectos: Object<string, Object>}}
+ */
+function leerDatosInvitado() {
+  try {
+    const crudo = localStorage.getItem(CLAVE_INVITADO_DATOS);
+    const datos = crudo ? JSON.parse(crudo) : null;
+    if (!datos || typeof datos.proyectos !== "object" || !datos.proyectos) {
+      return { proyectos: {} };
+    }
+    return datos;
+  } catch (_) {
+    return { proyectos: {} };
+  }
+}
+
+/**
+ * Serializa el árbol. La escritura puede fallar (cuota agotada, modo
+ * privado): en ese caso **no** se puede seguir como si nada, porque el
+ * usuario creería que guardó.
+ * @param {{proyectos: Object}} datos - Árbol completo.
+ * @throws {Error} En español si el navegador no acepta escribir.
+ */
+function guardarDatosInvitado(datos) {
+  try {
+    localStorage.setItem(CLAVE_INVITADO_DATOS, JSON.stringify(datos));
+  } catch (cause) {
+    const motivo =
+      cause && cause.name === "QuotaExceededError"
+        ? "no queda espacio libre en el navegador"
+        : cause.message;
+    throw new Error(`no se pudo guardar en este navegador: ${motivo}`);
+  }
+}
+
+/** Marca o desmarca el modo invitado. */
+function escribirFlagInvitado(activo) {
+  try {
+    if (activo) localStorage.setItem(CLAVE_INVITADO, "1");
+    else localStorage.removeItem(CLAVE_INVITADO);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/** Marca de tiempo en segundos con fracción, como `st_mtime`. */
+function ahora() {
+  return Date.now() / 1000;
+}
+
+// ---------------------------------------------------------------- Proyectos
+
+/**
+ * Proyectos ordenados por modificación descendente, como
+ * `GET /api/projects`.
+ * @param {{proyectos: Object}} datos
+ * @returns {Array<{name: string, modified: number}>}
+ */
+function listarProyectosLocal(datos) {
+  return Object.entries(datos.proyectos)
+    .map(([name, proyecto]) => ({ name, modified: proyecto.modified || 0 }))
+    .sort((a, b) => b.modified - a.modified || a.name.localeCompare(b.name));
+}
+
+/**
+ * Busca un proyecto y garantiza sus dos colecciones.
+ * @param {{proyectos: Object}} datos
+ * @param {string} nombre - Con o sin prefijo.
+ * @returns {Object} El proyecto.
+ * @throws {Error} Si no existe.
+ */
+function proyectoLocal(datos, nombre) {
+  const n = validarNombreLocal(nombre);
+  const proyecto = datos.proyectos[n];
+  if (!proyecto) throw new Error(`no existe el proyecto ${JSON.stringify(n)}`);
+  if (!proyecto.notas || typeof proyecto.notas !== "object") proyecto.notas = {};
+  if (!proyecto.carpetas || typeof proyecto.carpetas !== "object") proyecto.carpetas = {};
+  return proyecto;
+}
+
+function crearProyectoLocal(datos, nombre) {
+  const n = validarNombreLocal(nombre);
+  if (datos.proyectos[n]) throw new Error(`ya existe el proyecto ${JSON.stringify(n)}`);
+  const t = ahora();
+  datos.proyectos[n] = { modified: t, notas: {}, carpetas: {} };
+  guardarDatosInvitado(datos);
+  return { name: n, modified: t };
+}
+
+function renombrarProyectoLocal(datos, nombre, nuevo) {
+  const n = validarNombreLocal(nombre);
+  const proyecto = proyectoLocal(datos, n);
+  const destino = validarNombreLocal(nuevo);
+  if (destino !== n && datos.proyectos[destino]) {
+    throw new Error(`ya existe el proyecto ${JSON.stringify(destino)}`);
+  }
+  if (destino !== n) {
+    delete datos.proyectos[n];
+    datos.proyectos[destino] = proyecto;
+  }
+  proyecto.modified = ahora();
+  guardarDatosInvitado(datos);
+  return { name: destino, modified: proyecto.modified };
+}
+
+function eliminarProyectoLocal(datos, nombre) {
+  const n = validarNombreLocal(nombre);
+  proyectoLocal(datos, n);
+  delete datos.proyectos[n];
+  guardarDatosInvitado(datos);
+}
+
+/**
+ * Árbol de un proyecto: carpetas alfabéticas y después notas, que es el
+ * orden que fija `FilesystemStorage.arbol_proyecto`.
+ * @returns {{project: string, entries: Array<{type: string, path: string, modified: number}>}}
+ */
+function arbolLocal(datos, nombre) {
+  const n = validarNombreLocal(nombre);
+  const proyecto = proyectoLocal(datos, n);
+  const cmp = (a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  const carpetas = Object.entries(proyecto.carpetas)
+    .map(([path, modified]) => ({ type: "dir", path, modified }))
+    .sort(cmp);
+  const notas = Object.entries(proyecto.notas)
+    .map(([path, nota]) => ({ type: "note", path, modified: nota.modified || 0 }))
+    .sort(cmp);
+  return { project: n, entries: [...carpetas, ...notas] };
+}
+
+// ------------------------------------------------------------------- Notas
+
+/**
+ * Valida proyecto y ruta, y devuelve las tres piezas que casi todas las
+ * operaciones de nota necesitan a la vez.
+ * @returns {{n: string, proyecto: Object, r: string}}
+ */
+function localizarNota(datos, nombre, ruta) {
+  const n = validarNombreLocal(nombre);
+  const proyecto = proyectoLocal(datos, n);
+  const r = validarRutaLocal(ruta);
+  return { n, proyecto, r };
+}
+
+/** `content` + `modified` listos para responder. */
+function salidaNota(n, r, nota) {
+  return {
+    project: n,
+    path: r,
+    content: nota.content || "",
+    modified: nota.modified || 0,
+  };
+}
+
+/** Crea las carpetas que faltan a lo largo de `ruta`. */
+function crearCarpetasIntermedias(proyecto, ruta, t) {
+  const segmentos = ruta.split("/");
+  for (let i = 1; i < segmentos.length; i++) {
+    const carpeta = segmentos.slice(0, i).join("/");
+    if (!(carpeta in proyecto.carpetas)) proyecto.carpetas[carpeta] = t;
+  }
+}
+
+function leerNotaLocal(datos, nombre, ruta) {
+  const { n, proyecto, r } = localizarNota(datos, nombre, ruta);
+  const nota = proyecto.notas[r];
+  if (!nota) {
+    throw new Error(`no existe la nota ${JSON.stringify(r)} en el proyecto ${JSON.stringify(n)}`);
+  }
+  return salidaNota(n, r, nota);
+}
+
+function crearNotaLocal(datos, nombre, ruta, contenido) {
+  const { n, proyecto, r } = localizarNota(datos, nombre, ruta);
+  if (proyecto.notas[r]) {
+    throw new Error(`ya existe la nota ${JSON.stringify(r)} en el proyecto ${JSON.stringify(n)}`);
+  }
+  verificarTamanioLocal(contenido);
+  const t = ahora();
+  proyecto.notas[r] = { content: contenido, modified: t };
+  crearCarpetasIntermedias(proyecto, r, t);
+  proyecto.modified = t;
+  guardarDatosInvitado(datos);
+  return salidaNota(n, r, proyecto.notas[r]);
+}
+
+function guardarNotaLocal(datos, nombre, ruta, contenido) {
+  const { n, proyecto, r } = localizarNota(datos, nombre, ruta);
+  const nota = proyecto.notas[r];
+  if (!nota) {
+    throw new Error(`no existe la nota ${JSON.stringify(r)} en el proyecto ${JSON.stringify(n)}`);
+  }
+  verificarTamanioLocal(contenido);
+  nota.content = contenido;
+  nota.modified = ahora();
+  proyecto.modified = nota.modified;
+  guardarDatosInvitado(datos);
+  return salidaNota(n, r, nota);
+}
+
+function moverNotaLocal(datos, nombre, ruta, destino) {
+  const { n, proyecto, r } = localizarNota(datos, nombre, ruta);
+  const nota = proyecto.notas[r];
+  if (!nota) {
+    throw new Error(`no existe la nota ${JSON.stringify(r)} en el proyecto ${JSON.stringify(n)}`);
+  }
+  const d = validarRutaLocal(destino);
+  // Mover a la misma ruta es idempotente: no se toca nada.
+  if (d === r) return salidaNota(n, r, nota);
+  if (proyecto.notas[d]) {
+    throw new Error(`ya existe una nota en la ruta destino ${JSON.stringify(d)}`);
+  }
+  delete proyecto.notas[r];
+  proyecto.notas[d] = nota;
+  const t = ahora();
+  crearCarpetasIntermedias(proyecto, d, t);
+  proyecto.modified = t;
+  guardarDatosInvitado(datos);
+  return salidaNota(n, d, nota);
+}
+
+function eliminarNotaLocal(datos, nombre, ruta) {
+  const { n, proyecto, r } = localizarNota(datos, nombre, ruta);
+  if (!proyecto.notas[r]) {
+    throw new Error(`no existe la nota ${JSON.stringify(r)} en el proyecto ${JSON.stringify(n)}`);
+  }
+  delete proyecto.notas[r];
+  // Las carpetas vacías se conservan, igual que en el backend: decidir
+  // cuándo borrarlas es trabajo de eliminar_directorio.
+  proyecto.modified = ahora();
+  guardarDatosInvitado(datos);
+}
+
+// -------------------------------------------------------------- Directorios
+
+/** ¿`ruta` está estrictamente dentro de `dentro`? (`_dentro_de`) */
+function dentroDe(dentro, ruta) {
+  return dentro.startsWith(`${ruta}/`);
+}
+
+/** ¿Hay algo en `ruta` o debajo? Para el DestinoOcupado del mover. */
+function hayAlgoEn(proyecto, ruta) {
+  const prefijo = `${ruta}/`;
+  return (
+    ruta in proyecto.carpetas ||
+    ruta in proyecto.notas ||
+    Object.keys(proyecto.carpetas).some((k) => k.startsWith(prefijo)) ||
+    Object.keys(proyecto.notas).some((k) => k.startsWith(prefijo))
+  );
+}
+
+/**
+ * Reubica `origen` (y todo lo que cuelga de él) en `destino`.
+ * Las claves se regeneran enteras: es la versión en memoria de
+ * `Path.replace` sobre un directorio.
+ */
+function reubicarContenido(proyecto, origen, destino) {
+  const prefijo = `${origen}/`;
+  const reubicar = (ruta) => {
+    if (ruta === origen) return destino;
+    if (ruta.startsWith(prefijo)) return destino + ruta.slice(origen.length);
+    return ruta;
+  };
+  const notas = {};
+  for (const [ruta, nota] of Object.entries(proyecto.notas)) notas[reubicar(ruta)] = nota;
+  proyecto.notas = notas;
+  const carpetas = {};
+  for (const [ruta, t] of Object.entries(proyecto.carpetas)) carpetas[reubicar(ruta)] = t;
+  proyecto.carpetas = carpetas;
+}
+
+function localizarDirectorio(datos, nombre, ruta) {
+  const n = validarNombreLocal(nombre);
+  const proyecto = proyectoLocal(datos, n);
+  const r = validarRutaLocal(ruta);
+  if (!(r in proyecto.carpetas)) {
+    throw new Error(`no existe el directorio ${JSON.stringify(r)} en el proyecto ${JSON.stringify(n)}`);
+  }
+  return { n, proyecto, r };
+}
+
+function moverDirectorioLocal(datos, nombre, ruta, destino) {
+  const { n, proyecto, r } = localizarDirectorio(datos, nombre, ruta);
+  const d = validarRutaLocal(destino);
+  if (d === r) return { project: n, path: r, modified: proyecto.carpetas[r] };
+  if (dentroDe(d, r) || dentroDe(r, d)) {
+    throw new Error(
+      `no se puede mover el directorio ${JSON.stringify(r)} hacia ${JSON.stringify(d)}: ` +
+        "una ruta contiene a la otra",
+    );
+  }
+  if (hayAlgoEn(proyecto, d)) {
+    throw new Error(`ya existe un directorio en la ruta destino ${JSON.stringify(d)}`);
+  }
+  reubicarContenido(proyecto, r, d);
+  const t = ahora();
+  proyecto.modified = t;
+  guardarDatosInvitado(datos);
+  return { project: n, path: d, modified: proyecto.carpetas[d] };
+}
+
+function eliminarDirectorioLocal(datos, nombre, ruta, recursive) {
+  const { n, proyecto, r } = localizarDirectorio(datos, nombre, ruta);
+  const prefijo = `${r}/`;
+  const conContenido =
+    Object.keys(proyecto.carpetas).some((k) => k.startsWith(prefijo)) ||
+    Object.keys(proyecto.notas).some((k) => k.startsWith(prefijo));
+  if (conContenido && !recursive) {
+    throw new Error(
+      `el directorio ${JSON.stringify(r)} no está vacío; ` +
+        "se necesita recursive=true para borrarlo con todo su contenido",
+    );
+  }
+  delete proyecto.carpetas[r];
+  if (recursive) {
+    for (const k of Object.keys(proyecto.carpetas)) if (k.startsWith(prefijo)) delete proyecto.carpetas[k];
+    for (const k of Object.keys(proyecto.notas)) if (k.startsWith(prefijo)) delete proyecto.notas[k];
+  }
+  proyecto.modified = ahora();
+  guardarDatosInvitado(datos);
+}
+
+// ------------------------------------------------------------- Despachante
+
+/** `true` si `ruta` la resuelve este módulo en vez del servidor. */
+function esRutaLocal(ruta) {
+  return ruta.startsWith("/api/projects") || ruta.startsWith("/api/notifications");
+}
+
+/**
+ * Atiende las rutas de datos sin pasar por la red.
+ *
+ * Reproduce las respuestas (y los mensajes de error) del backend: el
+ * resto del módulo no distingue entre un fetch y esta función.
+ *
+ * @param {string} ruta - Ruta relativa, p. ej. `/api/projects/x/tree`.
+ * @param {RequestInit} [opciones] - Método y body ya serializados.
+ * @returns {Promise<any>} Mismo cuerpo que devolvería la API.
+ * @throws {Error} Con el detalle que la API habría respondido.
+ */
+async function pedirLocal(ruta, opciones) {
+  const [rutaBase, consulta] = ruta.split("?");
+  const metodo = ((opciones && opciones.method) || "GET").toUpperCase();
+  const cuerpo = opciones && opciones.body ? JSON.parse(opciones.body) : undefined;
+  const datos = leerDatosInvitado();
+
+  // Los avisos del servidor (novedades de la app) no existen para un
+  // invitado: no hay sesión donde acumularlos, y nada que marcar leída.
+  if (rutaBase.startsWith("/api/notifications")) {
+    return metodo === "GET" ? { notifications: [] } : null;
+  }
+
+  if (rutaBase === "/api/projects") {
+    if (metodo === "GET") return { projects: listarProyectosLocal(datos) };
+    if (metodo === "POST") return crearProyectoLocal(datos, cuerpo.name);
+    throw new Error(`método ${metodo} no soportado sobre /api/projects`);
+  }
+
+  const partes = /^\/api\/projects\/([^/]+)(?:\/(.*))?$/.exec(rutaBase);
+  if (!partes) throw new Error(`ruta no soportada en modo invitado: ${rutaBase}`);
+  const nombre = decodeURIComponent(partes[1]);
+  const resto = partes[2] || "";
+
+  if (!resto) {
+    if (metodo === "PATCH") return renombrarProyectoLocal(datos, nombre, cuerpo.name);
+    if (metodo === "DELETE") {
+      eliminarProyectoLocal(datos, nombre);
+      return null;
+    }
+    throw new Error(`método ${metodo} no soportado sobre /api/projects/{proyecto}`);
+  }
+
+  if (resto === "tree") return arbolLocal(datos, nombre);
+
+  if (resto === "notes") {
+    if (metodo === "POST") return crearNotaLocal(datos, nombre, cuerpo.path, cuerpo.content);
+    throw new Error(`método ${metodo} no soportado sobre /notes`);
+  }
+
+  let captura = /^notes\/(.+)$/.exec(resto);
+  if (captura) {
+    const ruta = decodificarRuta(captura[1]);
+    if (metodo === "GET") return leerNotaLocal(datos, nombre, ruta);
+    if (metodo === "PUT") return guardarNotaLocal(datos, nombre, ruta, cuerpo.content);
+    if (metodo === "PATCH") return moverNotaLocal(datos, nombre, ruta, cuerpo.path);
+    if (metodo === "DELETE") {
+      eliminarNotaLocal(datos, nombre, ruta);
+      return null;
+    }
+    throw new Error(`método ${metodo} no soportado sobre una nota`);
+  }
+
+  captura = /^dirs\/(.+)$/.exec(resto);
+  if (captura) {
+    const ruta = decodificarRuta(captura[1]);
+    if (metodo === "PATCH") return moverDirectorioLocal(datos, nombre, ruta, cuerpo.path);
+    if (metodo === "DELETE") {
+      eliminarDirectorioLocal(datos, nombre, ruta, consulta === "recursive=true");
+      return null;
+    }
+    throw new Error(`método ${metodo} no soportado sobre un directorio`);
+  }
+
+  throw new Error(`ruta no soportada en modo invitado: ${rutaBase}`);
+}
+
+/**
+ * Invierte `rutaUrl`: cada segmento se escapó por separado, así que los
+ * `/` llegan intactos y hay que decodificar solo los pedazos.
+ * @param {string} bruta - Ruta tal como vino en la URL.
+ * @returns {string} Ruta lógica.
+ */
+function decodificarRuta(bruta) {
+  return bruta.split("/").map(decodeURIComponent).join("/");
+}
+
+// ------------------------------------------------------------------- ZIP
+
+/**
+ * Tabla CRC-32 (polinomio 0xEDB88320), igual que la de `zipfile`.
+ * Se construye una vez: recorrerla es lo que hace viable calcular el
+ * CRC de cada archivo sin librerías.
+ */
+const TABLA_CRC32 = (() => {
+  const tabla = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    tabla[n] = c >>> 0;
+  }
+  return tabla;
+})();
+
+/**
+ * CRC-32 de `bytes`.
+ * @param {Uint8Array} bytes
+ * @returns {number} Entero sin signo de 32 bits.
+ */
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) {
+    crc = TABLA_CRC32[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * Fecha/hora en el formato MS-DOS que espera el encabezado del ZIP.
+ * @param {Date} fecha
+ * @returns {{hora: number, dia: number}}
+ */
+function dosHoraFecha(fecha) {
+  const anio = Math.max(1980, fecha.getFullYear());
+  return {
+    hora: (fecha.getHours() << 11) | (fecha.getMinutes() << 5) | (fecha.getSeconds() >> 1),
+    dia: ((anio - 1980) << 9) | ((fecha.getMonth() + 1) << 5) | fecha.getDate(),
+  };
+}
+
+/**
+ * Arma un ZIP en memoria con método STORE (sin comprimir).
+ *
+ * Un ZIP sin comprimir lo abre cualquier sistema, y los proyectos son
+ * texto plano. Escribir sí se hace a mano por el mismo criterio que el
+ * resto del frontend: sin dependencias. **Leer** sí soporta DEFLATE,
+ * porque el backend exporta así.
+ *
+ * @param {Array<{nombre: string, texto: string}>} entradas - Archivos.
+ * @returns {Blob} El ZIP listo para descargar.
+ */
+function armarZip(entradas) {
+  const codificar = new TextEncoder();
+  const locales = [];
+  const centrales = [];
+  let desplazamiento = 0;
+
+  for (const { nombre, texto } of entradas) {
+    const nombreBytes = codificar.encode(nombre);
+    const datos = codificar.encode(texto);
+    const crc = crc32(datos);
+    const { hora, dia } = dosHoraFecha(new Date());
+
+    const local = new Uint8Array(30 + nombreBytes.length + datos.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true); // versión necesaria
+    lv.setUint16(6, 0x0800, true); // banderas: nombres en UTF-8
+    lv.setUint16(8, 0, true); // método: STORE
+    lv.setUint16(10, hora, true);
+    lv.setUint16(12, dia, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, datos.length, true);
+    lv.setUint32(22, datos.length, true);
+    lv.setUint16(26, nombreBytes.length, true);
+    lv.setUint16(28, 0, true);
+    local.set(nombreBytes, 30);
+    local.set(datos, 30 + nombreBytes.length);
+    locales.push(local);
+
+    const central = new Uint8Array(46 + nombreBytes.length);
+    const cv = new DataView(central.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true); // hecho por
+    cv.setUint16(6, 20, true); // versión necesaria
+    cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint16(12, hora, true);
+    cv.setUint16(14, dia, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, datos.length, true);
+    cv.setUint32(24, datos.length, true);
+    cv.setUint16(28, nombreBytes.length, true);
+    cv.setUint16(30, 0, true); // extra
+    cv.setUint16(32, 0, true); // comentario
+    cv.setUint16(34, 0, true); // disco
+    cv.setUint16(36, 0, true); // atributos internos
+    cv.setUint32(38, 0, true); // atributos externos
+    cv.setUint32(42, desplazamiento, true);
+    central.set(nombreBytes, 46);
+    centrales.push(central);
+
+    desplazamiento += local.length;
+  }
+
+  const tamanoCentral = centrales.reduce((suma, bloque) => suma + bloque.length, 0);
+  const fin = new Uint8Array(22);
+  const fv = new DataView(fin.buffer);
+  fv.setUint32(0, 0x06054b50, true);
+  fv.setUint16(4, 0, true);
+  fv.setUint16(6, 0, true);
+  fv.setUint16(8, entradas.length, true);
+  fv.setUint16(10, entradas.length, true);
+  fv.setUint32(12, tamanoCentral, true);
+  fv.setUint32(16, desplazamiento, true);
+  fv.setUint16(20, 0, true);
+
+  return new Blob([...locales, ...centrales, fin], { type: "application/zip" });
+}
+
+/**
+ * Lee el directorio central de un ZIP en memoria.
+ *
+ * Solo recorre metadatos: **no** descomprime nada todavía. Ese orden es
+ * el que pide el backend también (ver `motivo_omitir_entrada_zip`):
+ * medir antes de descomprimir es lo que evita una zip bomb.
+ *
+ * @param {ArrayBuffer} buffer - El ZIP entero.
+ * @returns {Array<{nombre: string, metodo: number, crc: number, tamano: number, datos: Uint8Array}>}
+ * @throws {Error} Si el archivo no es un ZIP.
+ */
+function leerDirectorioZip(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const dv = new DataView(buffer);
+  // El EOCD está al final, con hasta 65535 bytes de comentario adelante.
+  const desde = Math.max(0, bytes.length - 22 - 65535);
+  let fin = -1;
+  for (let i = bytes.length - 22; i >= desde; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) {
+      fin = i;
+      break;
+    }
+  }
+  if (fin < 0) throw new Error("archivo ZIP corrupto o inválido");
+
+  const total = dv.getUint16(fin + 10, true);
+  let cursor = dv.getUint32(fin + 16, true);
+  const entradas = [];
+  for (let i = 0; i < total; i++) {
+    if (cursor + 46 > bytes.length || dv.getUint32(cursor, true) !== 0x02014b50) {
+      throw new Error("archivo ZIP corrupto o inválido");
+    }
+    const metodo = dv.getUint16(cursor + 10, true);
+    const crc = dv.getUint32(cursor + 16, true);
+    const comprimido = dv.getUint32(cursor + 20, true);
+    const tamano = dv.getUint32(cursor + 24, true);
+    const largoNombre = dv.getUint16(cursor + 28, true);
+    const largoExtra = dv.getUint16(cursor + 30, true);
+    const largoComentario = dv.getUint16(cursor + 32, true);
+    const origen = dv.getUint32(cursor + 42, true);
+
+    const nombre = new TextDecoder().decode(
+      bytes.subarray(cursor + 46, cursor + 46 + largoNombre)
+    );
+
+    if (origen + 30 > bytes.length || dv.getUint32(origen, true) !== 0x04034b50) {
+      throw new Error("archivo ZIP corrupto o inválido");
+    }
+    const largoLocalNombre = dv.getUint16(origen + 26, true);
+    const largoLocalExtra = dv.getUint16(origen + 28, true);
+    const inicio = origen + 30 + largoLocalNombre + largoLocalExtra;
+    if (inicio + comprimido > bytes.length) {
+      throw new Error("archivo ZIP corrupto o inválido");
+    }
+
+    entradas.push({ nombre, metodo, crc, tamano, datos: bytes.subarray(inicio, inicio + comprimido) });
+    cursor += 46 + largoNombre + largoExtra + largoComentario;
+  }
+  return entradas;
+}
+
+/**
+ * Descomprime y verifica el CRC de una entrada ya medida.
+ * @param {{metodo: number, crc: number, tamano: number, datos: Uint8Array}} entrada
+ * @returns {Promise<Uint8Array>} El contenido.
+ * @throws {Error} Si el método no existe o el CRC no calza.
+ */
+async function descomprimirEntrada(entrada) {
+  let salida;
+  if (entrada.metodo === 0) {
+    salida = entrada.datos;
+  } else if (entrada.metodo === 8) {
+    if (typeof DecompressionStream === "undefined") {
+      throw new Error("este navegador no sabe descomprimir ZIP");
+    }
+    const flujo = new Blob([entrada.datos]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    salida = new Uint8Array(await new Response(flujo).arrayBuffer());
+  } else {
+    throw new Error(`método de compresión no soportado (${entrada.metodo})`);
+  }
+  if (crc32(salida) !== entrada.crc) {
+    throw new Error("el archivo está corrupto (CRC no coincide)");
+  }
+  return salida;
+}
+
+// ------------------------------------------------------------ Export/import
+
+/**
+ * Exporta un proyecto como ZIP, con el mismo formato que
+ * `FilesystemStorage.exportar_proyecto`: metadata en la raíz y cada nota
+ * como `<ruta>.md`.
+ *
+ * @param {string} nombre - Nombre del proyecto (sin prefijo).
+ * @returns {Blob} El ZIP.
+ */
+function exportarZipLocal(nombre) {
+  const n = validarNombreLocal(nombre);
+  const proyecto = proyectoLocal(leerDatosInvitado(), n);
+  const entradas = [
+    {
+      nombre: META_ZIP,
+      texto: JSON.stringify(
+        { project: n, exported_at: new Date().toISOString(), version: 1 },
+        null,
+        2
+      ),
+    },
+  ];
+  for (const ruta of Object.keys(proyecto.notas).sort()) {
+    entradas.push({ nombre: `${ruta}${EXTENSION_MD}`, texto: proyecto.notas[ruta].content || "" });
+  }
+  return armarZip(entradas);
+}
+
+/**
+ * Importa un ZIP en el proyecto indicado.
+ *
+ * Reproduce `zipio.leer_notas_zip`: metadata obligatoria y versión 1,
+ * cada entrada `.md` medida **antes** de descomprimir, topes de `MAX_BYTES`
+ * y de `MAX_ZIP_TOTAL_BYTES`, y errores acumulados en vez de abortar.
+ *
+ * @param {{proyectos: Object}} datos - Árbol, en el que se escribe.
+ * @param {string} nombre - Proyecto destino (se crea si no existe).
+ * @param {Blob} blob - El ZIP elegido.
+ * @returns {Promise<{creadas: number, actualizadas: number, omitidas: number, errores: Array<{path: string, motivo: string}>}>}
+ */
+async function importarZipLocal(datos, nombre, blob) {
+  const n = validarNombreLocal(nombre);
+  const resultado = { creadas: 0, actualizadas: 0, omitidas: 0, errores: [] };
+  const fallar = (path, motivo) => {
+    resultado.errores.push({ path, motivo });
+    resultado.omitidas += 1;
+    guardarDatosInvitado(datos);
+    return resultado;
+  };
+
+  // El tope se mira ANTES de tocar nada: el backend responde 413 y no
+  // crea el proyecto si el archivo es grande de más.
+  if (blob.size > MAX_ZIP_BYTES) {
+    throw new Error(`el ZIP supera los ${MAX_ZIP_BYTES} bytes`);
+  }
+
+  // El backend crea el proyecto *antes* de mirar el ZIP y lo deja aunque
+  // el ZIP resulte inválido: acá se hace lo mismo.
+  if (!datos.proyectos[n]) datos.proyectos[n] = { modified: ahora(), notas: {}, carpetas: {} };
+  const proyecto = datos.proyectos[n];
+
+  let entradas;
+  try {
+    entradas = leerDirectorioZip(await blob.arrayBuffer());
+  } catch (cause) {
+    return fallar("zip", cause.message);
+  }
+
+  const meta = entradas.find((e) => e.nombre === META_ZIP);
+  if (!meta) {
+    resultado.errores.push({ path: META_ZIP, motivo: "ZIP inválido: falta o corrupto .purplemd.json" });
+    guardarDatosInvitado(datos);
+    return resultado;
+  }
+  try {
+    const texto = new TextDecoder().decode(await descomprimirEntrada(meta));
+    const info = JSON.parse(texto);
+    if (info.version !== 1) {
+      resultado.errores.push({
+        path: META_ZIP,
+        motivo: `versión de export no compatible: ${info.version}`,
+      });
+      guardarDatosInvitado(datos);
+      return resultado;
+    }
+  } catch (cause) {
+    resultado.errores.push({ path: META_ZIP, motivo: `ZIP inválido: falta o corrupto ${META_ZIP}` });
+    guardarDatosInvitado(datos);
+    return resultado;
+  }
+
+  let acumulado = 0;
+  for (const entrada of entradas) {
+    if (entrada.nombre === META_ZIP) continue;
+    if (!entrada.nombre.endsWith(EXTENSION_MD)) {
+      resultado.omitidas += 1;
+      resultado.errores.push({ path: entrada.nombre, motivo: "no es un archivo .md" });
+      continue;
+    }
+    const ruta = entrada.nombre.slice(0, -EXTENSION_MD.length);
+    try {
+      validarRutaLocal(ruta);
+      if (entrada.tamano > MAX_BYTES) {
+        resultado.omitidas += 1;
+        resultado.errores.push({ path: ruta, motivo: `supera ${MAX_BYTES} bytes (${entrada.tamano})` });
+        continue;
+      }
+      if (acumulado + entrada.tamano > MAX_ZIP_TOTAL_BYTES) {
+        resultado.omitidas += 1;
+        resultado.errores.push({
+          path: ruta,
+          motivo: `el ZIP supera los ${MAX_ZIP_TOTAL_BYTES} bytes descomprimidos`,
+        });
+        continue;
+      }
+      acumulado += entrada.tamano;
+      const contenido = new TextDecoder("utf-8", { fatal: true }).decode(
+        await descomprimirEntrada(entrada)
+      );
+      if (_codificar.encode(contenido).length > MAX_BYTES) {
+        resultado.omitidas += 1;
+        resultado.errores.push({ path: ruta, motivo: `supera ${MAX_BYTES} bytes` });
+        continue;
+      }
+      const t = ahora();
+      if (ruta in proyecto.notas) {
+        proyecto.notas[ruta].content = contenido;
+        proyecto.notas[ruta].modified = t;
+        resultado.actualizadas += 1;
+      } else {
+        proyecto.notas[ruta] = { content: contenido, modified: t };
+        crearCarpetasIntermedias(proyecto, ruta, t);
+        resultado.creadas += 1;
+      }
+    } catch (cause) {
+      resultado.omitidas += 1;
+      resultado.errores.push({ path: ruta, motivo: cause.message });
+    }
+  }
+  proyecto.modified = ahora();
+  guardarDatosInvitado(datos);
+  return resultado;
+}
+
+/**
+ * Descarga `blob` con el nombre dado. Compartido por el export en
+ * servidor y el local: la parte de «bajar un archivo» no cambia.
+ * @param {Blob} blob
+ * @param {string} nombreArchivo - Nombre del archivo a guardar.
+ */
+function descargarBlob(blob, nombreArchivo) {
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombreArchivo;
+  enlace.hidden = true;
+  document.body.append(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**
@@ -1886,25 +3024,24 @@ async function exportarProyecto() {
   // resultado, para no dejar en pantalla un mensaje que ya no es cierto.
   const enVuelo = mostrarToast(null, "Exportar .zip", "Exportando…");
   try {
-    // API necesita proyecto CON prefijo
-    const respuesta = await fetch(
-      `/api/projects/${encodeURIComponent(nsProject(proyecto))}/export`,
-      { method: "GET" }
-    );
-    if (!respuesta.ok) {
-      const error = await respuesta.json().catch(() => ({}));
-      throw new Error(error.detail || `error HTTP ${respuesta.status}`);
+    let blob;
+    if (invitado) {
+      // Sin servidor hay quien arme el ZIP: `exportarZipLocal` escribe
+      // el mismo formato que `FilesystemStorage.exportar_proyecto`.
+      blob = exportarZipLocal(proyecto);
+    } else {
+      // API necesita proyecto CON prefijo
+      const respuesta = await fetch(
+        `/api/projects/${encodeURIComponent(nsProject(proyecto))}/export`,
+        { method: "GET" }
+      );
+      if (!respuesta.ok) {
+        const error = await respuesta.json().catch(() => ({}));
+        throw new Error(error.detail || `error HTTP ${respuesta.status}`);
+      }
+      blob = await respuesta.blob();
     }
-    const blob = await respuesta.blob();
-    const url = URL.createObjectURL(blob);
-    const enlace = document.createElement("a");
-    enlace.href = url;
-    enlace.download = `${proyecto}.zip`;
-    enlace.hidden = true;
-    document.body.append(enlace);
-    enlace.click();
-    enlace.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    descargarBlob(blob, `${proyecto}.zip`);
     quitarToast(enVuelo);
     mostrarToast(null, "Exportar .zip", `Proyecto «${proyecto}» exportado.`);
   } catch (error) {
@@ -1950,16 +3087,23 @@ async function importarProyectoElegido(archivo) {
 
   pintarEstado(importarEstado, "trabajando", "Importando…");
   try {
-    const formData = new FormData();
-    formData.append("file", archivo);
-    // API necesita proyecto CON prefijo
-    const resultado = await fetch(
-      `/api/projects/${encodeURIComponent(nsProject(proyecto))}/import`,
-      { method: "POST", body: formData }
-    );
-    const data = await resultado.json();
-    if (!resultado.ok) {
-      throw new Error(data.detail || data.error || `error HTTP ${resultado.status}`);
+    let data;
+    if (invitado) {
+      // Sin servidor, el propio navegador abre el ZIP: mismo formato y
+      // mismos topes que `zipio.leer_notas_zip`.
+      data = await importarZipLocal(leerDatosInvitado(), nsProject(proyecto), archivo);
+    } else {
+      const formData = new FormData();
+      formData.append("file", archivo);
+      // API necesita proyecto CON prefijo
+      const resultado = await fetch(
+        `/api/projects/${encodeURIComponent(nsProject(proyecto))}/import`,
+        { method: "POST", body: formData }
+      );
+      data = await resultado.json();
+      if (!resultado.ok) {
+        throw new Error(data.detail || data.error || `error HTTP ${resultado.status}`);
+      }
     }
     const { creadas, actualizadas, omitidas, errores } = data;
     const resumen =
@@ -2153,34 +3297,38 @@ function descargarNota() {
  * Va el contenido guardado, no el del editor: la exportación es de la
  * nota, no de los cambios sin guardar. Éxito y error se avisan con un
  * toast (hoy un fallo quedaba solo en la consola).
+ *
+ * En modo invitado no hay storage del que leer la nota, así que se le
+ * manda el markdown crudo a `POST /api/pdf` (stateless, igual que
+ * `/api/render`): el contenido viaja, pero no queda guardado.
  */
 async function exportarPdf() {
   if (!estado.nota) return;
 
   const nombreArchivo = `${ultimoSegmento(estado.nota.path)}.pdf`;
   try {
-    // `estado.nota.project` ya viene CON prefijo del backend: sin volver a
-    // prefijar (el doble prefijo terminaba en 404).
-    const respuesta = await fetch(
-      `/api/projects/${encodeURIComponent(estado.nota.project)}/notes/${rutaUrl(estado.nota.path)}/pdf`
-    );
+    let respuesta;
+    if (invitado) {
+      respuesta = await fetch(
+        "/api/pdf",
+        conJson("POST", {
+          markdown: estado.nota.content,
+          nombre: estado.nota.path,
+        }),
+      );
+    } else {
+      // `estado.nota.project` ya viene CON prefijo del backend: sin volver a
+      // prefijar (el doble prefijo terminaba en 404).
+      respuesta = await fetch(
+        `/api/projects/${encodeURIComponent(estado.nota.project)}/notes/${rutaUrl(estado.nota.path)}/pdf`
+      );
+    }
     if (!respuesta.ok) {
       const error = await respuesta.json().catch(() => ({}));
       throw new Error(error.detail || `error HTTP ${respuesta.status}`);
     }
 
-    const blob = await respuesta.blob();
-    const url = URL.createObjectURL(blob);
-
-    const enlace = document.createElement("a");
-    enlace.href = url;
-    enlace.download = nombreArchivo;
-    enlace.hidden = true;
-    document.body.append(enlace);
-    enlace.click();
-    enlace.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    descargarBlob(await respuesta.blob(), nombreArchivo);
     mostrarToast(null, "Exportar .pdf", "Nota exportada como .pdf.");
   } catch (error) {
     // Mismo criterio que "Exportar .zip": el error va en toast y persiste
@@ -4132,7 +5280,7 @@ async function asegurarPlantillas() {
 }
 
 async function iniciar() {
-  inicializarNamespaceBadge();
+  inicializarSesion();
   actualizarTopbarAlto(); // Fijar --topbar-alto antes de cualquier dropdown
   // Las dos superficies del visualizador (menú ☰ y segmentado de la barra)
   // contra `zona[data-vista]`: al recargar tiene que mostrar «Editor y
@@ -4143,15 +5291,46 @@ async function iniciar() {
   inicializarToolbar(); // Toolbar Markdown estilo Office
   refrescarGuardado();
   refrescarHabilitacion();
+
+  // La sesión va antes que cualquier dato: decide si hay que mostrar la
+  // pantalla de acceso y, si la hay, con qué prefijo se nombran los
+  // proyectos en las URLs. Sin sesión válida no se pide nada más, para
+  // no llenar la app de respuestas 401.
+  if (!(await cargarSesion())) {
+    const entrar = document.getElementById("sesion-entrar");
+    if (entrar) entrar.focus();
+    return;
+  }
+  await arrancar();
+}
+
+/**
+ * Carga los datos de la app y deja la primera nota abierta.
+ *
+ * Separado de `iniciar()` porque hay dos puertas de entrada con el mismo
+ * camino a partir de acá: sesión con Google y modo invitado. Se ejecuta
+ * una sola vez por página — el intervalo de avisos de abajo lo
+ * duplicaría.
+ */
+async function arrancar() {
+  inicializarNamespaceBadge();
+
   const proyectos = await cargarProyectos();
-  // La semilla de plantillas es la más lenta (una request por archivo):
-  // arranca en paralelo con la bienvenida. No pinta el explorador ni
-  // selecciona nada, así que no puede robarle el foco a la nota que se
-  // abre abajo.
-  const plantillas = asegurarPlantillas();
   // La nota de bienvenida es la que se muestra por defecto: es el
-  // primer contacto con el producto y explica el resto.
-  if (await asegurarBienvenida()) {
+  // primer contacto con el producto y explica el resto. Va ANTES que la
+  // semilla de plantillas porque ambas crean su proyecto y, sobre un
+  // Drive recién creado, en paralelo habrían hecho dos `POST
+  // /api/projects` a la vez: las dos ven `buscar_raiz() == null` y las
+  // dos crean una carpeta raíz «projects» (carrera que reparte los
+  // proyectos entre dos árboles).
+  const bienvenida = await asegurarBienvenida();
+  // La semilla de plantillas es la más lenta (una request por archivo):
+  // recién acá arranca, en paralelo con lo de abajo. La raíz ya existe
+  // porque la bienvenida la creó, así que no puede duplicarla. No pinta
+  // el explorador ni selecciona nada, así que no puede robarle el foco
+  // a la nota que se abre abajo.
+  const plantillas = asegurarPlantillas();
+  if (bienvenida) {
     if (await seleccionarProyecto(PROYECTO_BIENVENIDA)) {
       await abrirNota(NOTA_BIENVENIDA);
     }

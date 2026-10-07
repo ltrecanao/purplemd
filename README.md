@@ -7,16 +7,20 @@
 
 Editor de markdown con backend **FastAPI**, frontend en HTML, CSS y
 JavaScript vanilla (sin frameworks ni build), un solo proceso y un solo
-contenedor. Todo el contenido vive en `{PURPLEMD_DIR}/projects/{proyecto}/`:
-cada nota es un archivo `*.md` con subcarpetas, y la vista previa se
-renderiza en el backend con `markdown-it-py`.
+contenedor. Cada nota es un archivo `*.md` con subcarpetas, y la vista
+previa se renderiza en el backend con `markdown-it-py`.
+
+Por defecto todo vive en `{PURPLEMD_DIR}/projects/{proyecto}/`. Con
+credenciales de Google, cada cuenta escribe en su propia carpeta —o en
+**su** Google Drive— y el sitio pide entrar antes de mostrar nada
+(see [docs/AUTH.md](docs/AUTH.md)).
 
 Demo en vivo: [purplemd.onrender.com](https://purplemd.onrender.com/) ·
 Swagger: [/docs](https://purplemd.onrender.com/docs) ·
 estado: [/health](https://purplemd.onrender.com/health).
 
-Es una alternativa mínima a editores pesados: sin cuentas, sin
-dependencias en el cliente y sin autoguardado.
+Es una alternativa mínima a editores pesados: sin dependencias en el
+cliente, sin autoguardado, y con acceso opcional vía Google.
 
 ## Qué hace hoy
 
@@ -39,14 +43,22 @@ dependencias en el cliente y sin autoguardado.
   los enlaces externos quedan para el navegador.
 - Servidor **MCP** integrado para que clientes compatibles con MCP puedan
 consultar y gestionar proyectos y notas mediante herramientas.
+- **Acceso con Google (opcional)**: con tres variables de entorno, el
+  sitio muestra una pantalla de entrada y cada cuenta ve solo lo suyo.
+  Authorization Code + PKCE, cookie firmada de 30 días y los tokens de
+  Google guardados en disco con permisos `0600`.
+- **Google Drive como backend (opcional)**: `PURPLEMD_STORAGE=drive`
+  guarda los proyectos en la carpeta oculta `appDataFolder` de la cuenta
+  de cada usuario, con reintentos ante límite de cuota.
 
 ## Qué no hace hoy
 
-- Grafos ni wikilinks · autenticación (cada navegador ve solo sus
-  proyectos, pero la API no tiene usuarios ni tokens) · colaboración en
-  tiempo real · sincronización entre dispositivos · plugins ·
-  autoguardado · mover contenido entre proyectos · deshacer de
-  borrados · adjuntos (solo texto markdown).
+- Grafos ni wikilinks · colaboración en tiempo real · sincronización
+  entre dispositivos · plugins · autoguardado · mover contenido entre
+  proyectos · deshacer de borrados · adjuntos (solo texto markdown).
+- **Sin credenciales de Google sigue sin haber autenticación**: cada
+  navegador ve sus proyectos por un prefijo en el nombre, y la API no
+  tiene usuarios ni tokens propios.
 
 ## MCP
 
@@ -68,6 +80,11 @@ notas:
 El servidor MCP se inicia automáticamente junto con PurpleMD; no es
 necesario ejecutar un proceso adicional.
 
+Con acceso por Google encendido, `/mcp` pide un token propio en la
+cabecera `X-PurpleMD-Token` (variable `PURPLEMD_MCP_TOKEN`), y con
+`PURPLEMD_STORAGE=drive` queda apagado del todo: un cliente externo no
+puede apuntar al Drive de una cuenta concreta.
+
 ## Arranque rápido
 
 ### Desarrollo
@@ -83,6 +100,20 @@ uv run uvicorn api:app --reload
 
 Queda en `http://127.0.0.1:8000`: frontend en `/`, Swagger en `/docs`,
 Redoc en `/redoc` y estado en `/health`.
+
+### Con acceso de Google (opcional)
+
+```bash
+export GOOGLE_CLIENT_ID=...
+export GOOGLE_CLIENT_SECRET=...
+export PURPLEMD_SECRET_KEY=$(openssl rand -hex 32)
+uv run uvicorn api:app --reload
+```
+
+Con las tres variables el sitio pasa a pedir entrar. Si falta alguna, la
+app se comporta exactamente igual que sin integración y avisa en el log.
+Pasos en Google Cloud, alcance OAuth y troubleshooting:
+[docs/AUTH.md](docs/AUTH.md).
 
 ### Contenedor
 
@@ -118,18 +149,23 @@ descarte (el formato OCI la ignora). Verificación, permisos y detalle:
 ## Almacenamiento
 
 `PURPLEMD_STORAGE=filesystem` (por defecto: escrituras atómicas en
-`{PURPLEMD_DIR}/projects/`) o `=memory` (solo RAM, se pierde al
-reiniciar — lo que usa la demo de Render). Detalle en
+`{PURPLEMD_DIR}/projects/`), `=memory` (solo RAM, se pierde al
+reiniciar — lo que usa la demo de Render) o `=drive` (el Google Drive de
+cada cuenta, exige login). Con sesión, `filesystem` escribe en
+`{PURPLEMD_DIR}/users/{sha256(sub)}/projects/` para que dos cuentas no
+se pisen. Detalle en
 [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md#backends-de-almacenamiento).
 
 ## API
 
-20 operaciones en 13 rutas, con referencia interactiva en `/docs`.
+20 operaciones en 13 rutas, con referencia interactiva en `/docs`, más
+cuatro rutas de sesión (`/api/auth/*`) que no aparecen en el esquema.
 Tabla completa, cuerpos, errores y límites en
 [docs/API.md](docs/API.md).
 
 ## Documentación
 
+- 🔑 [docs/AUTH.md](docs/AUTH.md) — acceso con Google, Drive y MCP
 - 📄 [docs/API.md](docs/API.md) — endpoints, cuerpos, errores y límites
 - 🏗️ [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) — datos, backends y frontend
 - ♿ [docs/ACCESIBILIDAD.md](docs/ACCESIBILIDAD.md) — contraste, foco, teclado
