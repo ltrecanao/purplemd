@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Política de Privacidad - PurpleMD</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="marca">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="/static/assets/wordmark-oscuro.svg">
+        <img src="/static/assets/wordmark.svg" alt="PurpleMD" width="131" height="26">
+      </picture>
+    </h1>
+  </header>
+  <main class="app">
+    <article class="panel" style="max-width: 48rem; margin: 2rem auto; padding: 2rem;">
+      <h1>Política de Privacidad</h1>
+      <p><strong>Última actualización:</strong> 2026</p>
+      
+      <h2>1. Datos que recopilamos</h2>
+      <p>PurpleMD solo accede a la información mínima necesaria para funcionar:</p>
+      <ul>
+        <li><strong>Cuenta de Google:</strong> Email, nombre y foto de perfil (solo si te conectás con Google).</li>
+        <li><strong>Tus notas:</strong> El contenido que escribís en PurpleMD. Con login, se guarda en tu Google Drive (carpeta oculta <code>appDataFolder</code>) o en el servidor. Sin login, solo en tu navegador (<code>localStorage</code>).</li>
+      </ul>
+      
+      <h2>2. Cómo usamos tus datos</h2>
+      <ul>
+        <li>Autenticarte y mostrar tu cuenta en la interfaz.</li>
+        <li>Guardar y sincronizar tus notas (solo vos tenés acceso).</li>
+        <li>Nunca vendemos, alquilamos ni compartimos tus datos con terceros.</li>
+      </ul>
+      
+      <h2>3. Almacenamiento</h2>
+      <ul>
+        <li><strong>Con Google + Drive:</strong> Tus notas viven en <em>tu</em> Google Drive (carpeta <code>appDataFolder</code>, invisible para vos). PurpleMD solo ve lo que creó.</li>
+        <li><strong>Con Google + Filesystem:</strong> En el servidor, aislado por tu <code>sub</code> de Google.</li>
+        <li><strong>Sin cuenta (modo invitado):</strong> Solo en tu navegador (<code>localStorage</code>). El servidor no ve nada.</li>
+      </ul>
+      
+      <h2>4. Permisos de Google</h2>
+      <p>Pedimos tres alcances:</p>
+      <ul>
+        <li><code>openid email profile</code> — para saber quién sos.</li>
+        <li><code>drive.file</code> — acceso solo a archivos que PurpleMD crea.</li>
+        <li><code>drive.appdata</code> — para usar la carpeta oculta <code>appDataFolder</code>.</li>
+      </ul>
+      <p>No pedimos acceso a todo tu Drive.</p>
+      
+      <h2>5. Seguridad</h2>
+      <ul>
+        <li>Cookies <code>HttpOnly</code>, <code>SameSite=Lax</code>, <code>Secure</code> (HTTPS).</li>
+        <li>Tokens de Google encriptados en disco (permiso 0600).</li>
+        <li>CSP estricta, sin scripts ni estilos externos.</li>
+      </ul>
+      
+      <h2>6. Tus derechos</h2>
+      <ul>
+        <li>Exportar tus notas (`.zip` o `.md`) en cualquier momento.</li>
+        <li>Borrar tu cuenta desde la app (borra cookies y tokens del servidor).</li>
+        <li>Revocar el acceso desde <a href="https://myaccount.google.com/permissions">tu cuenta de Google</a>.</li>
+      </ul>
+      
+      <h2>7. Cambios en esta política</h2>
+      <p>Cualquier cambio se publicará acá con la fecha actualizada.</p>
+      
+      <h2>8. Contacto</h2>
+      <p>Consultas: <a href="https://github.com/ltrecanao/purplemd/issues">GitHub Issues</a></p>
+    </article>
+  </main>
+</body>
+</html>

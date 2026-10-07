@@ -1649,3 +1649,21 @@ def health() -> HealthResponse:
         logger.error("PURPLEMD_STORAGE inválido: %s", exc)
         return HealthResponse(estado="degradado")
     return HealthResponse(estado="ok" if almacen.esta_operativo() else "degradado")
+
+
+@app.get("/privacy", include_in_schema=False)
+def privacy() -> FileResponse:
+    """Política de Privacidad."""
+    return FileResponse(
+        Path(__file__).parent / "static" / "privacy.html",
+        media_type="text/html",
+    )
+
+
+@app.get("/terms", include_in_schema=False)
+def terms() -> FileResponse:
+    """Condiciones del Servicio."""
+    return FileResponse(
+        Path(__file__).parent / "static" / "terms.html",
+        media_type="text/html",
+    )
