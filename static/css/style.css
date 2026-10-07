@@ -445,6 +445,87 @@ body {
   text-align: center;
 }
 
+/* --- Páginas legales (Privacy / Terms) --- */
+
+.legal-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+.legal-main {
+  padding: var(--esp-6) var(--esp-4);
+  max-width: 48rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.legal-content {
+  line-height: 1.7;
+}
+
+.legal-content h1 {
+  margin-top: 0;
+  margin-bottom: var(--esp-2);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.legal-content h2 {
+  margin-top: var(--esp-5);
+  margin-bottom: var(--esp-2);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.legal-content h3 {
+  margin-top: var(--esp-4);
+  margin-bottom: var(--esp-2);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.legal-content p {
+  margin-top: 0;
+  margin-bottom: var(--esp-3);
+  color: var(--texto);
+}
+
+.legal-content ul,
+.legal-content ol {
+  margin-top: 0;
+  margin-bottom: var(--esp-3);
+  padding-left: var(--esp-5);
+}
+
+.legal-content li {
+  margin-bottom: var(--esp-2);
+  color: var(--texto);
+}
+
+.legal-content code {
+  background: var(--acento-suave);
+  padding: 0.1em 0.3em;
+  border-radius: var(--radio);
+  font-size: 0.9em;
+}
+
+.legal-content a {
+  color: var(--acento);
+  text-decoration: none;
+}
+
+.legal-content a:hover {
+  text-decoration: underline;
+}
+
+.legal-content strong {
+  font-weight: 600;
+  color: var(--texto);
+}
+
 /* --- Menú overflow (acciones secundarias en mobile) --- */
 
 .menu-overflow {
