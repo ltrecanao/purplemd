@@ -272,23 +272,16 @@ body {
 }
 
 .sesion-logo {
-  width: 2rem;
-  height: 2rem;
+  width: 10rem;
+  height: auto;
   flex: none;
+  color: #1e1e1e; /* tema claro: "MD" oscuro */
 }
 
-.sesion-logo-fondo {
-  fill: var(--acento);
-}
-
-.sesion-logo-letra {
-  fill: var(--sobre-acento);
-}
-
-.sesion-marca-nombre {
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+@media (prefers-color-scheme: dark) {
+  .sesion-logo {
+    color: #ece9f7; /* tema oscuro: "MD" claro */
+  }
 }
 
 /* --- Encabezado --- */
