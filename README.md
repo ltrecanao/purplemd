@@ -176,15 +176,6 @@ cuatro rutas de sesión (`/api/auth/*`) que no aparecen en el esquema.
 Tabla completa, cuerpos, errores y límites en
 [docs/API.md](docs/API.md).
 
-## Documentación
-
-- 🔑 [docs/AUTH.md](docs/AUTH.md) — acceso con Google, Drive y MCP
-- 📄 [docs/API.md](docs/API.md) — endpoints, cuerpos, errores y límites
-- 🏗️ [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) — datos, backends y frontend
-- ♿ [docs/ACCESIBILIDAD.md](docs/ACCESIBILIDAD.md) — contraste, foco, teclado
-- ⚙️ [docs/DESARROLLO.md](docs/DESARROLLO.md) — pruebas, CI, contenedor, Render
-- 🤝 [CONTRIBUTING.md](CONTRIBUTING.md) — cómo contribuir (commits convencionales, checklist, CoC)
-
 ## Licencia
 
 Distribuido bajo la licencia [MIT](LICENSE).

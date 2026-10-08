@@ -5065,7 +5065,6 @@ Los campos a completar van entre corchetes, por ejemplo \`[FECHA]\` o \`[MONTO_T
  Si PurpleMD te sirvió, hay un par de maneras fáciles de darle una mano:
 
  - **Compartilo:** **«Compartir PurpleMD»**, disponible en el menú ☰ y también en **«Menú ▾»**, te permite compartir PurpleMD por X, LinkedIn, Mastodon o correo. También podés pasarle el link a quien creas que le pueda servir. ¿Querés compartir _tu_ proyecto en lugar del editor? Usá **«Menú ▾» → «Exportar .zip»** y mandale el archivo.
- - **Contribuí:** si sabés programar, documentar, traducir o testear, mirá [\`CONTRIBUTING.md\`](https://github.com/ltrecanao/purplemd/blob/main/CONTRIBUTING.md) en GitHub para ver cómo sumar código, reportar bugs o proponer mejoras. El repo está en [github.com/ltrecanao/purplemd](https://github.com/ltrecanao/purplemd) — también lo tenés en el menú ☰ → «Ver en GitHub».
 
  ## Cuando ya no la necesites
 
