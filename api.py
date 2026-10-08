@@ -351,17 +351,15 @@ app = FastAPI(
 mcp_security = TransportSecuritySettings(
     allowed_hosts=[
         "localhost",
-        "localhost:8000",
+        "localhost:*",
         "127.0.0.1",
-        "127.0.0.1:8000",
+        "127.0.0.1:*",
         "purplemd.onrender.com",
-        "*",
     ],
     allowed_origins=[
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
+        "http://localhost:*",
+        "http://127.0.0.1:*",
         "https://purplemd.onrender.com",
-        "*",
     ],
 )
 
@@ -503,6 +501,15 @@ def _rechazar_mcp(request: Request) -> JSONResponse | None:
         return _respuesta_error(
             403, "el servidor MCP está deshabilitado: falta PURPLEMD_MCP_TOKEN"
         )
+
+    # Cabecera ausente (o vacía) → 403 con mensaje útil, no 401 genérico.
+    if not recibido:
+        return _respuesta_error(
+            403,
+            "falta el token de MCP: generá el tuyo en la app "
+            "(menú → Servidor MCP)",
+        )
+
     # Bytes y no str: `compare_digest` levanta con un valor no-ASCII, y una
     # cabecera arbitraria no tiene por qué serlo.
     if not hmac.compare_digest(recibido.encode("utf-8"), esperado.encode("utf-8")):

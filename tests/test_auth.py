@@ -885,6 +885,18 @@ class McpTests(AuthTestCase):
             r = self.sin_excepciones.get("/mcp/", headers={"X-PurpleMD-Token": token})
         self.assertNotIn(r.status_code, (401, 403), r.text)
 
+    def test_transport_security_allowed_hosts_y_origins(self):
+        """El transporte MCP acepta patrones host:* y origin:* para localhost/127.0.0.1."""
+        from api import mcp_security
+        self.assertIn("localhost:*", mcp_security.allowed_hosts)
+        self.assertIn("127.0.0.1:*", mcp_security.allowed_hosts)
+        self.assertIn("purplemd.onrender.com", mcp_security.allowed_hosts)
+        self.assertNotIn("*", mcp_security.allowed_hosts)
+        self.assertIn("http://localhost:*", mcp_security.allowed_origins)
+        self.assertIn("http://127.0.0.1:*", mcp_security.allowed_origins)
+        self.assertIn("https://purplemd.onrender.com", mcp_security.allowed_origins)
+        self.assertNotIn("*", mcp_security.allowed_origins)
+
     def token_mcp(self) -> str:
         """Token emitido por la app para la cuenta con sesión."""
         self.login()
@@ -933,6 +945,14 @@ class McpSinLoginTests(AuthTestCase):
         with sin_google(), patch.dict(os.environ, {"PURPLEMD_MCP_TOKEN": "correcto"}):
             r = self.client.get("/mcp/", headers={"X-PurpleMD-Token": "otro"})
         self.assertEqual(r.status_code, 401)
+
+    def test_sin_cabecera_responde_403_con_mensaje_util(self):
+        """Sin login, cabecera ausente → 403 (no 401) y dice dónde generar el token."""
+        with sin_google(), patch.dict(os.environ, {"PURPLEMD_MCP_TOKEN": "correcto"}):
+            r = self.client.get("/mcp/")
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("generá el tuyo en la app", r.json()["detail"])
+        self.assertIn("menú → Servidor MCP", r.json()["detail"])
 
     def test_una_cabecera_no_ascii_responde_401_y_no_500(self):
         """`hmac.compare_digest` sobre `str` levanta con no-ASCII: va en bytes.
