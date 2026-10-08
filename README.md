@@ -36,7 +36,7 @@ cliente, sin autoguardado, y con acceso opcional vía Google.
 - Árbol de carpetas plegable, validación de rutas y tamaños (sin path
   traversal; 1 MB por nota), escrituras atómicas y `GET /health`.
 - Al arrancar crea el proyecto **Bienvenida** con sus notas
-  `nota-de-bienvenida` y `tutorial` si faltan —nunca pisa lo que ya
+  `nota-de-bienvenida`, `tutorial` y **`mcp`** si faltan —nunca pisa lo que ya
   existe—.
 - Enlaces entre notas desde la vista previa: `[texto](ruta)` abre esa
   nota del proyecto activo (es como viaja la bienvenida a su tutorial);
@@ -50,6 +50,11 @@ consultar y gestionar proyectos y notas mediante herramientas.
 - **Google Drive como backend (opcional)**: `PURPLEMD_STORAGE=drive`
   guarda los proyectos en la carpeta oculta `appDataFolder` de la cuenta
   de cada usuario, con reintentos ante límite de cuota.
+- **Modo invitado (sin cuenta)**: la pantalla de acceso ofrece
+  «Continuar sin cuenta» — todo vive en `localStorage` del navegador,
+  el servidor no recibe ni conserva nada.
+- **Política de Privacidad** y **Condiciones del Servicio** disponibles
+  en la pantalla de acceso (`/privacy`, `/terms`).
 
 ## Qué no hace hoy
 
@@ -59,6 +64,8 @@ consultar y gestionar proyectos y notas mediante herramientas.
 - **Sin credenciales de Google sigue sin haber autenticación**: cada
   navegador ve sus proyectos por un prefijo en el nombre, y la API no
   tiene usuarios ni tokens propios.
+- **El modo invitado usa `localStorage`**: no es un backend real, no hay
+  cifrado en reposo y los datos se pierden si se limpia el navegador.
 
 ## MCP
 
@@ -76,6 +83,9 @@ notas:
 - **update_note**
 - **move_note**
 - **delete_note**
+- **search_notes**
+- **create_project**
+- **delete_project**
 
 El servidor MCP se inicia automáticamente junto con PurpleMD; no es
 necesario ejecutar un proceso adicional.
@@ -84,6 +94,9 @@ Con acceso por Google encendido, `/mcp` pide un token propio en la
 cabecera `X-PurpleMD-Token` (variable `PURPLEMD_MCP_TOKEN`), y con
 `PURPLEMD_STORAGE=drive` queda apagado del todo: un cliente externo no
 puede apuntar al Drive de una cuenta concreta.
+
+La nota `mcp` del proyecto **Bienvenida** incluye guía completa de
+configuración (Claude Desktop, clientes MCP, desarrollo local).
 
 ## Arranque rápido
 

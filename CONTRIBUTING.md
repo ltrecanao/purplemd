@@ -146,7 +146,7 @@ La app queda en <http://127.0.0.1:8000>.
 | --- | --- |
 | `uv sync --dev` | Instala/actualiza dependencias |
 | `uv run uvicorn api:app --reload` | Servidor dev con recarga |
-| `uv run pytest -q` | Corre la suite (319 tests + 271 subtests) |
+| `uv run pytest -q` | Corre la suite (423 tests + 297 subtests) |
 | `uv run pytest tests/test_api.py -k pdf` | Test específico |
 | `uv run ruff check .` | Lint |
 | `uv run ruff check . --fix` | Lint con auto-corrección |
