@@ -92,15 +92,20 @@ Un solo middleware (`_seguridad_y_sesion`) cubre **todas** las rutas,
 incluidas las de los mounts (`/static`, `/mcp`), y corre por fuera del
 router:
 
-1. Si hay credenciales de Google y no hay sesión válida ⇒ **401** en
+1. Si la ruta es `/mcp` ⇒ **token propio** en la cabecera
+   `X-PurpleMD-Token`, con o sin login de Google (**403** si falta,
+   **401** si no sirve). El token es el que define la identidad: el de la
+   cuenta (firmado con su `sub`) cuando hay login, o el del entorno
+   `PURPLEMD_MCP_TOKEN` cuando no lo hay.
+2. Si hay credenciales de Google y no hay sesión válida ⇒ **401** en
    todo `/api/*` que no sea `/api/auth/*`, salvo `_RUTAS_STATELESS`
    (`/api/render` y `/api/pdf`, que no tocan storage). Las rutas de
    login siguen accesibles para poder entrar.
-2. En verbos no seguros (`POST`, `PUT`, `PATCH`, `DELETE`), si viene un
+3. En verbos no seguros (`POST`, `PUT`, `PATCH`, `DELETE`), si viene un
    `Origin` cuyo host no coincide con `Host` ⇒ **403**. Sin `Origin` no
    se corta (`curl` no lo manda). La primera barrera de CSRF es la
    cookie `SameSite=Lax`.
-3. Cabeceras de seguridad en el frontend: CSP estricta,
+4. Cabeceras de seguridad en el frontend: CSP estricta,
    `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`.
    **Sin CSP** en `/docs`, `/redoc`, `/openapi.json` y `/mcp`: Swagger
    carga su JS desde un CDN.

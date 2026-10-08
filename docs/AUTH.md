@@ -41,7 +41,7 @@ roto es un bug invisible.
 | `PURPLEMD_GOOGLE_SCOPE` | ver abajo | Reemplaza el alcance completo |
 | `PURPLEMD_COOKIE_SECURE` | según esquema | cualquier valor no vacío fuerza `Secure` en las cookies aunque el request venga por HTTP (útil detrás de un proxy que termina TLS) |
 | `PURPLEMD_STORAGE` | `filesystem` | `filesystem`, `memory` o `drive` |
-| `PURPLEMD_MCP_TOKEN` | — | Token propio del servidor MCP (ver [MCP](#servidor-mcp)) |
+| `PURPLEMD_MCP_TOKEN` | — | Solo **sin** credenciales de Google: token del admin que abre `/mcp` (ver [MCP](#servidor-mcp)) |
 | `PURPLEMD_DIR` | `./local/purplemd` | Raíz de datos |
 | `PURPLEMD_AUTH_DIR` | `{PURPLEMD_DIR}/auth` | Dónde quedan los tokens de Google |
 
@@ -310,15 +310,36 @@ cachea **15 segundos dentro de un solo request**: evita repetir
 
 ## Servidor MCP
 
-El servidor MCP no tiene sesión de usuario: un cliente externo no puede
-elegir de qué cuenta leer. Por eso:
+El endpoint `/mcp` **siempre** pide autenticación por la cabecera
+`X-PurpleMD-Token`, con o sin login de Google. Hay dos regímenes
+excluyentes; el token de uno no sirve en el otro:
 
-- Con login encendido, `/mcp` exige `PURPLEMD_MCP_TOKEN` por la
-  cabecera `X-PurpleMD-Token`. Sin token → **403**; token equivocado →
-  **401**.
-- Con `PURPLEMD_STORAGE=drive`, `/mcp` responde **403** siempre: no hay
-  forma de que un cliente externo apunte al Drive de una cuenta concreta.
-- Sin credenciales, `/mcp` funciona como siempre.
+| Régimen | Cómo se obtiene el token | Qué storage sirve |
+|---|---|---|
+| Con credenciales de Google (`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `PURPLEMD_SECRET_KEY`) | `POST /api/auth/mcp-token` con sesión de Google → `200 {token, header, expires_at}`. En la app: «menú → Servidor MCP» | Los datos de esa cuenta: `{PURPLEMD_DIR}/users/{sha256(sub)}/projects/`, o el Drive de esa cuenta con `PURPLEMD_STORAGE=drive` |
+| Sin credenciales de Google | Variable de entorno `PURPLEMD_MCP_TOKEN`, leída **recortada** (un `\n` o espacio final al pegarla no rompe nada) y comparada en bytes | La raíz compartida `{PURPLEMD_DIR}/projects/` |
+
+- **Sin token → 403**: «falta el token de MCP: generá el tuyo en la app
+  (menú → Servidor MCP)» con login encendido, y «el servidor MCP está
+  deshabilitado: falta `PURPLEMD_MCP_TOKEN`» sin credenciales. **Token
+  inválido o vencido → 401** «token de MCP inválido o vencido».
+- **TTL y revocación**: el token de la app es un payload firmado con
+  `PURPLEMD_SECRET_KEY` que lleva el `sub` de la cuenta y el alcance
+  `mcp`. No hay estado en el servidor: no se almacena y no se revoca uno
+  por uno. Cada emisión dura **90 días**; para revocar todos, rotá
+  `PURPLEMD_SECRET_KEY` (eso además cierra todas las sesiones).
+- **El token de entorno no sirve con login encendido** (responde 401): no
+  identifica a nadie y lo único que alcanzaría sería la raíz de la era
+  sin login. Tampoco son intercambiables la cookie de sesión y el token
+  MCP: cada uno tiene su alcance propio.
+- **`PURPLEMD_STORAGE=drive` ya no apaga el MCP**: con el token de la
+  cuenta se sirve el Drive de esa misma cuenta; sin token sigue apagado.
+- **Errores de `POST /api/auth/mcp-token`**: **401** sin sesión, **503**
+  si la integración de Google no está configurada y **403** si el
+  `Origin` es ajeno (CSRF).
+- **Modo invitado**: con login encendido, «Continuar sin cuenta» guarda
+  los datos en el navegador (`localStorage`), no en el servidor, así que
+  el MCP **no puede** servir a ese usuario.
 
 ---
 
@@ -336,7 +357,9 @@ elegir de qué cuenta leer. Por eso:
 | `Solicitar detalles` pidiendo un rol al habilitar la API | La cuenta de la consola no es dueña del proyecto. El rol que hace falta es *Service Usage Admin* (`serviceusage.services.enable`), no ninguno de los que ofrece Resource Manager; la solución es entrar con la cuenta dueña |
 | `WARNING: hay 2 carpetas «projects» en appDataFolder; elijo la más vieja` | Raíz duplicada de una carrera antigua entre dos siembras en paralelo. Se usa siempre la más vieja y ya no se vuelve a crear; la otra se puede borrar si está vacía |
 | Los proyectos quedaron «viejos» en la lista | La `description` del proyecto no se pudo escribir (queda en `WARNING`); no rompe nada |
-| `PURPLEMD_STORAGE=drive necesita una sesión de Google` (503) | Faltan credenciales, o se llamó a `get_storage()` sin sesión (el servidor MCP) |
+| `PURPLEMD_STORAGE=drive necesita una sesión de Google` (503) | Faltan credenciales: Drive solo funciona con login (el MCP responde 403 en esa misma combinación) |
+| `/mcp` responde **401** «token de MCP inválido o vencido» | El token venció (TTL de 90 días), fue alterado o está firmado con otra `PURPLEMD_SECRET_KEY`; generá otro desde la app («menú → Servidor MCP») |
+| `/mcp` responde **403** | Falta la cabecera `X-PurpleMD-Token`: con login encendido hay que generar el token en la app («menú → Servidor MCP»); sin credenciales, falta la variable `PURPLEMD_MCP_TOKEN` |
 
 ## Verificación
 

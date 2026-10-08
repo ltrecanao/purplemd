@@ -13,6 +13,12 @@ from purplemd_auth.config import (
     ConfigAuth,
     desde_entorno,
 )
+from purplemd_auth.mcp_tokens import (
+    ALCANCE_MCP,
+    TTL_TOKEN_MCP_SEG,
+    crear_token_mcp,
+    verificar_token_mcp,
+)
 from purplemd_auth.oauth import (
     OAuthError,
     challenge_de,
@@ -46,6 +52,7 @@ from purplemd_auth.tokens import (
 
 __all__ = [
     "AlmacenCuentas",
+    "ALCANCE_MCP",
     "ConfigAuth",
     "COOKIE_OAUTH",
     "COOKIE_SESION",
@@ -57,12 +64,14 @@ __all__ = [
     "SCOPE_DEFECTO",
     "TTL_OAUTH_SEG",
     "TTL_SESION_SEG",
+    "TTL_TOKEN_MCP_SEG",
     "URL_AUTORIZACION",
     "URL_PERFIL",
     "URL_TOKEN",
     "almacen_de_entorno",
     "challenge_de",
     "cookie_segura",
+    "crear_token_mcp",
     "desde_entorno",
     "es_https",
     "firmar",
@@ -75,4 +84,5 @@ __all__ = [
     "refrescar",
     "url_autorizacion",
     "verificar",
+    "verificar_token_mcp",
 ]

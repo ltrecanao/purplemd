@@ -53,6 +53,7 @@ Solo existen cuando hay credenciales de Google configuradas (ver
 | `GET` | `/api/auth/callback?code=&state=` | `302`, `400`, `502` | Completa el flujo y setea la cookie de sesión. |
 | `GET` | `/api/auth/me` | `200` siempre | `{requiere_sesion, autenticado, email, name, picture, sub, almacen}`. |
 | `POST` | `/api/auth/logout` | `204` | Borra la cookie y los tokens guardados en el servidor. |
+| `POST` | `/api/auth/mcp-token` | `200`, `401`, `503` | Emite el token del servidor MCP para la cuenta con sesión: `{token, header, expires_at}`. `401` sin sesión; `503` sin credenciales de Google. |
 
 `/api/auth/me` responde `200` también sin sesión: «no haber entrado» es
 un estado que el frontend tiene que poder leer, no un error.
@@ -133,10 +134,14 @@ la respuesta: el traceback completo queda en el log del servidor
 
 Cuándo cae cada código de error:
 
-- `401`: sin sesión cuando el servidor exige login, o un token de Google
-  que ya no sirve (ver [Sesión con Google](#sesión-con-google)).
-- `403`: `Origin` que no coincide con el host del servidor (CSRF), o el
-  servidor MCP sin `X-PurpleMD-Token`.
+- `401`: sin sesión cuando el servidor exige login, un token de Google
+  que ya no sirve (ver [Sesión con Google](#sesión-con-google)), o un
+  token de MCP inválido o vencido (ver
+  [Servidor MCP](AUTH.md#servidor-mcp)).
+- `403`: `Origin` que no coincide con el host del servidor (CSRF), o
+  `/mcp` sin la cabecera `X-PurpleMD-Token`: con login encendido el
+  token se genera en la app («menú → Servidor MCP»); sin credenciales,
+  falta la variable `PURPLEMD_MCP_TOKEN`.
 - `404`: recurso inexistente (proyecto, nota o directorio).
 - `409`: crear un proyecto o una nota que ya existe; un `PATCH` cuyo
   destino está ocupado; y `DELETE` de un directorio no vacío sin

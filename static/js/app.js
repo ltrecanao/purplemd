@@ -3532,6 +3532,403 @@ async function compartirApp() {
   setTimeout(() => panel.querySelector("button").focus(), 0);
 }
 
+// ------------------------------------------------------- Servidor MCP
+//
+// Panel «Servidor MCP» del menú: guía corta para conectar un cliente
+// (endpoint, cabecera, regímenes y herramientas) y, cuando hay sesión de
+// Google, el botón que emite el token de la cuenta con
+// `POST /api/auth/mcp-token`. Sigue el mismo patrón que el modal de
+// compartir: backdrop + caja `role="dialog"`, Escape y clic en el fondo
+// cierran, y el foco vuelve al trigger del menú que lo abrió. Todo lo que
+// llega del servidor se escribe con `textContent`, nunca con `innerHTML`.
+
+/** Cierra el panel si está abierto; `null` cuando no lo está. */
+let cerrarPanelMcp = null;
+
+/** Las siete herramientas que expone `mcp_server.py`, en su orden. */
+const HERRAMIENTAS_MCP = [
+  "list_projects",
+  "get_project_tree",
+  "read_note",
+  "create_note",
+  "update_note",
+  "move_note",
+  "delete_note",
+];
+
+/**
+ * Vencimiento de un token, legible en español.
+ * @param {number} expires_at - Epoch en segundos que devuelve
+ *   `POST /api/auth/mcp-token`.
+ * @returns {string} «Vence el 8 de octubre de 2026 a las 12:00», o un
+ *   texto de respaldo si el servidor no mandó la fecha.
+ */
+function fechaDeVencimiento(expires_at) {
+  if (typeof expires_at !== "number" || Number.isNaN(expires_at)) {
+    return "Sirve 90 días desde que se emitió.";
+  }
+  const fecha = new Date(expires_at * 1000);
+  const dia = fecha.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" });
+  const hora = fecha.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+  return `Vence el ${dia} a las ${hora}.`;
+}
+
+/**
+ * Abre el panel del servidor MCP. Es el manejador de
+ * `data-accion="mcp"`, así que lo llaman las dos superficies del menú.
+ */
+function abrirServidorMcp() {
+  // Un solo panel a la vez: un segundo clic no duplica oyentes ni backdrops.
+  if (cerrarPanelMcp) return;
+
+  const ESTILO_PARRAFO =
+    "margin: 0 0 8px; font-size: 0.85rem; line-height: 1.45; color: var(--texto);";
+
+  /** Párrafo con texto plano (siempre por `textContent`). */
+  const parrafo = (contenedor, texto) => {
+    const p = document.createElement("p");
+    p.style.cssText = ESTILO_PARRAFO;
+    p.textContent = texto;
+    contenedor.append(p);
+    return p;
+  };
+
+  /** Párrafo con etiqueta en negrita y valor monoespaciado. */
+  const dato = (contenedor, etiqueta, valor) => {
+    const p = document.createElement("p");
+    p.style.cssText = ESTILO_PARRAFO;
+    const fuerte = document.createElement("strong");
+    fuerte.textContent = etiqueta;
+    const codigo = document.createElement("code");
+    codigo.textContent = valor;
+    codigo.style.cssText = "overflow-wrap: anywhere;";
+    p.append(fuerte, document.createTextNode(" "), codigo);
+    contenedor.append(p);
+    return p;
+  };
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "compartir-backdrop";
+  backdrop.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 0.4);
+    backdrop-filter: blur(2px);
+    z-index: 9998;
+    animation: fadeIn 0.15s ease-out;
+  `;
+
+  const panel = document.createElement("div");
+  panel.className = "accion compartir-panel";
+  panel.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--panel);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    box-shadow: 0 16px 48px rgb(0 0 0 / 0.3);
+    padding: 16px;
+    z-index: 9999;
+    width: min(440px, 92vw);
+    max-width: 92vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideUp 0.2s ease-out;
+  `;
+  panel.setAttribute("role", "dialog");
+  panel.setAttribute("aria-modal", "true");
+  panel.setAttribute("aria-label", "Servidor MCP");
+
+  // Cierre único: lo usan Escape, el clic en el fondo y el botón.
+  const alCerrar = () => {
+    backdrop.remove();
+    panel.remove();
+    document.removeEventListener("keydown", alEscape);
+    cerrarPanelMcp = null;
+    // El foco vuelve al trigger del menú (patrón «Menu Button»), nunca al body.
+    const trigger = menuOverflowTrigger.offsetParent !== null
+      ? menuOverflowTrigger
+      : menuAccionesTrigger;
+    if (trigger && !trigger.disabled) trigger.focus();
+  };
+
+  // Escape cierra el panel. El `preventDefault` frena la tecla para que
+  // no siga su propagación y cierre también el explorador de atrás.
+  const alEscape = (evento) => {
+    if (evento.key !== "Escape") return;
+    evento.preventDefault();
+    alCerrar();
+  };
+  document.addEventListener("keydown", alEscape);
+  backdrop.addEventListener("click", alCerrar);
+  cerrarPanelMcp = alCerrar;
+
+  const titulo = document.createElement("h3");
+  titulo.textContent = "Servidor MCP";
+  titulo.style.cssText = `
+    margin: 0 0 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--texto);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--borde);
+  `;
+  panel.append(titulo);
+
+  // ---- Guía corta: cómo conectarlo (URL, cabecera y clientes), qué
+  // herramientas expone, de dónde sale el token y qué significa cada error.
+  parrafo(panel, "Conectá un cliente MCP a tus notas con la URL y la cabecera:");
+  dato(panel, "Endpoint:", `${location.origin}/mcp`);
+  dato(panel, "Cabecera:", "X-PurpleMD-Token: TU_TOKEN");
+  dato(
+    panel,
+    "Con mcp-remote:",
+    `npx mcp-remote ${location.origin}/mcp --header "X-PurpleMD-Token: TU_TOKEN"`,
+  );
+
+  // Configuración de Claude Desktop: JSON listo para copiar, con la URL
+  // de este servidor ya adentro. Se arma con `JSON.stringify` y entra por
+  // `textContent`, igual que todo el panel.
+  parrafo(panel, "En Claude Desktop, pegá esto en claude_desktop_config.json:");
+  const configClaude = {
+    mcpServers: {
+      purplemd: {
+        command: "npx",
+        args: ["mcp-remote", `${location.origin}/mcp`, "--header", "X-PurpleMD-Token: TU_TOKEN"],
+      },
+    },
+  };
+  const bloque = document.createElement("pre");
+  bloque.style.cssText = `
+    margin: 0 0 8px;
+    padding: 8px;
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  `;
+  const bloqueCodigo = document.createElement("code");
+  bloqueCodigo.textContent = JSON.stringify(configClaude, null, 2);
+  bloque.append(bloqueCodigo);
+  panel.append(bloque);
+
+  dato(
+    panel,
+    "En desarrollo local:",
+    `uvx mcp-remote http://localhost:8000/mcp --header "X-PurpleMD-Token: TU_TOKEN"`,
+  );
+
+  parrafo(panel, "Herramientas disponibles:");
+  const herramientas = document.createElement("p");
+  herramientas.style.cssText = ESTILO_PARRAFO;
+  HERRAMIENTAS_MCP.forEach((nombre, i) => {
+    if (i > 0) herramientas.append(", ");
+    const codigo = document.createElement("code");
+    codigo.textContent = nombre;
+    herramientas.append(codigo);
+  });
+  panel.append(herramientas);
+
+  parrafo(
+    panel,
+    "Dos regímenes, según el servidor: con login de Google el token lo emitís " +
+      "vos desde esta app y sirve 90 días solo para tus datos; sin login de " +
+      "Google el admin reparte un PURPLEMD_MCP_TOKEN compartido.",
+  );
+
+  // Qué significan los errores de /mcp, en una línea y con los códigos
+  // destacados como código.
+  const errores = document.createElement("p");
+  errores.style.cssText = ESTILO_PARRAFO;
+  errores.append("Errores: ");
+  [
+    ["403", " = falta el token (generá uno desde este panel)"],
+    ["401", " = el token venció o está mal escrito (generá otro)"],
+  ].forEach(([codigo, texto], i) => {
+    if (i > 0) errores.append("; ");
+    const c = document.createElement("code");
+    c.textContent = codigo;
+    errores.append(c, texto);
+  });
+  errores.append(".");
+  panel.append(errores);
+
+  parrafo(
+    panel,
+    "El modo invitado no es alcanzable por el MCP: sus datos viven en este " +
+      "navegador, no en el servidor.",
+  );
+
+  // ---- Indicador de avisos: mismo patrón que los formularios del
+  // explorador (`role="status"` + `pintarEstado`).
+  const indicador = document.createElement("p");
+  indicador.className = "estado";
+  indicador.setAttribute("role", "status");
+  indicador.setAttribute("aria-live", "polite");
+  indicador.style.textAlign = "left";
+
+  if (sesion.autenticada) {
+    const campo = document.createElement("input");
+    campo.type = "text";
+    campo.readOnly = true;
+    campo.autocomplete = "off";
+    campo.spellcheck = false;
+    campo.placeholder = "Tu token aparece acá";
+    campo.setAttribute("aria-label", "Token MCP de tu cuenta");
+    campo.style.cssText =
+      "display: block; width: 100%; margin: 0 0 8px; padding: 0.4rem 0.6rem;" +
+      " border: 1px solid var(--borde); border-radius: var(--radio);" +
+      " background: var(--fondo); color: var(--texto); font: inherit; font-size: 0.85rem;";
+    panel.append(campo);
+
+    const botonGenerar = document.createElement("button");
+    botonGenerar.type = "button";
+    botonGenerar.className = "btn btn-acento";
+    botonGenerar.textContent = "Generar mi token";
+
+    const botonCopiar = document.createElement("button");
+    botonCopiar.type = "button";
+    botonCopiar.className = "btn btn-mini";
+    botonCopiar.textContent = "Copiar";
+    botonCopiar.title = "Copia el token al portapapeles";
+    botonCopiar.disabled = true;
+
+    const fila = document.createElement("div");
+    fila.className = "crear-campos";
+    fila.style.margin = "0 0 8px";
+    fila.append(botonGenerar, botonCopiar);
+    panel.append(fila);
+
+    // Resultado: cabecera y vencimiento, recién después de emitirlo.
+    const resultado = document.createElement("div");
+    resultado.hidden = true;
+    dato(resultado, "Cabecera:", "X-PurpleMD-Token");
+    const vencimiento = parrafo(resultado, "");
+    panel.append(resultado);
+
+    botonGenerar.addEventListener("click", async () => {
+      botonGenerar.disabled = true;
+      botonCopiar.disabled = true;
+      pintarEstado(indicador, "trabajando", "Generando el token…");
+      try {
+        // `fetch` a mano y no `pedir()`: este endpoint distingue 401 de
+        // 503 y ese detalle es justo lo que hay que mostrarle a quien
+        // intentó generarlo (además, `pedir` ante un 401 abriría la
+        // pantalla de acceso y taparía este panel).
+        let respuesta;
+        try {
+          respuesta = await fetch("/api/auth/mcp-token", { method: "POST" });
+        } catch (_) {
+          throw new Error("no se pudo contactar al servidor");
+        }
+        if (!respuesta.ok) throw new Error(await detalleDeError(respuesta));
+        const datos = await respuesta.json();
+        campo.value = typeof datos.token === "string" ? datos.token : "";
+        vencimiento.textContent = fechaDeVencimiento(datos.expires_at);
+        resultado.hidden = campo.value === "";
+        botonCopiar.disabled = campo.value === "";
+        pintarEstado(indicador, "ok", "Token listo: copialo y pegalo en tu cliente.");
+        campo.focus();
+        campo.select();
+      } catch (error) {
+        pintarEstado(indicador, "error", `No se pudo generar el token: ${error.message}`);
+      } finally {
+        botonGenerar.disabled = false;
+      }
+    });
+
+    botonCopiar.addEventListener("click", async () => {
+      const valor = campo.value;
+      if (!valor) return;
+      let copiado = false;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(valor);
+          copiado = true;
+        } catch (_) {
+          // Permiso denegado o contexto no seguro: se baja al fallback.
+          copiado = false;
+        }
+      }
+      if (!copiado) {
+        // Fallback: selección + `execCommand`, que no pide permiso.
+        campo.focus();
+        campo.select();
+        try {
+          copiado = document.execCommand("copy");
+        } catch (_) {
+          copiado = false;
+        }
+      }
+      if (copiado) {
+        pintarEstado(indicador, "ok", "Token copiado al portapapeles.");
+      } else {
+        pintarEstado(
+          indicador,
+          "error",
+          "No se pudo copiar solo: el token quedó seleccionado, usá Ctrl/Cmd+C.",
+        );
+      }
+    });
+  } else if (sesion.requiere) {
+    parrafo(
+      panel,
+      "Todavía no hay sesión de Google: entrá con tu cuenta para generar el " +
+        "token desde acá. En modo invitado tus datos viven solo en este " +
+        "navegador, así que el MCP no los puede servir.",
+    );
+  } else {
+    parrafo(
+      panel,
+      "Este servidor corre sin cuenta de Google: el token lo genera y reparte " +
+        "el admin con la variable de entorno PURPLEMD_MCP_TOKEN, y los clientes " +
+        "la mandan por la cabecera X-PurpleMD-Token.",
+    );
+  }
+
+  panel.append(indicador);
+
+  const btnCerrar = document.createElement("button");
+  btnCerrar.type = "button";
+  btnCerrar.textContent = "Cerrar";
+  btnCerrar.style.cssText = `
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    margin-top: 8px;
+    border: 1px solid var(--borde);
+    background: transparent;
+    color: var(--texto);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.1s;
+  `;
+  btnCerrar.addEventListener("click", alCerrar);
+  panel.append(btnCerrar);
+
+  document.body.append(backdrop);
+  document.body.append(panel);
+
+  // El foco recién entra después del clic que abrió el menú: el menú
+  // devuelve el suyo al trigger de forma síncrona, y este `setTimeout`
+  // corre recién cuando ese disparo terminó.
+  setTimeout(() => {
+    const primero = panel.querySelector("button");
+    if (primero) primero.focus();
+  }, 0);
+}
+
 // ------------------------------------------------------ Preview en vivo
 
 /**
@@ -3716,6 +4113,7 @@ const accionesCompartidas = {
   pdf: exportarPdf,
   zip: exportarProyecto,
   compartir: compartirApp,
+  mcp: abrirServidorMcp,
 };
 for (const [nombre, manejar] of Object.entries(accionesCompartidas)) {
   for (const boton of document.querySelectorAll(`[data-accion="${nombre}"]`)) {
@@ -5139,81 +5537,23 @@ Los atajos de formato actúan con el cursor dentro del editor: así \`Ctrl\`/\`C
 
 const CONTENIDO_MCP = `# Servidor MCP (Model Context Protocol)
 
-PurpleMD incluye un **servidor MCP** integrado que permite a asistentes de IA (como Claude, ChatGPT, etc.) interactuar con tus notas directamente.
+PurpleMD incluye un **servidor MCP**: le permite a una IA como Claude leer y escribir tus notas desde su propio cliente, siempre con tu permiso y solo las tuyas.
 
-## ¿Qué es MCP?
+**MCP** (Model Context Protocol) es el estándar abierto que usan muchas aplicaciones de IA para conectarse a otras herramientas.
 
-**Model Context Protocol (MCP)** es un estándar abierto que permite a modelos de lenguaje acceder a herramientas y datos externos de forma segura y estandarizada. En lugar de copiar/pegar contenido, la IA puede leer, escribir, buscar y organizar tus notas directamente.
+## Cómo conectarlo, en tres pasos
 
-## ¿Qué puede hacer el servidor MCP de PurpleMD?
-
-El servidor expone estas herramientas:
-
-- \`list_projects\` — lista tus proyectos
-- \`read_note\` — lee el contenido de una nota
-- \`create_note\` — crea una nota nueva
-- \`update_note\` — actualiza el contenido de una nota
-- \`delete_note\` — borra una nota
-- \`search_notes\` — busca texto en tus notas
-- \`create_project\` — crea un proyecto nuevo
-- \`delete_project\` — borra un proyecto
-
-## ¿Cómo se usa?
-
-### En Claude Desktop
-
-Agregá a tu \`claude_desktop_config.json\`:
-
-\`\`\`json
-{
-  "mcpServers": {
-    "purplemd": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://TU-DOMINIO/mcp"],
-      "env": {
-        "PURPLEMD_MCP_TOKEN": "tu-token-secreto"
-      }
-    }
-  }
-}
-\`\`\`
-
-### En otros clientes MCP
-
-Cualquier cliente compatible con MCP puede conectarse usando:
-
-- **URL**: \`https://TU-DOMINIO/mcp\`
-- **Autenticación**: Header \`X-PurpleMD-Token: tu-token\`
-
-### En desarrollo local
+1. Abrí **menú → Servidor MCP** (☰ en pantallas chicas, «Menú ▾» en grandes).
+2. Apretá **«Generar mi token»** y copialo.
+3. Pegá este comando en tu cliente, con \`TU_TOKEN\` reemplazado por el que copiaste:
 
 \`\`\`bash
-# Con uv
-uvx mcp-remote http://localhost:8000/mcp --header "X-PurpleMD-Token: dev-token"
+npx mcp-remote https://TU-DOMINIO/mcp --header "X-PurpleMD-Token: TU_TOKEN"
 \`\`\`
 
-## Configuración en PurpleMD
+> **Tu token es tuyo:** sirve solo para tus datos y dura 90 días. Si este servidor no pide login con Google, el token lo reparte quien lo administra.
 
-Para habilitar el servidor MCP, necesitás configurar estas variables de entorno:
-
-| Variable | Qué hace |
-|----------|----------|
-| \`PURPLEMD_MCP_TOKEN\` | Token secreto para autenticar clientes MCP (generalo con \`openssl rand -hex 32\`) |
-| \`PURPLEMD_STORAGE\` | Backend de almacenamiento (\`filesystem\`, \`memory\`, \`drive\`) |
-
-**Importante**: El servidor MCP **requiere autenticación**. Sin \`PURPLEMD_MCP_TOKEN\` configurado, el endpoint \`/mcp\` responde \`403\`. Con \`PURPLEMD_STORAGE=drive\`, el MCP está deshabilitado completamente (no hay forma de atribuir operaciones a una cuenta concreta).
-
-## Seguridad
-
-- **Token propio**: El servidor MCP no usa tu sesión de Google; tiene su propio token (\`PURPLEMD_MCP_TOKEN\`).
-- **Solo tu cuenta**: El token se configura en el servidor; cada cliente MCP debe conocerlo.
-- **Solo HTTPS**: En producción, el token viaja solo por HTTPS (header \`X-PurpleMD-Token\`).
-
-## Limitaciones actuales
-
-- El servidor MCP no tiene contexto de usuario: opera sobre **todos** los proyectos del almacenamiento configurado.
-- Con \`PURPLEMD_STORAGE=drive\`, el MCP está **deshabilitado** (no hay forma de atribuir operaciones a una cuenta concreta).
-- No hay control de acceso granular por proyecto (todo o nada).
+En **menú → Servidor MCP** está la configuración para Claude Desktop, qué herramientas expone y qué significa cada error.
 
 ---
 

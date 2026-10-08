@@ -49,6 +49,7 @@ import logging
 import os  # noqa: F401 (usado en tests para patch)
 import threading
 import time
+from collections.abc import Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -76,18 +77,20 @@ from weasyprint.urls import URLFetcher
 
 import purplemd
 import renderer
-from mcp_server import mcp
+from mcp_server import mcp, registrar_almacenamiento
 from purplemd_auth import (
     COOKIE_OAUTH,
     COOKIE_SESION,
     TTL_OAUTH_SEG,
     TTL_SESION_SEG,
+    TTL_TOKEN_MCP_SEG,
     ConfigAuth,
     Cuenta,
     LimiteCuentasError,
     OAuthError,
     almacen_de_entorno,
     cookie_segura,
+    crear_token_mcp,
     desde_entorno,
     es_https,
     firmar,
@@ -99,6 +102,7 @@ from purplemd_auth import (
     proveedor_vigente,
     url_autorizacion,
     verificar,
+    verificar_token_mcp,
 )
 from purplemd_storage import (
     DIR_DEFECTO,
@@ -195,6 +199,10 @@ def _sesion(request: Request) -> dict | None:
     datos = verificar(request.cookies.get(COOKIE_SESION), config.secret_key)
     if datos is None:
         return None
+    # Un token con alcance (el del MCP) no es una sesión: cada credencial
+    # abre solo lo suyo, aunque compartan clave y formato.
+    if datos.get("alcance") is not None:
+        return None
     sub = datos.get("sub")
     if not isinstance(sub, str) or not sub:
         return None
@@ -244,11 +252,10 @@ def almacenamiento(request: Request) -> Storage:
       pero esta función se expone sola en los tests).
     """
     config = _config()
-    backend = os.environ.get("PURPLEMD_STORAGE", "filesystem").lower()
     sesion = _sesion(request)
 
     if not config.habilitado:
-        if backend == "drive":
+        if os.environ.get("PURPLEMD_STORAGE", "").lower() == "drive":
             raise HTTPException(
                 status_code=503,
                 detail="PURPLEMD_STORAGE=drive necesita Google OAuth "
@@ -261,13 +268,61 @@ def almacenamiento(request: Request) -> Storage:
             status_code=401, detail="sesión requerida: iniciá sesión con Google"
         )
 
-    sub = sesion["sub"]
+    return _almacenamiento_de_sub(sesion["sub"])
+
+
+def _almacenamiento_de_sub(sub: str) -> Storage:
+    """Storage de una cuenta concreta: su carpeta, su memoria o su Drive.
+
+    Lo comparten la API (que llega acá desde la sesión) y el servidor MCP
+    (que llega desde su token): los dos caminos tienen que resolver el mismo
+    destino, si no el aislamiento tendría dos definiciones distintas.
+    """
+    config = _config()
+    backend = os.environ.get("PURPLEMD_STORAGE", "filesystem").lower()
     if backend == "drive":
         cuentas = almacen_de_entorno()
         return DriveStorage(ClienteDrive(proveedor_vigente(config, cuentas, sub)))
     if backend == "memory":
         return _memoria_por_usuario(sub)
     return FilesystemStorage(directorio=_directorio_usuario(sub))
+
+
+class TokenMcpInvalido(Exception):  # noqa: N818 (nombre en español, como el resto)
+    """Un tool del MCP llegó con un token que no identifica a nadie.
+
+    El middleware lo corta antes de que el transporte MCP vea el request;
+    llegar acá significa que el token se invocó fuera de ese filtro o que la
+    cabecera cambió en el camino. Nunca se cae a otro storage.
+    """
+
+
+def almacenamiento_mcp(headers: Mapping[str, str] | None) -> Storage:
+    """Storage que sirve a una herramienta del MCP (contrato en `mcp_server`).
+
+    Cada mensaje MCP trae sus propias cabeceras, así que el token se
+    revalida en cada tool: el middleware ya garantizó que el request era
+    válido, pero esta función es la que decide **de quién** son los datos.
+
+    - Sin login de Google: la raíz compartida de siempre (`get_storage`).
+    - Con login: la carpeta (o el Drive) del `sub` que trae el token. El
+      token estático del entorno no llega acá: no identifica a nadie.
+    """
+    config = _config()
+    if not config.habilitado:
+        return get_storage()
+    token = (headers or {}).get("x-purplemd-token", "")
+    payload = verificar_token_mcp(token, config.secret_key)
+    if payload is None:
+        logger.warning("tool del MCP con token inválido o ausente")
+        raise TokenMcpInvalido("token de MCP inválido o vencido")
+    return _almacenamiento_de_sub(payload["sub"])
+
+
+# `mcp_server` define el contrato (cabeceras → storage) y no puede importar
+# este módulo, que lo importa a él: la implementación se registra acá, al
+# importar, antes de que uvicorn sirva el primer request.
+registrar_almacenamiento(almacenamiento_mcp)
 
 
 # Dependencia que FastAPI resuelve una vez por request y cachea: los
@@ -354,12 +409,15 @@ async def _seguridad_y_sesion(request: Request, call_next):
 
     ruta = request.url.path
     config = _config()
+    # El MCP se autentica con su propio token, no con la sesión, así que su
+    # chequeo corre siempre —con o sin login de Google— y antes de todo lo
+    # demás (ver `_rechazar_mcp`).
+    if ruta.startswith("/mcp"):
+        rechazo = _rechazar_mcp(request)
+        if rechazo is not None:
+            return rechazo
     if config.habilitado:
-        if ruta.startswith("/mcp"):
-            rechazo = _rechazar_mcp(request)
-            if rechazo is not None:
-                return rechazo
-        elif ruta.startswith("/api/") and not ruta.startswith("/api/auth/"):
+        if ruta.startswith("/api/") and not ruta.startswith("/api/auth/"):
             # `/api/render` y `/api/pdf` son stateless: reciben markdown y
             # devuelven HTML/PDF sin leer ni escribir storage. Por eso
             # pasan sin sesión — es lo que permite previsualizar y exportar
@@ -399,25 +457,55 @@ def _origen_propio(request: Request) -> bool:
 
 
 def _rechazar_mcp(request: Request) -> JSONResponse | None:
-    """El servidor MCP no tiene sesión de usuario, así que se decide acá.
+    """El servidor MCP no tiene sesión de usuario: se autentica con su token.
 
-    - Sin integración Google: no se toca (es el comportamiento actual).
-    - Con Google: exige `PURPLEMD_MCP_TOKEN` en la cabecera
-      `X-PurpleMD-Token`; sin esa variable está apagado.
-    - Con `PURPLEMD_STORAGE=drive`: apagado siempre, porque no hay un
-      Drive al que atribuirle las operaciones de un cliente sin cuenta.
+    Dos regímenes, excluyentes entre sí:
+
+    - **Con login de Google**: solo sirve un token firmado por cuenta
+      (`alcance="mcp"`, con `sub`), el que emite `POST /api/auth/mcp-token`
+      desde el menú de la app. Ese `sub` es el que después decide qué storage
+      sirve cada tool. El token del entorno **no** vale acá: no identifica a
+      nadie y lo único que alcanzaría sería la raíz de la era sin login.
+    - **Sin login**: manda `PURPLEMD_MCP_TOKEN` por la cabecera
+      `X-PurpleMD-Token`, recortado para que un `\n` de más al pegarlo no
+      deje al cliente afuera. Sin esa variable, el MCP está apagado.
+
+    `PURPLEMD_STORAGE=drive` ya no apaga el MCP: con token de cuenta se sirve
+    el Drive de esa misma cuenta (ver `almacenamiento_mcp`). La única
+    combinación que sigue apagada es drive **sin** credenciales de Google,
+    que no tiene cuenta a la que pertenezca ese Drive.
     """
+    recibido = request.headers.get("x-purplemd-token", "")
+    config = _config()
+    if config.habilitado:
+        if not recibido:
+            return _respuesta_error(
+                403,
+                "falta el token de MCP: generá el tuyo en la app "
+                "(menú → Servidor MCP)",
+            )
+        if verificar_token_mcp(recibido, config.secret_key) is None:
+            return _respuesta_error(401, "token de MCP inválido o vencido")
+        return None
+
     if os.environ.get("PURPLEMD_STORAGE", "").lower() == "drive":
+        # Sin credenciales de Google no hay cuenta a la que pertenezca ese
+        # Drive y `get_storage()` lo sabe: mejor un 403 claro que una
+        # excepción dentro del tool. Es el mismo caso que la API responde 503.
         return _respuesta_error(
-            403, "el servidor MCP está deshabilitado con PURPLEMD_STORAGE=drive"
+            403,
+            "el servidor MCP está deshabilitado con PURPLEMD_STORAGE=drive "
+            "y sin credenciales de Google",
         )
-    esperado = os.environ.get("PURPLEMD_MCP_TOKEN", "")
+
+    esperado = os.environ.get("PURPLEMD_MCP_TOKEN", "").strip()
     if not esperado:
         return _respuesta_error(
             403, "el servidor MCP está deshabilitado: falta PURPLEMD_MCP_TOKEN"
         )
-    recibido = request.headers.get("x-purplemd-token", "")
-    if not hmac.compare_digest(recibido, esperado):
+    # Bytes y no str: `compare_digest` levanta con un valor no-ASCII, y una
+    # cabecera arbitraria no tiene por qué serlo.
+    if not hmac.compare_digest(recibido.encode("utf-8"), esperado.encode("utf-8")):
         return _respuesta_error(401, "token de MCP inválido")
     return None
 
@@ -834,6 +922,19 @@ class SesionSalida(BaseModel):
     almacen: str = "filesystem"
 
 
+class TokenMcpSalida(BaseModel):
+    """Token con el que un cliente MCP habla en nombre de esta cuenta.
+
+    El valor es para copiar y pegar en la configuración del cliente; la app
+    no lo almacena (se firma con cada emisión, ver `purplemd_auth.mcp_tokens`).
+    """
+
+    token: str
+    # La cabecera exacta a mandar, para que no haya que adivinarla.
+    header: str = "X-PurpleMD-Token"
+    expires_at: int
+
+
 @app.get("/api/auth/login", include_in_schema=False)
 def login_google(request: Request, destino: str = Query(default="/")) -> RedirectResponse:
     """Redirige al consentimiento de Google con `state` y PKCE.
@@ -968,6 +1069,33 @@ def estado_de_sesion(request: Request) -> SesionSalida:
         name=(sesion or {}).get("name", ""),
         picture=(sesion or {}).get("picture", ""),
         almacen=os.environ.get("PURPLEMD_STORAGE", "filesystem").lower(),
+    )
+
+
+@app.post("/api/auth/mcp-token", response_model=TokenMcpSalida, include_in_schema=False)
+def emitir_token_mcp(request: Request) -> TokenMcpSalida:
+    """Emite el token MCP de la cuenta con sesión, para copiar en un cliente.
+
+    Stateless: no hay tabla de tokens, el valor es un payload firmado con el
+    `sub` de la cuenta (ver `purplemd_auth.mcp_tokens`). Cada emisión sirve
+    90 días; las anteriores siguen sirviendo hasta que venzan, y rotar
+    `PURPLEMD_SECRET_KEY` las vence a todas.
+    """
+    config = _config()
+    if not config.habilitado:
+        raise HTTPException(
+            status_code=503,
+            detail="la integración con Google no está configurada en este servidor",
+        )
+    sesion = _sesion(request)
+    if sesion is None:
+        raise HTTPException(
+            status_code=401, detail="sesión requerida: iniciá sesión con Google"
+        )
+    ahora = time.time()
+    return TokenMcpSalida(
+        token=crear_token_mcp(sesion["sub"], config.secret_key, ahora),
+        expires_at=int(ahora) + TTL_TOKEN_MCP_SEG,
     )
 
 

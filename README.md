@@ -90,10 +90,13 @@ notas:
 El servidor MCP se inicia automáticamente junto con PurpleMD; no es
 necesario ejecutar un proceso adicional.
 
-Con acceso por Google encendido, `/mcp` pide un token propio en la
-cabecera `X-PurpleMD-Token` (variable `PURPLEMD_MCP_TOKEN`), y con
-`PURPLEMD_STORAGE=drive` queda apagado del todo: un cliente externo no
-puede apuntar al Drive de una cuenta concreta.
+Con acceso por Google encendido, `/mcp` pide el token que emite la
+propia app para la cuenta («menú → Servidor MCP», o
+`POST /api/auth/mcp-token`) en la cabecera `X-PurpleMD-Token` y sirve
+los datos de esa cuenta —también con `PURPLEMD_STORAGE=drive`. Sin
+credenciales de Google, el token es la variable de entorno
+`PURPLEMD_MCP_TOKEN` y el alcance es la raíz compartida. Sin token
+responde `403`; con un token inválido o vencido, `401`.
 
 La nota `mcp` del proyecto **Bienvenida** incluye guía completa de
 configuración (Claude Desktop, clientes MCP, desarrollo local).

@@ -35,7 +35,7 @@ tags: [security, ssrf, dos, limits, validation, cors, headers, logging, auth, oa
 | API pública | CORS con wildcards, cabeceras ausentes | ✅ origen prod literal + regex localhost, CSP y cabeceras + `tests/test_auth.py` |
 | Sesión con Google | CSRF, cookie forjada, open redirect, token filtrado | ✅ `SameSite=Lax` + chequeo de `Origin` + `state` PKCE + cookie HttpOnly + tests |
 | Estado global | listas que crecen sin límite (notificaciones) | ⚠️ acotar o expirar |
-| Servidor MCP | endpoint sin sesión accesible desde la red | ✅ exige `PURPLEMD_MCP_TOKEN`; 403 con `PURPLEMD_STORAGE=drive` + tests |
+| Servidor MCP | endpoint sin sesión accesible desde la red | ✅ token propio en `X-PurpleMD-Token` (firmado por cuenta con login, de entorno sin login) + tests |
 
 ---
 
@@ -134,9 +134,20 @@ tags: [security, ssrf, dos, limits, validation, cors, headers, logging, auth, oa
   `_RUTAS_STATELESS` en `api.py` es la lista cerrada, y
   `test_sin_sesion_los_endpoints_de_datos_no_pasan` prueba que todo lo
   demás sigue respondiendo 401.
-- **MCP no tiene sesión**, así que exige `PURPLEMD_MCP_TOKEN` por `X-PurpleMD-Token`, y con
-  `PURPLEMD_STORAGE=drive` queda 403 aunque el token sea válido (un cliente externo no puede
-  leer el Drive de una cuenta concreta).
+- **MCP no tiene sesión**, así que **siempre** exige token en `X-PurpleMD-Token`
+  (403 si falta, 401 si no sirve). Hay uno por régimen y no son intercambiables:
+  - **Con login**: solo el token firmado por cuenta que emite `POST /api/auth/mcp-token`
+    (payload con `sub` y alcance `mcp`, TTL 90 días, sin estado en el servidor; se revoca
+    rotando `PURPLEMD_SECRET_KEY`). Ese `sub` es el que resuelve el storage del tool:
+    `users/<sha256(sub)>` o el Drive de esa misma cuenta — `PURPLEMD_STORAGE=drive` ya no
+    apaga el MCP. El token de entorno no identifica a nadie: responde 401.
+  - **Sin login**: `PURPLEMD_MCP_TOKEN` del entorno, leído con `.strip()` y comparado en
+    bytes (`compare_digest` levanta con no-ASCII en `str`).
+  - La cookie de sesión y el token MCP no se aceptan el uno como el otro, y un tool que no
+    resuelve un token válido **nunca** cae a la raíz compartida (sería leer datos de otro).
+  - Tests: `McpTests`, `McpSinLoginTests`, `TokenMcpHttpTests`, `AlmacenamientoMcpTests` y
+    `TokenMcpTests` en `tests/test_auth.py`, más la verificación de punta a punta con un
+    cliente MCP real.
 - Un `ConfigAuth` logueado o impreso no puede volcar secretos: `client_secret` y `secret_key`
   van con `field(repr=False)`.
 
@@ -187,6 +198,7 @@ grep -n -A3 "^async def" api.py
 - [ ] Sin wildcards en CORS; sin cabeceras nuevas rotas.
 - [ ] Ningún secret visible en un `repr`, un log, un `detail` ni una URL.
 - [ ] Cookie de sesión: `HttpOnly` + `SameSite=Lax` + firma HMAC; los tokens de Google, solo en disco `0600`.
+- [ ] Token del MCP: alcance propio (`mcp`) y nunca un storage por defecto; el del entorno solo sin login.
 - [ ] Todo endpoint de escritura pasa el chequeo de `Origin` cuando hay sesión.
 - [ ] Cada regla nueva con su test en `tests/`.
 - [ ] `uv run pytest -q`, `ruff`, `ty` en verde.

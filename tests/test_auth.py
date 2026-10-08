@@ -16,8 +16,11 @@ Cada regla de seguridad nueva nace con su test (regla 8 de
   `CsrfTests`.
 - CSP y cabeceras de seguridad en el frontend, sin romper Swagger —
   `CabecerasTests`.
-- El servidor MCP no tiene sesión, así que pide token propio —
-  `McpTests`.
+- El servidor MCP no tiene sesión: se autentica con el token de una cuenta
+  (o con el del entorno cuando no hay login) — `McpTests`,
+  `McpSinLoginTests`, `TokenMcpHttpTests` y `AlmacenamientoMcpTests`.
+- Un token MCP es un payload firmado con alcance propio, intercambiable ni
+  con la cookie ni al revés — `TokenMcpTests`.
 
 Ningún test toca la red: los llamados a Google se interceptan con
 `httpx.MockTransport`.
@@ -27,18 +30,23 @@ import json
 import os
 import stat
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import httpx
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
+import purplemd
 import purplemd_auth
-from api import app
+from api import TokenMcpInvalido, _rechazar_mcp, almacenamiento_mcp, app
 from purplemd_auth import (
     COOKIE_OAUTH,
     COOKIE_SESION,
+    TTL_SESION_SEG,
+    TTL_TOKEN_MCP_SEG,
     ConfigAuth,
     Cuenta,
     CuentasEnDisco,
@@ -46,13 +54,16 @@ from purplemd_auth import (
     LimiteCuentasError,
     challenge_de,
     cookie_segura,
+    crear_token_mcp,
     desde_entorno,
     firmar,
     identificador_seguro,
     nuevo_state,
     nuevo_verifier,
     verificar,
+    verificar_token_mcp,
 )
+from purplemd_storage import DriveStorage
 
 CREDENCIALES = {
     "GOOGLE_CLIENT_ID": "client-id-123.apps.googleusercontent.com",
@@ -158,6 +169,11 @@ class AuthTestCase(unittest.TestCase):
             os.environ.pop(clave, None)
 
         self.client = TestClient(app)
+        # Cliente que no propaga la excepción del servidor. Los tests del MCP
+        # lo necesitan porque el transporte MCP arranca su `lifespan` en el
+        # ciclo de vida de la app (no corre suelto en un `TestClient`): lo que
+        # se verifica acá es que **el middleware dejó pasar** el request.
+        self.sin_excepciones = TestClient(app, raise_server_exceptions=False)
         self.google = GoogleFalso()
         self._oauth = patch(
             "purplemd_auth.oauth.cliente_por_defecto", return_value=self.google.cliente()
@@ -764,49 +780,288 @@ class CabecerasTests(AuthTestCase):
         self.assertEqual(r.headers["X-Content-Type-Options"], "nosniff")
 
 
+class TokenMcpTests(unittest.TestCase):
+    """El token MCP es un payload firmado con alcance propio.
+
+    No hay tabla de tokens que vencer: emitir es firmar y validar es
+    verificar firma, vencimiento y alcance (regla 8 de
+    `skills/seguridad/SKILL.md`). Los dos alcances no son intercambiables
+    aunque compartan clave y formato.
+    """
+
+    SECRETO = "clave-de-firma-suficientemente-larga"
+
+    def test_un_token_valido_devuelve_el_sub(self):
+        token = crear_token_mcp("sub-1", self.SECRETO)
+        payload = verificar_token_mcp(token, self.SECRETO)
+        assert payload is not None
+        self.assertEqual(payload["sub"], "sub-1")
+
+    def test_una_sesion_no_sirve_como_token_mcp(self):
+        sesion = firmar({"sub": "sub-1", "email": "a@b.c"}, self.SECRETO, TTL_SESION_SEG)
+        self.assertIsNone(verificar_token_mcp(sesion, self.SECRETO))
+
+    def test_un_token_mcp_no_sirve_como_sesion(self):
+        """El alcance separa las dos credencialies: cada una abre lo suyo."""
+        otro = firmar({"sub": "sub-1", "alcance": "otra-cosa"}, self.SECRETO, TTL_SESION_SEG)
+        self.assertIsNone(verificar_token_mcp(otro, self.SECRETO))
+
+    def test_un_token_vencido_no_sirve(self):
+        vencido = time.time() - TTL_TOKEN_MCP_SEG - 1
+        token = crear_token_mcp("sub-1", self.SECRETO, ahora=vencido)
+        self.assertIsNone(verificar_token_mcp(token, self.SECRETO, ahora=time.time()))
+
+    def test_un_token_alterado_no_sirve(self):
+        token = crear_token_mcp("sub-1", self.SECRETO)
+        datos, _, firma = token.partition(".")
+        alterado = datos + "." + ("a" * 8 if firma != "a" * 8 else "b" * 8)
+        self.assertIsNone(verificar_token_mcp(alterado, self.SECRETO))
+
+    def test_sin_secreto_no_se_firma(self):
+        with self.assertRaises(ValueError):
+            crear_token_mcp("sub-1", "")
+        self.assertIsNone(verificar_token_mcp("cualquiera", ""))
+
+
 class McpTests(AuthTestCase):
-    """El servidor MCP no tiene sesión: pide token propio o queda apagado.
+    """Con login encendido, el MCP se abre con el token de una cuenta.
+
+    Ese token es el que emite `POST /api/auth/mcp-token`, y el `sub` que
+    trae es el que después decide de quién son los datos. El token del
+    entorno no identifica a nadie, así que no sirve: lo único que
+    alcanzaría sería la raíz de la era sin login.
 
     Cuando el token deja pasar, la petición llega al servidor MCP, que
     necesita su `lifespan` corriendo para arrancar el task group (no lo
-    hay en `TestClient(app)` suelto). Por eso estos dos tests usan un
-    cliente que no propaga la excepción: lo que se verifica acá es que
-    **el middleware la dejó pasar**, no que el transporte MCP responda.
+    hay en `TestClient(app)` suelto). Por eso estos tests usan
+    `self.sin_excepciones`: lo que se verifica acá es que **el middleware
+    la dejó pasar**, no que el transporte MCP responda.
     """
 
-    def setUp(self):
-        super().setUp()
-        self.sin_excepciones = TestClient(app, raise_server_exceptions=False)
-
-    def test_sin_token_esta_apagado(self):
+    def test_sin_token_no_pasa(self):
         r = self.client.get("/mcp/")
+        self.assertEqual(r.status_code, 403)
+        self.assertIn("generá el tuyo", r.json()["detail"])
+
+    def test_el_token_del_entorno_no_abre_con_login_encendido(self):
+        with patch.dict(os.environ, {"PURPLEMD_MCP_TOKEN": "correcto"}):
+            r = self.client.get("/mcp/", headers={"X-PurpleMD-Token": "correcto"})
+        self.assertEqual(r.status_code, 401)
+
+    def test_una_cookie_no_sirve_como_token_mcp(self):
+        self.login()
+        cookie = self.client.cookies.get(COOKIE_SESION)
+        assert cookie is not None
+        r = self.client.get("/mcp/", headers={"X-PurpleMD-Token": cookie})
+        self.assertEqual(r.status_code, 401)
+
+    def test_el_token_de_la_cuenta_alcanza_al_servidor_mcp(self):
+        token = self.token_mcp()
+        r = self.sin_excepciones.get("/mcp/", headers={"X-PurpleMD-Token": token})
+        self.assertNotIn(r.status_code, (401, 403), r.text)
+
+    def test_un_token_mcp_no_abre_sesion_en_el_navegador(self):
+        """Sirve para el MCP, no para entrar a la app: alcance propio."""
+        self.client.cookies.set(COOKIE_SESION, self.token_mcp())
+        self.assertEqual(self.client.get("/api/projects").status_code, 401)
+
+    def test_un_token_vencido_no_alcanza(self):
+        pasado = time.time() - TTL_TOKEN_MCP_SEG - 1
+        token = crear_token_mcp("sub-1", CREDENCIALES["PURPLEMD_SECRET_KEY"], pasado)
+        r = self.client.get("/mcp/", headers={"X-PurpleMD-Token": token})
+        self.assertEqual(r.status_code, 401)
+
+    def test_un_token_alterado_no_alcanza(self):
+        token = self.token_mcp()
+        datos, _, firma = token.partition(".")
+        alterado = datos + "." + ("a" * 8 if firma != "a" * 8 else "b" * 8)
+        r = self.client.get("/mcp/", headers={"X-PurpleMD-Token": alterado})
+        self.assertEqual(r.status_code, 401)
+
+    def test_drive_no_apaga_el_mcp(self):
+        """Con token de cuenta el MCP sirve el Drive de esa misma cuenta."""
+        token = self.token_mcp()
+        with patch.dict(os.environ, {"PURPLEMD_STORAGE": "drive"}):
+            r = self.sin_excepciones.get("/mcp/", headers={"X-PurpleMD-Token": token})
+        self.assertNotIn(r.status_code, (401, 403), r.text)
+
+    def token_mcp(self) -> str:
+        """Token emitido por la app para la cuenta con sesión."""
+        self.login()
+        r = self.client.post("/api/auth/mcp-token")
+        self.assertEqual(r.status_code, 200, r.text)
+        return r.json()["token"]
+
+
+class McpSinLoginTests(AuthTestCase):
+    """Sin credenciales de Google, el MCP se abre con el token del entorno.
+
+    Es el despliegue sin cuenta: no hay usuarios, así que la única
+    identidad posible es la del propio despliegue.
+    """
+
+    def test_sin_variable_el_mcp_esta_apagado(self):
+        with sin_google():
+            r = self.client.get("/mcp/")
         self.assertEqual(r.status_code, 403)
         self.assertIn("PURPLEMD_MCP_TOKEN", r.json()["detail"])
 
-    def test_token_equivocado(self):
-        with patch.dict(os.environ, {"PURPLEMD_MCP_TOKEN": "correcto"}):
-            r = self.client.get("/mcp/", headers={"X-PurpleMD-Token": "otro"})
-        self.assertEqual(r.status_code, 401)
-
-    def test_token_correcto_alcanza_al_servidor_mcp(self):
-        with patch.dict(os.environ, {"PURPLEMD_MCP_TOKEN": "correcto"}):
-            r = self.sin_excepciones.get(
-                "/mcp/", headers={"X-PurpleMD-Token": "correcto"}
-            )
-        self.assertNotIn(r.status_code, (401, 403), r.text)
-
-    def test_con_drive_el_mcp_queda_apagado_aunque_haya_token(self):
-        with patch.dict(
-            os.environ, {"PURPLEMD_MCP_TOKEN": "correcto", "PURPLEMD_STORAGE": "drive"}
+    def test_con_drive_sin_login_el_mcp_queda_apagado(self):
+        """No hay cuenta a la que pertenezca ese Drive (la API responde 503)."""
+        with (
+            sin_google(),
+            patch.dict(
+                os.environ, {"PURPLEMD_STORAGE": "drive", "PURPLEMD_MCP_TOKEN": "x"}
+            ),
         ):
-            r = self.client.get("/mcp/", headers={"X-PurpleMD-Token": "correcto"})
+            r = self.client.get("/mcp/", headers={"X-PurpleMD-Token": "x"})
         self.assertEqual(r.status_code, 403)
         self.assertIn("drive", r.json()["detail"])
 
-    def test_sin_integracion_el_mcp_sigue_como_siempre(self):
-        with sin_google():
-            r = self.sin_excepciones.get("/mcp/")
+    def test_con_token_correcto_alcanza_al_servidor_mcp(self):
+        with sin_google(), patch.dict(os.environ, {"PURPLEMD_MCP_TOKEN": "correcto"}):
+            r = self.sin_excepciones.get("/mcp/", headers={"X-PurpleMD-Token": "correcto"})
         self.assertNotIn(r.status_code, (401, 403), r.text)
+
+    def test_un_salto_de_linea_al_final_no_deja_al_cliente_afuera(self):
+        """El valor se recorta: pegarlo desde un archivo `.env` trae un `\n`."""
+        with sin_google(), patch.dict(os.environ, {"PURPLEMD_MCP_TOKEN": "correcto\n"}):
+            r = self.sin_excepciones.get("/mcp/", headers={"X-PurpleMD-Token": "correcto"})
+        self.assertNotIn(r.status_code, (401, 403), r.text)
+
+    def test_un_token_equivocado(self):
+        with sin_google(), patch.dict(os.environ, {"PURPLEMD_MCP_TOKEN": "correcto"}):
+            r = self.client.get("/mcp/", headers={"X-PurpleMD-Token": "otro"})
+        self.assertEqual(r.status_code, 401)
+
+    def test_una_cabecera_no_ascii_responde_401_y_no_500(self):
+        """`hmac.compare_digest` sobre `str` levanta con no-ASCII: va en bytes.
+
+        httpx no deja mandar una cabecera no-ASCII, así que el chequeo se
+        prueba directo sobre el filtro, que es donde vive la regla.
+        """
+        alcance = {
+            "type": "http",
+            "method": "GET",
+            "path": "/mcp/",
+            "headers": [(b"x-purplemd-token", "ñandú".encode("latin-1"))],
+        }
+        with sin_google(), patch.dict(os.environ, {"PURPLEMD_MCP_TOKEN": "correcto"}):
+            rechazo = _rechazar_mcp(Request(alcance))
+        assert rechazo is not None
+        self.assertEqual(rechazo.status_code, 401)
+
+
+class TokenMcpHttpTests(AuthTestCase):
+    """La app le entrega su token a la cuenta logueada, desde el menú."""
+
+    def test_sin_sesion_no_emite(self):
+        r = self.client.post("/api/auth/mcp-token")
+        self.assertEqual(r.status_code, 401)
+        self.assertIn("sesión", r.json()["detail"])
+
+    def test_sin_integracion_de_google_no_emite(self):
+        """No hay cuenta que representar: el token del entorno es otra cosa."""
+        with sin_google():
+            r = self.client.post("/api/auth/mcp-token")
+        self.assertEqual(r.status_code, 503)
+
+    def test_con_sesion_emite_un_token_que_sirve(self):
+        self.login()
+        r = self.client.post("/api/auth/mcp-token")
+        self.assertEqual(r.status_code, 200, r.text)
+        datos = r.json()
+        self.assertEqual(datos["header"], "X-PurpleMD-Token")
+        self.assertGreater(datos["expires_at"], time.time())
+        payload = verificar_token_mcp(datos["token"], CREDENCIALES["PURPLEMD_SECRET_KEY"])
+        assert payload is not None
+        self.assertEqual(payload["sub"], "sub-1")
+        # Y el middleware lo deja pasar.
+        mcp = self.sin_excepciones.get(
+            "/mcp/", headers={"X-PurpleMD-Token": datos["token"]}
+        )
+        self.assertNotIn(mcp.status_code, (401, 403), mcp.text)
+
+    def test_un_origen_ajeno_no_puede_pedirlo(self):
+        """El endpoint emite credenciales: también va con el chequeo de CSRF."""
+        self.login()
+        r = self.client.post(
+            "/api/auth/mcp-token", headers={"Origin": "https://evil.example"}
+        )
+        self.assertEqual(r.status_code, 403)
+
+
+class AlmacenamientoMcpTests(AuthTestCase):
+    """El token decide de quién son los datos que toca un tool (regla 5)."""
+
+    def test_cada_token_escribe_en_la_carpeta_de_su_cuenta(self):
+        secreto = CREDENCIALES["PURPLEMD_SECRET_KEY"]
+        for sub, nombre in (("sub-ana", "ana"), ("sub-beto", "beto")):
+            almacen = almacenamiento_mcp({"x-purplemd-token": crear_token_mcp(sub, secreto)})
+            purplemd.crear_proyecto(nombre, storage=almacen)
+
+        for sub, nombre in (("sub-ana", "ana"), ("sub-beto", "beto")):
+            with self.subTest(sub=sub):
+                carpeta = (
+                    self.directorio / "users" / identificador_seguro(sub) / "projects" / nombre
+                )
+                self.assertTrue(carpeta.is_dir())
+        # La raíz compartida (la era sin login) queda intacta.
+        self.assertFalse((self.directorio / "projects").exists())
+
+    def test_sin_login_sirve_la_raiz_compartida(self):
+        with sin_google():
+            almacen = almacenamiento_mcp(None)
+        purplemd.crear_proyecto("comun", storage=almacen)
+        self.assertTrue((self.directorio / "projects" / "comun").is_dir())
+
+    def test_con_memoria_cada_cuenta_tiene_la_suya(self):
+        # El caché de instancias es estado de módulo: se limpia para que
+        # el orden de los tests no contaminen el resultado.
+        from api import _MEMORIA_USUARIOS
+
+        _MEMORIA_USUARIOS.clear()
+        self.addCleanup(_MEMORIA_USUARIOS.clear)
+
+        secreto = CREDENCIALES["PURPLEMD_SECRET_KEY"]
+        with patch.dict(os.environ, {"PURPLEMD_STORAGE": "memory"}):
+            de_ana = almacenamiento_mcp(
+                {"x-purplemd-token": crear_token_mcp("sub-ana", secreto)}
+            )
+            purplemd.crear_proyecto("cuaderno", storage=de_ana)
+
+            # Otra llamada con el mismo token: la memoria no se pierde.
+            otra_vez = almacenamiento_mcp(
+                {"x-purplemd-token": crear_token_mcp("sub-ana", secreto)}
+            )
+            self.assertEqual(
+                [p.name for p in purplemd.listar_proyectos(storage=otra_vez)],
+                ["cuaderno"],
+            )
+            # Otra cuenta: no ve nada de lo de Ana.
+            de_beto = almacenamiento_mcp(
+                {"x-purplemd-token": crear_token_mcp("sub-beto", secreto)}
+            )
+            self.assertEqual(purplemd.listar_proyectos(storage=de_beto), [])
+
+    def test_sin_token_valido_no_hay_storage(self):
+        """Nunca se cae a la raíz: sería leer los datos de otro."""
+        with self.assertLogs("purplemd", level="WARNING"):
+            with self.assertRaises(TokenMcpInvalido):
+                almacenamiento_mcp({"x-purplemd-token": "cualquiera"})
+        with self.assertLogs("purplemd", level="WARNING"):
+            with self.assertRaises(TokenMcpInvalido):
+                almacenamiento_mcp(None)
+
+    def test_con_drive_el_storage_es_el_de_la_cuenta(self):
+        token = crear_token_mcp("sub-1", CREDENCIALES["PURPLEMD_SECRET_KEY"])
+        with (
+            patch.dict(os.environ, {"PURPLEMD_STORAGE": "drive"}),
+            patch("api.proveedor_vigente") as proveedor,
+        ):
+            almacen = almacenamiento_mcp({"x-purplemd-token": token})
+        self.assertIsInstance(almacen, DriveStorage)
+        self.assertTrue(proveedor.called)
 
 
 if __name__ == "__main__":

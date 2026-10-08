@@ -77,6 +77,13 @@
               Ver en GitHub
             </a>
           </div>
+          <!-- Servidor MCP: misma acción en las dos superficies, con el
+               mismo `data-accion` que despacha `accionesCompartidas`
+               (app.js). No lleva `disabled`: es una acción global, no
+               depende de tener nota ni proyecto. -->
+          <div class="menu-overflow-grupo" role="group" aria-label="Servidor">
+            <button type="button" class="menu-overflow-item" role="menuitem" data-accion="mcp" title="Conectá un cliente MCP a tus notas y generá tu token">Servidor MCP</button>
+          </div>
         </div>
       </div>
       <!-- Segmentado de vistas: superficie ancha (>= 48rem). «Radio
@@ -103,7 +110,7 @@
            menú angosto). El caret va `aria-hidden` para que el nombre
            accesible sea solo «Menú». -->
       <div class="menu-acciones">
-        <button type="button" class="btn menu-acciones-trigger" aria-expanded="false" aria-haspopup="true" title="Más acciones: descargar, exportar, compartir o ver el repositorio" disabled>Menú<span class="menu-acciones-caret" aria-hidden="true">▼</span></button>
+        <button type="button" class="btn menu-acciones-trigger" aria-expanded="false" aria-haspopup="true" title="Más acciones: descargar, exportar, compartir, ver el repositorio o conectar el servidor MCP" disabled>Menú<span class="menu-acciones-caret" aria-hidden="true">▼</span></button>
         <div class="menu-acciones-panel" role="menu" aria-label="Acciones adicionales" hidden>
           <button type="button" class="menu-acciones-item" role="menuitem" data-accion="descargar" title="Descarga el contenido actual del editor" disabled>Descargar .md</button>
           <button type="button" class="menu-acciones-item" role="menuitem" data-accion="pdf" title="Exporta la nota abierta" disabled>Exportar .pdf</button>
@@ -121,6 +128,9 @@
             </svg>
             Ver en GitHub
           </a>
+          <!-- Mismo ítem que en el menú ☰: una acción, dos superficies. -->
+          <hr class="menu-separador">
+          <button type="button" class="menu-acciones-item" role="menuitem" data-accion="mcp" title="Conectá un cliente MCP a tus notas y generá tu token">Servidor MCP</button>
         </div>
       </div>
       <button type="button" id="guardar" class="btn btn-acento" disabled>Guardar</button>

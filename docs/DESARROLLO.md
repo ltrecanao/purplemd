@@ -79,8 +79,19 @@ Otras variables útiles en desarrollo:
 | `PURPLEMD_AUTH=off` | Apagar la integración aunque haya credenciales |
 | `PURPLEMD_STORAGE=memory` | Backend efímero (es lo que usa la demo) |
 | `PURPLEMD_STORAGE=drive` | Backend de Drive (exige sesión) |
-| `PURPLEMD_MCP_TOKEN=...` | El token del servidor MCP |
+| `PURPLEMD_MCP_TOKEN=...` | Token que abre `/mcp` **solo sin** credenciales de Google; con login el token lo emite la app («menú → Servidor MCP») |
 | `PURPLEMD_DIR=/tmp/purplemd` | Datos en un directorio descartable |
+
+El mismo listado, con un comentario por variable y valores de ejemplo, está
+en `.env.example`.
+
+Para probar el servidor MCP en local (con la app corriendo), usá el token
+que emite la app («menú → Servidor MCP», con credenciales) o el de
+`PURPLEMD_MCP_TOKEN` (sin ellas):
+
+```bash
+npx mcp-remote http://localhost:8000/mcp --header "X-PurpleMD-Token: <token>"
+```
 
 ## Pruebas
 
