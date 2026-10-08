@@ -5026,12 +5026,16 @@ const NOTA_BIENVENIDA = "nota-de-bienvenida";
 // Ruta sin puntos a propósito: `_normalizar_urls_en_links` (renderer.py)
 // mandaría `[texto](tutorial.md)` a `https://tutorial.md`.
 const NOTA_TUTORIAL = "tutorial";
+// Nota MCP: información sobre el servidor MCP integrado
+const NOTA_MCP = "mcp";
 
 const CONTENIDO_BIENVENIDA = `# ¡Hola! Bienvenido/a a PurpleMD 💜
 
 Tomate un minuto para leer esta nota: te cuenta lo más importante para empezar. Después, hacela tuya: podés vaciarla o escribir encima.
 
 Si querés el recorrido completo —los dos paneles, la barra de herramientas, deshacer y rehacer, buscar y reemplazar—, **[Hacé el tutorial](tutorial)**.
+
+**[¿Qué es el servidor MCP?](mcp)** — información sobre el servidor MCP integrado y cómo usarlo.
 
 ## Tus primeros pasos
 
@@ -5134,6 +5138,91 @@ Los atajos de formato actúan con el cursor dentro del editor: así \`Ctrl\`/\`C
 - **«Menú ▾» → «Compartir PurpleMD»** te deja compartirla por X, LinkedIn, Mastodon o correo.
 `;
 
+const CONTENIDO_MCP = `# Servidor MCP (Model Context Protocol)
+
+PurpleMD incluye un **servidor MCP** integrado que permite a asistentes de IA (como Claude, ChatGPT, etc.) interactuar con tus notas directamente.
+
+## ¿Qué es MCP?
+
+**Model Context Protocol (MCP)** es un estándar abierto que permite a modelos de lenguaje acceder a herramientas y datos externos de forma segura y estandarizada. En lugar de copiar/pegar contenido, la IA puede leer, escribir, buscar y organizar tus notas directamente.
+
+## ¿Qué puede hacer el servidor MCP de PurpleMD?
+
+El servidor expone estas herramientas:
+
+- \`list_projects\` — lista tus proyectos
+- \`read_note\` — lee el contenido de una nota
+- \`create_note\` — crea una nota nueva
+- \`update_note\` — actualiza el contenido de una nota
+- \`delete_note\` — borra una nota
+- \`search_notes\` — busca texto en tus notas
+- \`create_project\` — crea un proyecto nuevo
+- \`delete_project\` — borra un proyecto
+
+## ¿Cómo se usa?
+
+### En Claude Desktop
+
+Agregá a tu \`claude_desktop_config.json\`:
+
+\`\`\`json
+{
+  "mcpServers": {
+    "purplemd": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://TU-DOMINIO/mcp"],
+      "env": {
+        "PURPLEMD_MCP_TOKEN": "tu-token-secreto"
+      }
+    }
+  }
+}
+\`\`\`
+
+### En otros clientes MCP
+
+Cualquier cliente compatible con MCP puede conectarse usando:
+
+- **URL**: \`https://TU-DOMINIO/mcp\`
+- **Autenticación**: Header \`X-PurpleMD-Token: tu-token\`
+
+### En desarrollo local
+
+\`\`\`bash
+# Con uv
+uvx mcp-remote http://localhost:8000/mcp --header "X-PurpleMD-Token: dev-token"
+\`\`\`
+
+## Configuración en PurpleMD
+
+Para habilitar el servidor MCP, necesitás configurar estas variables de entorno:
+
+| Variable | Qué hace |
+|----------|----------|
+| \`PURPLEMD_MCP_TOKEN\` | Token secreto para autenticar clientes MCP (generalo con \`openssl rand -hex 32\`) |
+| \`PURPLEMD_STORAGE\` | Backend de almacenamiento (\`filesystem\`, \`memory\`, \`drive\`) |
+
+**Importante**: El servidor MCP **requiere autenticación**. Sin \`PURPLEMD_MCP_TOKEN\` configurado, el endpoint \`/mcp\` responde \`403\`. Con \`PURPLEMD_STORAGE=drive\`, el MCP está deshabilitado completamente (no hay forma de atribuir operaciones a una cuenta concreta).
+
+## Seguridad
+
+- **Token propio**: El servidor MCP no usa tu sesión de Google; tiene su propio token (\`PURPLEMD_MCP_TOKEN\`).
+- **Solo tu cuenta**: El token se configura en el servidor; cada cliente MCP debe conocerlo.
+- **Solo HTTPS**: En producción, el token viaja solo por HTTPS (header \`X-PurpleMD-Token\`).
+
+## Limitaciones actuales
+
+- El servidor MCP no tiene contexto de usuario: opera sobre **todos** los proyectos del almacenamiento configurado.
+- Con \`PURPLEMD_STORAGE=drive\`, el MCP está **deshabilitado** (no hay forma de atribuir operaciones a una cuenta concreta).
+- No hay control de acceso granular por proyecto (todo o nada).
+
+---
+
+## Volver
+
+Volvé a la [bienvenida](nota-de-bienvenida) o al [tutorial](tutorial).
+`;
+
 /**
  * Comprueba si un recurso de la API responde.
  * @param {string} ruta - Ruta absoluta de la API.
@@ -5199,7 +5288,8 @@ async function asegurarBienvenida() {
 
   const bienvenida = await asegurarNota(base, NOTA_BIENVENIDA, CONTENIDO_BIENVENIDA);
   const tutorial = await asegurarNota(base, NOTA_TUTORIAL, CONTENIDO_TUTORIAL);
-  creóAlgo = creóAlgo || bienvenida.creó || tutorial.creó;
+  const mcp = await asegurarNota(base, NOTA_MCP, CONTENIDO_MCP);
+  creóAlgo = creóAlgo || bienvenida.creó || tutorial.creó || mcp.creó;
 
   // Recién creada, la lista hay que refrescarla para que el proyecto
   // aparezca en el explorador antes de seleccionarlo.
