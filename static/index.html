@@ -133,6 +133,10 @@
           <button type="button" class="menu-acciones-item" role="menuitem" data-accion="mcp" title="Conectá un cliente MCP a tus notas y generá tu token">Servidor MCP</button>
         </div>
       </div>
+      <!-- Sincronizar: guarda lo pendiente y recarga proyectos y árbol
+           desde el servidor. Va junto a «Guardar» (misma fila, envuelve
+           en pantallas angostas) y no depende de tener una nota abierta. -->
+      <button type="button" id="sincronizar" class="btn" title="Guarda los cambios pendientes y recarga proyectos y árbol desde el servidor">Sincronizar</button>
       <button type="button" id="guardar" class="btn btn-acento" disabled>Guardar</button>
     </div>
   </header>
@@ -261,7 +265,12 @@
       <section class="panel panel-editor" aria-label="Editor">
         <div class="panel-cabecera">
           <h2 id="nota-actual" class="panel-titulo">Sin nota abierta</h2>
-          <p id="guardar-estado" class="estado" role="status" aria-live="polite">Sin nota abierta</p>
+          <!-- Luz de sincronización: una sola línea con dos nodos.
+               `#guardar-destino` dice a dónde va la información (según
+               la sesión) y `#guardar-resumen` el estado del guardado;
+               los dos conviven en el mismo `<p>` para no agregar una
+               fila que rompa la cabecera del panel. -->
+          <p id="guardar-estado" class="estado" role="status" aria-live="polite"><span id="guardar-destino"></span> <span id="guardar-resumen">Sin nota abierta</span></p>
         </div>
         <!-- Toolbar Markdown estilo Office -->
         <div class="editor-toolbar" role="toolbar" aria-label="Formato Markdown" hidden>

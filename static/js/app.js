@@ -107,13 +107,16 @@ const CLAVE_INVITADO_DATOS = "purplemd_invitado_datos";
  *
  * - `requiere`: este servidor exige login (hay credenciales de Google).
  * - `autenticada`: hay cookie de sesión válida.
+ * - `almacen`: backend que guarda los datos (`filesystem`, `memory` o
+ *   `drive`). Es la verdad del servidor —no depende de estar logueado—
+ *   y la lee la luz de guardado para decir a dónde va cada escritura.
  *
  * La consecuencia importante para el resto del módulo es `prefijo()`:
  * sin login el aislamiento lo hace el prefijo `u_xxxx_` en el nombre
  * del proyecto, y con login lo hace el backend, así que los nombres
  * llegan planos y prefijarlos duplicaría cada proyecto.
  */
-const sesion = { requiere: false, autenticada: false, email: "", nombre: "" };
+const sesion = { requiere: false, autenticada: false, email: "", nombre: "", almacen: "" };
 
 /** ¿Modo invitado activo? Se lee de `localStorage` al arrancar. */
 let invitado = estaInvitado();
@@ -209,8 +212,13 @@ const arbol = document.getElementById("arbol");
 const arbolVacio = document.getElementById("arbol-vacio");
 const notaTitulo = document.getElementById("nota-actual");
 const guardarEstado = document.getElementById("guardar-estado");
+// Nodos de la luz de sincronización: destino (a dónde va la información)
+// y resumen (estado del guardado). Viven dentro de `#guardar-estado`.
+const guardarDestino = document.getElementById("guardar-destino");
+const guardarResumen = document.getElementById("guardar-resumen");
 const renderEstado = document.getElementById("render-estado");
 const botonGuardar = document.getElementById("guardar");
+const botonSincronizar = document.getElementById("sincronizar");
 const explorador = document.getElementById("explorador");
 const botonExplorador = document.getElementById("explorador-toggle");
 // Contenedor de la barra superior: el corte de 48rem devuelve acá el foco
@@ -283,6 +291,10 @@ let idRender = 0;
 const carpetasColapsadas = new Set();
 /** Últimas `entries` del árbol: sirven para repintar sin volver a pedirlas. */
 let entradasActuales = [];
+/** Hora local («12:03») del último guardado exitoso; `""` si aún no hubo. */
+let ultimoGuardado = "";
+/** true mientras una sincronización está en vuelo (apaga su botón). */
+let sincronizando = false;
 
 // ------------------------------------------------------------------ API
 
@@ -302,6 +314,9 @@ async function cargarSesion() {
     sesion.autenticada = Boolean(datos.autenticado);
     sesion.email = datos.email || "";
     sesion.nombre = datos.name || "";
+    // `almacen` es la verdad del backend sobre dónde se guarda, existe
+    // haya sesión o no: la luz de guardado la usa aunque no haya login.
+    sesion.almacen = datos.almacen || "";
     if (sesion.autenticada && invitado) {
       // Se volvió a entrar con Google (p. ej. derechazo a la URL de
       // consentimiento): con cuenta conectada manda la sesión, y el modo
@@ -313,9 +328,12 @@ async function cargarSesion() {
   } catch (_) {
     // Sin respuesta no se puede saber si hay login: se asume modo
     // invitado y, si el backend exige sesión, el 401 de la primera
-    // llamada lo avisa y abre la pantalla de acceso.
+    // llamada lo avisa y abre la pantalla de acceso. Tampoco se sabe
+    // el backend (`almacen`), así que la luz queda en su mensaje por
+    // defecto en vez de afirmar un destino que no se pudo confirmar.
     sesion.requiere = false;
     sesion.autenticada = false;
+    sesion.almacen = "";
   }
   pintarSesion();
   // En modo invitado hay dónde trabajar aunque no haya cuenta: los datos
@@ -357,6 +375,9 @@ function pintarSesion() {
       if (mensaje && !mensaje.textContent) mensaje.textContent = "";
     }
   }
+  // La luz de guardado depende de la sesión (invitado, `almacen`): cada
+  // vez que el estado cambia, el destino se repinta con él.
+  pintarDestino();
   actualizarNamespaceBadge();
 }
 
@@ -1486,20 +1507,103 @@ function pintarEstado(elemento, clase, texto) {
   elemento.textContent = texto;
 }
 
+/**
+ * Hora local corta («12:03») para los reportes de guardado.
+ * @returns {string} Hora según el huso y el formato del navegador.
+ */
+function horaLocal() {
+  return new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+}
+
+/**
+ * A dónde van los guardados, según la sesión.
+ *
+ * En modo invitado manda el almacén local (el servidor nunca ve esos
+ * datos); con cuenta —o sin ella, si el servidor no exige login— manda
+ * `sesion.almacen`, que es la verdad del backend. Mientras el destino no
+ * sea Drive la luz avisa siempre, no solo cuando algo falla.
+ *
+ * @returns {{texto: string, color: string}} Texto visible y variable de color.
+ */
+function destinoGuardado() {
+  if (invitado) return { texto: "💾 En este navegador", color: "var(--acento)" };
+  if (sesion.almacen === "drive") return { texto: "☁ En tu Drive", color: "var(--ok)" };
+  if (sesion.almacen === "memory") {
+    return { texto: "⚠ En memoria del servidor (se pierde al reiniciar)", color: "var(--error)" };
+  }
+  if (sesion.almacen === "filesystem") {
+    return { texto: "⚙ En el servidor (no es tu Drive)", color: "var(--acento)" };
+  }
+  // `/api/auth/me` no respondió: no se pudo confirmar el backend. Los
+  // datos viajan al servidor (salvo en modo invitado, que se resuelve
+  // arriba), y eso es lo único que se puede afirmar.
+  return { texto: "En el servidor", color: "var(--acento)" };
+}
+
+/**
+ * Pinta el destino en la luz de sincronización.
+ *
+ * El tono va por `style.cssText` (CSSOM, no lo bloquea la CSP): `.estado`
+ * tiñe a todos sus hijos con el tono del estado y el destino tiene el
+ * suyo propio, que puede ser otro (p. ej. destino en `error` y estado en
+ * `ok`).
+ */
+function pintarDestino() {
+  const destino = destinoGuardado();
+  guardarDestino.textContent = destino.texto;
+  guardarDestino.style.cssText = `color: ${destino.color};`;
+}
+
+/**
+ * Botón «Reintentar» del error de guardado: vuelve a disparar el mismo
+ * camino de guardado (el de Ctrl+S), de inmediato.
+ * @returns {HTMLElement} `<button type="button">` listo para adjuntar.
+ */
+function crearBotonReintentar() {
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.className = "btn-mini";
+  boton.textContent = "Reintentar";
+  boton.addEventListener("click", () => guardarNota());
+  return boton;
+}
+
+/**
+ * Pinta la luz de sincronización: destino + estado del guardado.
+ *
+ * `pintarEstado` no sirve acá: reemplaza todo el contenido con
+ * `textContent` y borraría el nodo de destino, que tiene que quedarse a
+ * la vista en todo momento.
+ *
+ * @param {"ok"|"error"|"trabajando"|""} clase - Tono del estado.
+ * @param {string} texto - Estado visible en español.
+ * @param {boolean} [reintentar] - Adjunta el botón «Reintentar».
+ */
+function pintarGuardado(clase, texto, reintentar) {
+  guardarEstado.classList.remove("ok", "error", "trabajando");
+  if (clase) guardarEstado.classList.add(clase);
+  guardarResumen.textContent = texto;
+  if (reintentar) guardarResumen.append(crearBotonReintentar());
+}
+
 /** ¿El editor difiere de lo último que se guardó? */
 function hayCambios() {
   return estado.nota !== null && editor.value !== estado.nota.content;
 }
 
 /**
- * Sincroniza solo el botón «Guardar»: se le puede llamar sin tocar el
- * texto del indicador (p. ej. para conservar un error recién pintado).
+ * Sincroniza los botones «Guardar» y «Sincronizar»: se le puede llamar
+ * sin tocar el texto del indicador (p. ej. para conservar un error
+ * recién pintado).
  * De paso refresca la fila de importación, que comparte sus
  * disparadores: cada cambio de `hayCambios` (tecla, apertura y cierre
  * de nota, guardado).
  */
 function refrescarBotonGuardar() {
   botonGuardar.disabled = estado.nota === null || estado.guardando || !hayCambios();
+  // «Sincronizar» no necesita nota abierta, pero se apaga mientras hay
+  // un guardado o una sincronización en vuelo: una sola a la vez.
+  botonSincronizar.disabled = estado.guardando || sincronizando;
   refrescarImportacion();
 }
 
@@ -1519,15 +1623,18 @@ function refrescarImportacion() {
 }
 
 /**
- * Sincroniza el indicador de guardado y el botón.
+ * Sincroniza el indicador de guardado y los botones.
  * Mientras hay un PUT en vuelo no toca el texto: mantiene «Guardando…».
+ * Con la nota limpia muestra la hora del último guardado exitoso si lo
+ * hubo en esta sesión, y «Sin cambios» si todavía no se guardó nada.
  */
 function refrescarGuardado() {
   refrescarBotonGuardar();
   if (estado.guardando) return;
-  if (!estado.nota) pintarEstado(guardarEstado, "", "Sin nota abierta");
-  else if (hayCambios()) pintarEstado(guardarEstado, "", "Cambios sin guardar");
-  else pintarEstado(guardarEstado, "", "Sin cambios");
+  if (!estado.nota) pintarGuardado("", "Sin nota abierta");
+  else if (hayCambios()) pintarGuardado("", "Cambios sin guardar");
+  else if (ultimoGuardado) pintarGuardado("ok", `✓ ${ultimoGuardado}`);
+  else pintarGuardado("", "Sin cambios");
 }
 
 /**
@@ -3204,7 +3311,7 @@ async function guardarNota() {
 
   estado.guardando = true;
   refrescarBotonGuardar();
-  pintarEstado(guardarEstado, "trabajando", "Guardando…");
+  pintarGuardado("trabajando", "Guardando…");
 
   let notaGuardada;
   try {
@@ -3218,7 +3325,7 @@ async function guardarNota() {
     // Sin `refrescarGuardado()`: pisaría este mensaje con el estado real.
     estado.guardando = false;
     refrescarBotonGuardar();
-    pintarEstado(guardarEstado, "error", `No se pudo guardar: ${error.message}`);
+    pintarGuardado("error", `No se pudo guardar: ${error.message}`, true);
     return false;
   }
 
@@ -3239,9 +3346,12 @@ async function guardarNota() {
   refrescarBotonGuardar();
 
   if (sigueAbierta) {
-    pintarEstado(guardarEstado, "ok", "Guardado");
+    // El destino ya está a la vista: el estado suma la hora local del
+    // último guardado exitoso («☁ En tu Drive ✓ 12:03»).
+    ultimoGuardado = horaLocal();
+    pintarGuardado("ok", `✓ ${ultimoGuardado}`);
     // Si siguió escribiendo durante el guardado, el indicador vuelve al
-    // estado real en vez de dejar un «Guardado» que ya no es cierto.
+    // estado real en vez de dejar un «✓» que ya no es cierto.
     if (hayCambios()) refrescarGuardado();
   } else {
     // El indicador seguía en «Guardando…» (`refrescarGuardado` no lo toca
@@ -3255,6 +3365,68 @@ async function guardarNota() {
   // `notaGuardada.project` conserva el prefijo, como espera `cargarArbol`.
   await cargarArbol(notaGuardada.project);
   return true;
+}
+
+/**
+ * Error que la última carga del explorador dejó pintado, o `null` si
+ * esa carga salió bien.
+ *
+ * `cargarProyectos` y `cargarArbol` absorben sus fallos (los pintan en
+ * `#explorador-estado` y devuelven vacío), así que para reportarlos en
+ * la luz hay que leer lo que pintaron. Ambas limpian ese indicador al
+ * tener éxito, por eso alcanza con mirarlo después de cada una.
+ *
+ * @returns {string|null} Mensaje concreto del fallo, o `null`.
+ */
+function falloDelExplorador() {
+  if (!exploradorEstado.classList.contains("error")) return null;
+  return exploradorEstado.textContent;
+}
+
+/**
+ * Guarda lo pendiente y refresca desde el servidor (proyectos + árbol).
+ *
+ * El orden es la regla de oro: **primero el guardado, y solo si salió
+ * bien el refresco**. Si el PUT falla no se pide nada más ni se navega
+ * a ninguna parte —el texto del editor es lo único que no se puede
+ * recuperar—: el error queda en la luz con «Reintentar» y el usuario
+ * sigue exactamente donde estaba.
+ */
+async function sincronizar() {
+  if (sincronizando || estado.guardando) return;
+  sincronizando = true;
+  refrescarBotonGuardar();
+  try {
+    // 1. Guardar ahora, por el mismo camino que Ctrl+S y el botón
+    //    «Guardar». Sin nota abierta o sin cambios no hay nada que enviar.
+    if (estado.nota && hayCambios()) {
+      const guardo = await guardarNota();
+      if (!guardo) return; // la luz ya muestra el error con «Reintentar»
+    }
+    // 2. Refrescar con las mismas funciones del resto de los flujos.
+    await cargarProyectos();
+    let fallo = falloDelExplorador();
+    if (fallo) {
+      pintarGuardado("error", fallo);
+      return;
+    }
+    if (estado.proyectoActivo) {
+      await cargarArbol(nsProject(estado.proyectoActivo));
+      fallo = falloDelExplorador();
+      if (fallo) {
+        pintarGuardado("error", fallo);
+        return;
+      }
+    }
+    // 3. Reporte en la luz. Si el usuario siguió escribiendo durante el
+    //    refresco manda lo pendiente (mismo criterio que `guardarNota`):
+    //    decir «sincronizado» con texto nuevo sin guardar sería mentir.
+    if (hayCambios()) pintarGuardado("", "Cambios sin guardar");
+    else pintarGuardado("ok", `Sincronizado ✓ ${horaLocal()}`);
+  } finally {
+    sincronizando = false;
+    refrescarBotonGuardar();
+  }
 }
 
 // ---------------------------------------------------------- Descargar
@@ -4104,6 +4276,11 @@ function insertarEspacios() {
 // ------------------------------------------------------- Barra superior
 
 botonGuardar.addEventListener("click", guardarNota);
+
+// «Sincronizar»: guarda lo pendiente y refresca proyectos y árbol. No
+// depende de tener nota abierta, así que siempre está disponible (su
+// `disabled` lo maneja `refrescarBotonGuardar`).
+botonSincronizar.addEventListener("click", sincronizar);
 
 // Cada acción se ofrece en dos superficies (menú ☰ en `<48rem` y menú
 // «Menú ▾» de la barra en `>=48rem`): un solo juego de manejadores, atados por
