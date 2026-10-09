@@ -5773,21 +5773,15 @@ const CONTENIDO_MCP = `# Servidor MCP (Model Context Protocol)
 
 PurpleMD incluye un **servidor MCP**: le permite a una IA como Claude leer y escribir tus notas desde su propio cliente, siempre con tu permiso y solo las tuyas.
 
-**MCP** (Model Context Protocol) es el estándar abierto que usan muchas aplicaciones de IA para conectarse a otras herramientas.
+## Cómo conectarlo
 
-## Cómo conectarlo, en tres pasos
-
-1. Abrí **menú → Servidor MCP** (☰ en pantallas chicas, «Menú ▾» en grandes).
+1. Abrí **menú → Servidor MCP**.
 2. Apretá **«Generar mi token»** y copialo.
-3. Pegá este comando en tu cliente, con \`TU_TOKEN\` reemplazado por el que copiaste:
+3. Pegalo en tu aplicación, donde te pida el token de PurpleMD.
 
-\`\`\`bash
-npx mcp-remote https://TU-DOMINIO/mcp --header "X-PurpleMD-Token: TU_TOKEN"
-\`\`\`
+Tu token es solo tuyo: sirve para tus datos y dura 90 días.
 
-> **Tu token es tuyo:** sirve solo para tus datos y dura 90 días. Si este servidor no pide login con Google, el token lo reparte quien lo administra.
-
-En **menú → Servidor MCP** está la configuración para Claude Desktop, qué herramientas expone y qué significa cada error.
+En **menú → Servidor MCP** está todo lo demás, listo para copiar.
 
 ---
 
