@@ -296,6 +296,57 @@ let ultimoGuardado = "";
 /** true mientras una sincronización está en vuelo (apaga su botón). */
 let sincronizando = false;
 
+/**
+ * Última nota abierta, para volver a ella al recargar la página.
+ *
+ * Va en `localStorage` y no en la URL: sobrevive al refresco sin tocar la
+ * forma de los enlaces ni meter entradas en el historial. Se guarda solo
+ * la identidad (proyecto + ruta), nunca el contenido de la nota.
+ *
+ * - `proyecto`: nombre **sin** prefijo, como lo maneja la UI.
+ * - `nota`: ruta de la nota abierta, o `null` si no había ninguna.
+ *
+ * Si el almacenamiento está bloqueado (modo privado) no se persiste nada
+ * y el arranque cae al comportamiento anterior: la nota de bienvenida.
+ */
+const CLAVE_UBICACION = "purplemd_ubicacion";
+
+/** Anota dónde está el usuario para volver ahí en el próximo refresco. */
+function guardarUbicacion() {
+  try {
+    localStorage.setItem(
+      CLAVE_UBICACION,
+      JSON.stringify({
+        proyecto: estado.proyectoActivo,
+        nota: estado.nota ? estado.nota.path : null,
+      }),
+    );
+  } catch (_) {
+    // Sin persistencia: la ubicación dura solo mientras viva la pestaña.
+  }
+}
+
+/** Última ubicación guardada, o `null` si no hay, si no se pudo leer
+ *  el almacenamiento o si el JSON está roto. */
+function leerUbicacion() {
+  let crudo = null;
+  try {
+    crudo = localStorage.getItem(CLAVE_UBICACION);
+  } catch (_) {
+    return null;
+  }
+  if (!crudo) return null;
+  try {
+    const dato = JSON.parse(crudo);
+    const proyectoValido = typeof dato.proyecto === "string" && dato.proyecto.length > 0;
+    const notaValida = dato.nota === null || typeof dato.nota === "string";
+    return proyectoValido && notaValida ? { proyecto: dato.proyecto, nota: dato.nota } : null;
+  } catch (_) {
+    // JSON escrito a mano o cortado a la mitad: se ignora, no revienta.
+    return null;
+  }
+}
+
 // ------------------------------------------------------------------ API
 
 /**
@@ -1877,6 +1928,11 @@ function cerrarNota() {
   notaTitulo.textContent = "Sin nota abierta";
   refrescarGuardado();
   refrescarHabilitacion();
+  // Se anota acá y no al final de `seleccionarProyecto`: este método
+  // también corre desde `deseleccionarProyecto`, cuando el proyecto
+  // activo desapareció del listado, y ahí la ubicación a guardar es
+  // «sin proyecto», que es exactamente lo que `estado` ya tiene puesto.
+  guardarUbicacion();
 }
 
 /**
@@ -3291,6 +3347,7 @@ async function abrirNota(ruta) {
       editor.focus();
     }
     cerrarExploradorSiAngosto();
+    guardarUbicacion();
     return true;
   } catch (error) {
     pintarEstado(exploradorEstado, "error", `No se pudo abrir la nota: ${error.message}`);
@@ -5911,6 +5968,35 @@ async function iniciar() {
 }
 
 /**
+ * Vuelve a la última ubicación guardada si todavía existe.
+ *
+ * Es el camino preferido de `arrancar()`: la bienvenida solo se abre si
+ * este devuelve `false`. La semilla de bienvenida se ejecuta igual (ver
+ * `arrancar`): lo único que cambia es qué se abre después, no si se crea.
+ *
+ * @param {Array<{name: string}>} proyectos - Listado ya cargado de la API.
+ * @returns {Promise<boolean>} `true` si se restauró, aunque sea solo el
+ *   proyecto sin nota. `false` si no había nada guardado, si el proyecto
+ *   ya no existe o si la nota se borró desde entonces — en ese caso el
+ *   error no queda pintado, porque el arranque sigue con el camino
+ *   anterior y el usuario no tendría por qué ver un 404 de una nota que
+ *   él mismo borró.
+ */
+async function restaurarUbicacion(proyectos) {
+  const guardada = leerUbicacion();
+  if (!guardada) return false;
+  // Los nombres llegan con prefijo en modo invitado, sin prefijo con
+  // sesión: `estado.proyectoActivo` siempre guarda el de la UI.
+  const existe = proyectos.some((proyecto) => stripNs(proyecto.name) === guardada.proyecto);
+  if (!existe) return false;
+  if (!(await seleccionarProyecto(guardada.proyecto))) return false;
+  if (!guardada.nota) return true;
+  if (await abrirNota(guardada.nota)) return true;
+  pintarEstado(exploradorEstado, "", "");
+  return false;
+}
+
+/**
  * Carga los datos de la app y deja la primera nota abierta.
  *
  * Separado de `iniciar()` porque hay dos puertas de entrada con el mismo
@@ -5936,7 +6022,9 @@ async function arrancar() {
   // el explorador ni selecciona nada, así que no puede robarle el foco
   // a la nota que se abre abajo.
   const plantillas = asegurarPlantillas();
-  if (bienvenida) {
+  if (await restaurarUbicacion(proyectos)) {
+    // Ya se volvió a donde estaba el usuario: la bienvenida no se abre.
+  } else if (bienvenida) {
     if (await seleccionarProyecto(PROYECTO_BIENVENIDA)) {
       await abrirNota(NOTA_BIENVENIDA);
     }
