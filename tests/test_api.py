@@ -70,6 +70,22 @@ class IndexYStaticTests(ApiTestCase):
     def test_static_css(self):
         self.sirve_static("/static/css/style.css", "text/css")
 
+    def test_el_bloque_resaltado_conserva_saltos_y_fuente_mono(self):
+        """El resaltado cambia `<pre><code>` por un `<div class="highlight">`.
+
+        Sin `white-space: pre` ese div colapsa todos los saltos del código en
+        un solo renglón, y sin `font-family` cae en la fuente proporcional
+        del documento. El PDF ya tenía este fix (y su test en
+        `test_pdf_el_bloque_de_codigo_usa_mono_y_la_paleta_por_defecto`):
+        el CSS del navegador se había quedado sin él y el bloque ``` con
+        lenguaje se veía distinto acá y en el PDF.
+        """
+        css = self.client.get("/static/css/style.css").text
+        regla = css.split(".highlight {", 1)[1].split("}", 1)[0]
+        # `pre` con punto y coma: `pre-wrap` pasaría un `assertIn("white-space: pre")`.
+        self.assertRegex(regla, r"white-space:\s*pre\s*;")
+        self.assertRegex(regla, r"font-family:\s*var\(--mono\)\s*;")
+
     def test_static_js(self):
         self.sirve_static("/static/js/app.js", "javascript")
 

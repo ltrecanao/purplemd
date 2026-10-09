@@ -1531,6 +1531,12 @@ a.menu-acciones-item {
 
 /* --- Resaltado de sintaxis: tema Dracula de Pygments --- */
 
+/* El resaltado cambia `<pre><code>` por un `<div class="highlight">`: sin
+   estas dos reglas ese div caía en la fuente del documento y juntaba todo
+   el código en un solo renglón. Es el mismo fix que `api.py` aplica al
+   PDF (ver `pre, .highlight` en `_html_para_pdf`). `white-space: pre` y
+   no `pre-wrap` porque acá SÍ hay scroll (`overflow-x: auto`), igual que
+   en el bloque sin lenguaje. */
 .highlight {
   background: var(--fondo);
   color: #f8f8f2;
@@ -1538,6 +1544,8 @@ a.menu-acciones-item {
   border: 1px solid var(--borde);
   border-radius: var(--radio);
   overflow-x: auto;
+  font-family: var(--mono);
+  white-space: pre;
 }
 .highlight .c { color: #6272a4; }
 .highlight .err { color: #f8f8f2; }
