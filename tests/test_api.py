@@ -93,6 +93,24 @@ class IndexYStaticTests(ApiTestCase):
         response = self.client.get("/static/css/no-existe.css")
         self.assertEqual(response.status_code, 404)
 
+    def test_wiki_sirve_la_documentacion(self):
+        response = self.client.get("/wiki")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("text/html", response.headers["content-type"])
+        self.assertIn("Documentación de PurpleMD", response.text)
+
+    def test_wiki_no_aparece_en_openapi(self):
+        paths = self.client.get("/openapi.json").json()["paths"]
+        self.assertNotIn("/wiki", paths)
+
+    def test_wiki_cubre_las_secciones_de_la_guia(self):
+        """La navegación por temas no puede perderse: cada sección existe con su ancla."""
+        html = self.client.get("/wiki").text
+        for ancla in ("primeros-pasos", "editor", "proyectos", "cuenta", "mcp"):
+            with self.subTest(ancla=ancla):
+                self.assertIn(f'id="{ancla}"', html)
+                self.assertIn(f'href="#{ancla}"', html)
+
 
 class PlantillasTests(ApiTestCase):
     """Las plantillas son recursos en `plantillas/`, listadas en su manifiesto."""

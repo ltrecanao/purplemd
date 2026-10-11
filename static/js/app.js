@@ -196,12 +196,22 @@ const preview = document.getElementById("preview");
 const previewVacio = document.getElementById("preview-vacio");
 const zona = document.getElementById("zona");
 const exploradorEstado = document.getElementById("explorador-estado");
-const bienvenida = document.getElementById("bienvenida");
+// Estado vacío del explorador: se muestra solo cuando no hay proyectos.
+const espacioVacio = document.getElementById("espacio-vacio");
+const vacioCrear = document.getElementById("vacio-crear");
+const vacioPlantilla = document.getElementById("vacio-plantilla");
+// Enlace a plantillas del estado vacío: solo se muestra si el manifiesto
+// cargó (si no, no hay select al que llevar el foco).
+const vacioPlantillas = document.getElementById("vacio-plantillas");
 const proyectosLista = document.getElementById("proyectos-lista");
 const proyectosCantidad = document.getElementById("proyectos-cantidad");
 const proyectoForm = document.getElementById("proyecto-form");
 const proyectoNombre = document.getElementById("proyecto-nombre");
 const proyectoEstado = document.getElementById("proyecto-estado");
+// Selector opcional de plantilla: su contenedor queda oculto si el
+// manifiesto no cargó (instalación sin `plantillas/`).
+const proyectoPlantillas = document.getElementById("proyecto-plantillas");
+const proyectoPlantilla = document.getElementById("proyecto-plantilla");
 const notaForm = document.getElementById("nota-form");
 const notaRuta = document.getElementById("nota-ruta");
 const notaEstado = document.getElementById("nota-estado");
@@ -218,27 +228,27 @@ const guardarDestino = document.getElementById("guardar-destino");
 const guardarResumen = document.getElementById("guardar-resumen");
 const renderEstado = document.getElementById("render-estado");
 const botonGuardar = document.getElementById("guardar");
-const botonSincronizar = document.getElementById("sincronizar");
 const explorador = document.getElementById("explorador");
 const botonExplorador = document.getElementById("explorador-toggle");
 // Contenedor de la barra superior: el corte de 48rem devuelve acá el foco
 // que queda en un control recién oculto (ver `moverFocoTrasCorte`).
 const accionesBarra = document.querySelector(".acciones");
-const menuOverflow = document.querySelector(".menu-overflow");
-const menuOverflowTrigger = document.querySelector(".menu-overflow-trigger");
-const menuOverflowPanel = document.querySelector(".menu-overflow-panel");
-// Ítems del grupo «Visualizador» del menú ☰: cada uno lleva `data-vista` con el
-// estado que aplica (WAI-ARIA APG, patrón «Menu»: `menuitemradio` con
-// `aria-checked` para una selección exclusiva, no un ciclo).
-const itemsVista = [...menuOverflowPanel.querySelectorAll("[role='menuitemradio']")];
-// Segmentado de visualizador de la barra (superficie ancha): radios nativos
-// con el mismo `data-vista` espejo; su `checked` es el estado visible.
-const radiosVista = [...document.querySelectorAll(".segmentado input[name='vista']")];
-// Menú «Menú ▾» de la barra (superficie ancha): APG «Menu Button» con
-// el mismo ciclo de vida que el menú ☰.
-const menuAcciones = document.querySelector(".menu-acciones");
-const menuAccionesTrigger = document.querySelector(".menu-acciones-trigger");
-const menuAccionesPanel = document.querySelector(".menu-acciones-panel");
+// Ítems del menú «Vista», la única superficie de las vistas en cualquier
+// ancho: cada uno lleva `data-vista` con el estado que aplica (WAI-ARIA
+// APG, patrón «Menu»: `menuitemradio` con `aria-checked` para una
+// selección exclusiva, no un ciclo).
+const itemsVista = [...document.querySelectorAll("#vista-panel [role='menuitemradio']")];
+// Los tres menús con panel (patrón «Menu Button»): «Vista ▾» y «Menú ▾»
+// en la barra superior, y el «Más ▾» de la barra de formato. Todos
+// comparten el ciclo de vida de `registrarMenu`.
+const menuVistaTrigger = document.getElementById("vista-trigger");
+const menuVistaPanel = document.getElementById("vista-panel");
+const menuAccionesTrigger = document.getElementById("acciones-trigger");
+const menuAccionesPanel = document.getElementById("acciones-panel");
+const menuFormatoTrigger = document.getElementById("formato-trigger");
+const menuFormatoPanel = document.getElementById("formato-panel");
+// Botón de tema (sol/luna) de la barra superior.
+const botonTema = document.getElementById("tema-toggle");
 const importarProyectoBtn = document.getElementById("importar-proyecto");
 const importarProyectoArchivo = document.getElementById("importar-proyecto-archivo");
 // Botones de historial de la toolbar: se apagan sin nota o sin historial
@@ -307,7 +317,7 @@ let sincronizando = false;
  * - `nota`: ruta de la nota abierta, o `null` si no había ninguna.
  *
  * Si el almacenamiento está bloqueado (modo privado) no se persiste nada
- * y el arranque cae al comportamiento anterior: la nota de bienvenida.
+ * y el arranque abre el proyecto más reciente (o el estado vacío).
  */
 const CLAVE_UBICACION = "purplemd_ubicacion";
 
@@ -1654,7 +1664,7 @@ function refrescarBotonGuardar() {
   botonGuardar.disabled = estado.nota === null || estado.guardando || !hayCambios();
   // «Sincronizar» no necesita nota abierta, pero se apaga mientras hay
   // un guardado o una sincronización en vuelo: una sola a la vez.
-  botonSincronizar.disabled = estado.guardando || sincronizando;
+  habilitarAccion("sincronizar", !estado.guardando && !sincronizando);
   refrescarImportacion();
 }
 
@@ -1690,10 +1700,9 @@ function refrescarGuardado() {
 
 /**
  * Habilita o deshabilita una acción en TODAS las superficies que la
- * ofrecen: cada control lleva `data-accion` y los dos juegos (menú ☰ en
- * `<48rem` y menú «Menú ▾» de la barra en `>=48rem`) se pintan juntos,
- * con una sola regla.
- * @param {"descargar"|"pdf"|"zip"} accion - Valor de `data-accion`.
+ * ofrecen: cada control lleva `data-accion` y el sistema de menús los
+ * pinta juntos, con una sola regla.
+ * @param {"sincronizar"|"descargar"|"pdf"|"zip"} accion - Valor de `data-accion`.
  * @param {boolean} habilitar - true para habilitar.
  */
 function habilitarAccion(accion, habilitar) {
@@ -1717,13 +1726,8 @@ function refrescarHabilitacion() {
   habilitarAccion("descargar", conNota);
   habilitarAccion("pdf", conNota);
   habilitarAccion("zip", conProyecto);
-  // El trigger «Menú» se apaga cuando no hay nada que exportar (ni nota
-  // ni proyecto), para no abrir un menú con las exportaciones apagadas.
-  // El menú ☰ nunca se deshabilita: contiene el grupo «Vista», siempre
-  // disponible.
-  const exportarApagado = !conNota && !conProyecto;
-  menuAccionesTrigger.disabled = exportarApagado;
-  if (exportarApagado) cerrarMenuAcciones();
+  // El menú «Menú ▾» nunca se deshabilita: contiene «Sincronizar»,
+  // «Compartir PurpleMD» y el repo, siempre disponibles.
   // Sin nota no hay historial ni texto que buscar: se apagan los dos
   // botones de historial y se cierra la barra (sin devolver el foco,
   // porque el textarea está `disabled`).
@@ -1790,7 +1794,7 @@ async function cargarProyectos() {
     proyectosLista.replaceChildren();
     proyectosLista.hidden = true;
     proyectosCantidad.textContent = "";
-    bienvenida.hidden = true;
+    espacioVacio.hidden = true;
     pintarEstado(exploradorEstado, "error", `No se pudieron cargar los proyectos: ${error.message}`);
     return [];
   }
@@ -1809,7 +1813,7 @@ function pintarProyectos() {
   proyectosLista.replaceChildren(...estado.proyectos.map(filaProyecto));
   proyectosLista.hidden = estado.proyectos.length === 0;
   proyectosCantidad.textContent = estado.proyectos.length ? String(estado.proyectos.length) : "";
-  bienvenida.hidden = estado.proyectos.length > 0;
+  espacioVacio.hidden = estado.proyectos.length > 0;
   marcarProyectoActivo();
   refrescarHabilitacion();
   restaurarFocoAccion(focoPrevio);
@@ -2961,10 +2965,25 @@ proyectoForm.addEventListener("submit", async (evento) => {
     // El proyecto nuevo queda seleccionado: ya se puede crear una nota.
     // seleccionarProyecto espera SIN prefijo
     await seleccionarProyecto(stripNs(proyecto.name));
+    // Plantilla opcional: crea la primera nota del proyecto con ese
+    // contenido y la abre. El selector vuelve a «Sin plantilla» para que
+    // el próximo proyecto no arranque cargado.
+    const plantilla = proyectoPlantilla.value;
+    proyectoPlantilla.value = "";
+    if (plantilla) await crearNotaDesdePlantilla(plantilla);
   } catch (error) {
     // 409 (ya existe) y 422 (nombre inválido) llegan acá con su detalle.
     pintarEstado(proyectoEstado, "error", error.message);
   }
+});
+
+// El estado vacío no crea nada por su cuenta: la acción primaria lleva el
+// foco al formulario de creación y la de plantillas al selector, que solo
+// existe si el manifiesto cargó.
+vacioCrear.addEventListener("click", () => proyectoNombre.focus());
+vacioPlantilla.addEventListener("click", () => {
+  if (!proyectoPlantillas.hidden) proyectoPlantilla.focus();
+  else proyectoNombre.focus();
 });
 
 // ---------------------------------------------------------- Crear nota
@@ -2978,7 +2997,7 @@ notaForm.addEventListener("submit", async (evento) => {
   }
   const ruta = notaRuta.value.trim();
   if (!ruta) {
-    marcarInvalido(notaRuta, notaEstado, "La ruta de la nota no puede estar vacía.");
+    marcarInvalido(notaRuta, notaEstado, "El nombre de la nota no puede estar vacío.");
     return;
   }
   if (hayCambios()) {
@@ -3029,7 +3048,7 @@ proyectoForm.addEventListener("invalid", (evento) => {
 
 notaForm.addEventListener("invalid", (evento) => {
   evento.preventDefault();
-  marcarInvalido(notaRuta, notaEstado, "La ruta de la nota no puede estar vacía.");
+  marcarInvalido(notaRuta, notaEstado, "El nombre de la nota no puede estar vacío.");
 }, true);
 
 // Al escribir de nuevo, el campo deja de estar inválido: `aria-invalid`
@@ -3208,8 +3227,8 @@ async function exportarProyecto() {
     quitarToast(enVuelo);
     mostrarToast(null, "Exportar .zip", `Proyecto «${proyecto}» exportado.`);
   } catch (error) {
-    // El error de exportación vive en la barra ☰/Exportar, que puede estar
-    // cerrada: va en toast SIN auto-cierre (solo la X lo cierra).
+    // El error de exportación vive en el menú «Menú ▾», que puede estar
+    // cerrado: va en toast SIN auto-cierre (solo la X lo cierra).
     quitarToast(enVuelo);
     mostrarToast(null, "Exportar .zip", `No se pudo exportar: ${error.message}`, "error");
   }
@@ -3288,7 +3307,7 @@ async function importarProyectoElegido(archivo) {
   }
 }
 
-// El menú ☰ y la barra exportan; la fila del explorador importa. Cada
+// El menú «Menú ▾» exporta; la fila del explorador importa. Cada
 // botón de importación dispara su propio input de archivo oculto.
 importarProyectoBtn.addEventListener("click", () => importarProyectoArchivo.click());
 importarProyectoArchivo.addEventListener("change", () => {
@@ -3876,11 +3895,9 @@ function abrirServidorMcp() {
     panel.remove();
     document.removeEventListener("keydown", alEscape);
     cerrarPanelMcp = null;
-    // El foco vuelve al trigger del menú (patrón «Menu Button»), nunca al body.
-    const trigger = menuOverflowTrigger.offsetParent !== null
-      ? menuOverflowTrigger
-      : menuAccionesTrigger;
-    if (trigger && !trigger.disabled) trigger.focus();
+    // El foco vuelve al trigger del menú «Menú ▾» (patrón «Menu
+    // Button»), nunca al body.
+    if (menuAccionesTrigger.isConnected) menuAccionesTrigger.focus();
   };
 
   // Escape cierra el panel. El `preventDefault` frena la tecla para que
@@ -3905,6 +3922,17 @@ function abrirServidorMcp() {
     border-bottom: 1px solid var(--borde);
   `;
   panel.append(titulo);
+
+  // La guía completa vive en la wiki: el panel solo da lo mínimo para
+  // conectar, y el enlace lleva al detalle (herramientas, errores, etc.).
+  const documentacion = document.createElement("a");
+  documentacion.href = "/wiki#mcp";
+  documentacion.target = "_blank";
+  documentacion.rel = "noopener noreferrer";
+  documentacion.textContent = "Ver la guía completa en la documentación";
+  documentacion.style.cssText =
+    "display: inline-block; margin: 0 0 12px; font-size: 0.85rem; color: var(--acento);";
+  panel.append(documentacion);
 
   // ---- Guía corta: cómo conectarlo (URL, cabecera y clientes), qué
   // herramientas expone, de dónde sale el token y qué significa cada error.
@@ -4234,16 +4262,16 @@ function aplicarPreview(html, texto) {
 }
 
 // La vista previa navega entre notas: un enlace relativo (p. ej.
-// `[Hacé el tutorial](tutorial)`) abre esa nota del proyecto activo en
-// el editor; sin este oyente el navegador pediría `/tutorial` y caería
-// en el 404. Los enlaces con esquema (`https://…`, `mailto:`), los
-// anclas y los que apuntan a la raíz del sitio quedan como siempre.
+// `[Ver recetas](recetas)`) abre esa nota del proyecto activo en el
+// editor; sin este oyente el navegador pediría `/recetas` y caería en el
+// 404. Los enlaces con esquema (`https://…`, `mailto:`), los anclas y los
+// que apuntan a la raíz del sitio quedan como siempre.
 preview.addEventListener("click", (evento) => {
   const enlace = evento.target.closest("a");
   if (!enlace) return;
   // `getAttribute` y no `.href`: la propiedad ya viene resuelta contra
-  // la raíz del sitio (`http://host/tutorial`), que es indistinguible
-  // de un enlace externo.
+  // la raíz del sitio (`http://host/recetas`), que es indistinguible de
+  // un enlace externo.
   const href = enlace.getAttribute("href") || "";
   if (!href || href.startsWith("#") || href.startsWith("/")) return;
   if (/^[a-z][a-z\d+.-]*:/i.test(href)) return;
@@ -4334,15 +4362,12 @@ function insertarEspacios() {
 
 botonGuardar.addEventListener("click", guardarNota);
 
-// «Sincronizar»: guarda lo pendiente y refresca proyectos y árbol. No
-// depende de tener nota abierta, así que siempre está disponible (su
-// `disabled` lo maneja `refrescarBotonGuardar`).
-botonSincronizar.addEventListener("click", sincronizar);
-
-// Cada acción se ofrece en dos superficies (menú ☰ en `<48rem` y menú
-// «Menú ▾» de la barra en `>=48rem`): un solo juego de manejadores, atados por
-// `data-accion`, así las dos caras ejecutan exactamente la misma función.
+// Cada acción del menú «Menú ▾» tiene una sola superficie (no hay menú
+// duplicado por ancho): un juego de manejadores, atados por `data-accion`,
+// para que todos los ítems ejecuten exactamente la misma función. Va
+// también «Sincronizar», que antes era un botón suelto de la barra.
 const accionesCompartidas = {
+  sincronizar,
   descargar: descargarNota,
   pdf: exportarPdf,
   zip: exportarProyecto,
@@ -4362,27 +4387,48 @@ window.addEventListener("keydown", (evento) => {
   guardarNota();
 });
 
+// -------------------------------------------------------------- Tema
+
+// Botón sol/luna de la barra superior. El estado vive en `data-tema` del
+// `<html>`, que fija `tema.js` antes del primer pintado (sin FOUC) y acá
+// se lee y alterna. El swap de iconos lo hace el CSS desde `data-tema`;
+// el JS solo pinta `title`/`aria-label`, que describen la ACCIÓN («cambiar
+// a …»), no el estado. La elección queda en `localStorage` (`purplemd_tema`)
+// vía `PurpleMDTema.aplicar`; sin elección manda el sistema.
+
+/** Pinta el `title` y el nombre accesible del botón según la acción. */
+function pintarBotonTema() {
+  const aOscuro = !PurpleMDTema.esOscuro();
+  const texto = aOscuro ? "Cambiar a tema oscuro" : "Cambiar a tema claro";
+  botonTema.title = texto;
+  botonTema.setAttribute("aria-label", texto);
+}
+
+botonTema.addEventListener("click", () => {
+  PurpleMDTema.elegir(PurpleMDTema.esOscuro() ? "claro" : "oscuro");
+  pintarBotonTema();
+});
+
+// Si el usuario cambia el tema del sistema (y no eligió uno a mano),
+// `data-tema` cambia solo: el botón tiene que seguir diciendo la verdad.
+window.matchMedia("(prefers-color-scheme: dark)")
+  .addEventListener("change", pintarBotonTema);
+
 // ------------------------------------------------------ Selector de visualizador
 
 /**
  * Estados de visualizador: `ambos` (editor y previsualización), `preview` (solo
- * previsualización) y `editor` (solo editor). Se eligen en dos superficies con el
- * mismo valor espejo `data-vista`: el menú ☰ (`<48rem`) con tres ítems
- * `menuitemradio` + `aria-checked` (WAI-ARIA APG, patrón «Menu») y el
- * segmentado de la barra (`>=48rem`) con tres `radio` nativos cuyo
- * estado es el `checked` (WAI-ARIA APG, «Radio Group»). No hay ciclo que
- * recorrer, cada opción nombra su estado y solo la vigente queda
- * marcada. Vive solo en memoria: al recargar la página se vuelve a
- * `ambos`, sin persistir nada en `localStorage` (decisión de diseño, no
- * un olvido).
+ * previsualización) y `editor` (solo editor). Se eligen en el menú «Vista ▾»,
+ * la única superficie en cualquier ancho, con tres ítems `menuitemradio` +
+ * `aria-checked` (WAI-ARIA APG, patrón «Menu»): no hay ciclo que recorrer,
+ * cada opción nombra su estado y solo la vigente queda marcada. Vive solo en
+ * memoria: al recargar la página se vuelve a `ambos`, sin persistir nada en
+ * `localStorage` (decisión de diseño, no un olvido).
  */
 
 /** ¿`vista` es uno de los tres estados conocidos? */
 function esVistaValida(vista) {
-  return (
-    itemsVista.some((item) => item.dataset.vista === vista) ||
-    radiosVista.some((radio) => radio.dataset.vista === vista)
-  );
+  return itemsVista.some((item) => item.dataset.vista === vista);
 }
 
 /** ¿La previsualización está visible? Con ella oculta no se piden renders. */
@@ -4495,25 +4541,21 @@ function desactivarScrollSincronizado() {
 }
 
 /**
- * Sincroniza las dos superficies con `zona[data-vista]`: `aria-checked`
- * de los `menuitemradio` del menú ☰ y `checked` de los `radio` del
- * segmentado (WAI-ARIA APG: en un menú la selección se refleja con
- * `aria-checked`; en un grupo de radios, con el `checked` nativo —nunca
- * al revés, ni pintado a mano—). Se llama al elegir y al arrancar, para
- * que ambas superficies digan la verdad también tras recargar.
+ * Sincroniza el menú «Vista ▾» con `zona[data-vista]`: la selección se
+ * refleja con `aria-checked` de los `menuitemradio` (WAI-ARIA APG: en un
+ * menú la selección vive en `aria-checked`, no en un estilo pintado a
+ * mano). Se llama al elegir y al arrancar, para que el menú diga la
+ * verdad también tras recargar.
  * @param {string} vista - Valor de `zona.dataset.vista`.
  */
 function sincronizarOpcionesVista(vista) {
   for (const item of itemsVista) {
     item.setAttribute("aria-checked", item.dataset.vista === vista ? "true" : "false");
   }
-  for (const radio of radiosVista) {
-    radio.checked = radio.dataset.vista === vista;
-  }
 }
 
 /**
- * Muestra el visualizador indicado y sincroniza las dos superficies. Ocultar un
+ * Muestra el visualizador indicado y sincroniza el menú «Vista». Ocultar un
  * panel es solo `display:none` en CSS: el DOM no se toca, así que el
  * textarea conserva texto, cursor y scroll, y el preview lo renderizado.
  * @param {string} vista - `ambos`, `preview` o `editor`.
@@ -4547,18 +4589,11 @@ function aplicarVista(vista) {
   }
 }
 
-// Cada opción del menú ☰ aplica su vista. El cierre del menú y la
-// devolución del foco los hace el oyente del panel, común a los seis
-// ítems (ver «Menú overflow», más abajo).
+// Cada ítem del menú «Vista» aplica su vista. El cierre del menú y la
+// devolución del foco los hace el oyente del panel, común a los tres
+// ítems (ver «Menús con panel»).
 for (const item of itemsVista) {
   item.addEventListener("click", () => aplicarVista(item.dataset.vista));
-}
-
-// El segmentado de la barra hace lo mismo con el `change` nativo del
-// radio: sin ARIA a mano, el estado es el `checked` del input y la
-// sincronización con `zona[data-vista]` va por la misma `aplicarVista`.
-for (const radio of radiosVista) {
-  radio.addEventListener("change", () => aplicarVista(radio.dataset.vista));
 }
 
 // ------------------------------------------------- Desplegable del explorador
@@ -4617,141 +4652,221 @@ function cerrarExploradorSiAngosto() {
 // dos veces por toque y el desplegable abriría y cerraría de inmediato.
 botonExplorador.addEventListener("click", alternarExplorador);
 
-// Menú overflow: superficie angosta (< 48rem) de visualizador y archivo
-function alternarMenuOverflow() {
-  const abierto = menuOverflowPanel.hidden === false;
-  if (abierto) {
-    cerrarMenuOverflow();
-  } else {
-    abrirMenuOverflow();
-  }
+// ------------------------------------------------------ Menús con panel
+
+// Sistema único para los tres menús con panel: «Vista ▾» y «Menú ▾» de la
+// barra superior y el «Más ▾» de la barra de formato. Patrón WAI-ARIA APG
+// «Menu Button»: alternar con el trigger, clic fuera cierra, `Escape`
+// cierra y devuelve el foco al trigger, activar un ítem cierra y devuelve
+// el foco, y las flechas / Home / End / Tab navegan dentro del menú. El
+// panel se posiciona `fixed` desde el rectángulo del trigger (nunca se
+// recorta contra los bordes de la ventana) y solo hay uno abierto a la vez.
+
+/** Menús registrados, por panel. */
+const menus = new Map();
+
+/**
+ * Registra un menú (trigger + panel) en el sistema único.
+ * @param {HTMLElement} trigger - Botón con `aria-haspopup` y `aria-expanded`.
+ * @param {HTMLElement} panel - Panel con `role="menu"`.
+ * @returns {{trigger: HTMLElement, panel: HTMLElement}} El menú registrado.
+ */
+function registrarMenu(trigger, panel) {
+  const menu = { trigger, panel };
+  menus.set(panel, menu);
+  // Un solo oyente por botón: un toque/clic tiene que alternar una única vez.
+  trigger.addEventListener("click", () => alternarMenu(menu));
+  // Al activar un ítem el menú se cierra y el foco vuelve al trigger. Va en
+  // el panel (burbuja) para correr después del oyente propio del ítem —que
+  // aplica la vista, inserta formato o dispara una exportación— y antes de
+  // que el clic salga hacia `document`.
+  panel.addEventListener("click", (evento) => {
+    const item = evento.target.closest(
+      "[role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox']"
+    );
+    if (!item) return;
+    cerrarMenu(menu, true);
+  });
+  // Al salir el foco del menú (Tab, o un clic que lo lleva a otra parte)
+  // este se cierra sin devolver el foco: el Tab sigue su orden natural y
+  // el foco ya está donde el usuario lo puso. Se cierra acá y no en el
+  // keydown de Tab porque ocultar el panel con la tecla en vuelo deja al
+  // navegador sin destino claro (puede perderse el foco al body).
+  panel.addEventListener("focusout", (evento) => {
+    const destino = evento.relatedTarget;
+    if (destino instanceof Node && (panel.contains(destino) || trigger.contains(destino))) return;
+    cerrarMenu(menu, false);
+  });
+  return menu;
 }
 
-function abrirMenuOverflow() {
-  // El panel cae justo debajo de la topbar: hay que medirla ahora, porque
-  // en pantallas angostas puede cambiar de una fila a dos sin que llegue
-  // un `resize` (p. ej. aparece o desaparece el badge del namespace).
-  actualizarTopbarAlto();
-  menuOverflowPanel.hidden = false;
-  menuOverflowTrigger.setAttribute("aria-expanded", "true");
-  // Cerrar al hacer click fuera (con pequeño delay para no cerrar inmediatamente)
+/** ¿El menú dado está abierto? */
+function menuAbierto(menu) {
+  return !menu.panel.hidden;
+}
+
+/** ¿Algún menú del sistema está abierto? */
+function algunMenuAbierto() {
+  for (const menu of menus.values()) if (menuAbierto(menu)) return true;
+  return false;
+}
+
+function alternarMenu(menu) {
+  if (menuAbierto(menu)) cerrarMenu(menu, true);
+  else abrirMenu(menu);
+}
+
+/**
+ * Ítems activos de un menú, en orden DOM: habilitados y visibles (los
+ * `[hidden]` o deshabilitados se saltan en la navegación con teclado).
+ * @param {HTMLElement} panel - Panel del menú.
+ * @returns {HTMLElement[]} Ítems navegables.
+ */
+function itemsMenu(panel) {
+  const items = panel.querySelectorAll(
+    "[role='menuitem'], [role='menuitemradio'], [role='menuitemcheckbox']"
+  );
+  return [...items].filter((item) => !item.disabled && elementoVisible(item));
+}
+
+/**
+ * Posiciona el panel `fixed` bajo el trigger (o sobre él si no entra en
+ * la ventana) y alineado a la derecha cuando sobra espacio, sin que se
+ * recorte contra ningún borde.
+ * @param {{trigger: HTMLElement, panel: HTMLElement}} menu - Menú a colocar.
+ */
+function colocarPanel(menu) {
+  const { trigger, panel } = menu;
+  // Medir con el panel ya visible pero todavía en su origen.
+  panel.style.top = "0px";
+  panel.style.left = "0px";
+  const gatillo = trigger.getBoundingClientRect();
+  const caja = panel.getBoundingClientRect();
+  const margen = 8;
+  let arriba = gatillo.bottom + 6;
+  // Si no entra debajo pero sí cabe encima, se abre hacia arriba.
+  if (arriba + caja.height + margen > window.innerHeight
+    && gatillo.top - caja.height - 6 >= margen) {
+    arriba = gatillo.top - caja.height - 6;
+  }
+  arriba = Math.min(Math.max(margen, arriba), window.innerHeight - caja.height - margen);
+  let izquierda = gatillo.left;
+  if (izquierda + caja.width + margen > window.innerWidth) {
+    izquierda = window.innerWidth - caja.width - margen;
+  }
+  izquierda = Math.max(margen, izquierda);
+  panel.style.top = `${Math.round(arriba)}px`;
+  panel.style.left = `${Math.round(izquierda)}px`;
+}
+
+/**
+ * Abre un menú y lleva el foco a su primer ítem (WAI-ARIA APG: el foco
+ * entra en el menú al abrirlo, no queda en el trigger).
+ * @param {{trigger: HTMLElement, panel: HTMLElement}} menu - Menú a abrir.
+ */
+function abrirMenu(menu) {
+  // Una sola superficie a la vez: el resto queda cerrado.
+  for (const otro of menus.values()) {
+    if (otro !== menu && menuAbierto(otro)) cerrarMenu(otro, false);
+  }
+  menu.panel.hidden = false;
+  menu.trigger.setAttribute("aria-expanded", "true");
+  colocarPanel(menu);
+  const items = itemsMenu(menu.panel);
+  if (items.length) items[0].focus();
+  // Cerrar al hacer click fuera (con un delay para que no lo cierre el
+  // mismo clic que lo abrió).
   setTimeout(() => {
-    document.addEventListener("click", clickFueraMenuOverflow, { once: true });
+    document.addEventListener("click", clickFueraMenu, { once: true });
   }, 0);
 }
 
-function cerrarMenuOverflow() {
-  menuOverflowPanel.hidden = true;
-  menuOverflowTrigger.setAttribute("aria-expanded", "false");
+/**
+ * Cierra un menú; opcionalmente devuelve el foco al trigger.
+ * @param {{trigger: HTMLElement, panel: HTMLElement}} menu - Menú a cerrar.
+ * @param {boolean} [devolverFoco] - Si el foco vuelve al trigger.
+ */
+function cerrarMenu(menu, devolverFoco) {
+  if (menu.panel.hidden) return;
+  menu.panel.hidden = true;
+  menu.trigger.setAttribute("aria-expanded", "false");
+  if (devolverFoco) menu.trigger.focus();
 }
 
-function clickFueraMenuOverflow(evento) {
-  if (!menuOverflow.contains(evento.target)) {
-    cerrarMenuOverflow();
-  } else {
+function clickFueraMenu(evento) {
+  for (const menu of menus.values()) {
+    if (!menuAbierto(menu)) continue;
+    // El clic en el trigger de cualquier menú no es «fuera»: ese clic lo
+    // gestiona `alternarMenu`. Sin esta guarda, el oyente `once` que quedó
+    // pendiente de una apertura anterior (p. ej. el menú «Vista» que se
+    // cerró con `Escape`) cerraría de inmediato el menú que se acaba de
+    // abrir con ese mismo clic.
+    if (menu.panel.contains(evento.target) || menu.trigger.contains(evento.target)) continue;
+    cerrarMenu(menu, false);
+  }
+  // Seguir escuchando mientras quede algún menú abierto.
+  if (algunMenuAbierto()) {
     setTimeout(() => {
-      document.addEventListener("click", clickFueraMenuOverflow, { once: true });
+      document.addEventListener("click", clickFueraMenu, { once: true });
     }, 0);
   }
 }
 
-// Un solo oyente por botón: un toque/clic tiene que alternar una única vez.
-menuOverflowTrigger.addEventListener("click", alternarMenuOverflow);
-
-// Al activar cualquier ítem del menú, este se cierra y el foco vuelve al
-// trigger (WAI-ARIA APG, patrón «Menu Button»: un menú se cierra al
-// activar un ítem y al pulsar `Escape`, devolviendo el foco al control que
-// lo abrió). Va en el panel (burbuja) para correr después del oyente
-// propio de cada ítem —que aplica la vista o dispara la exportación— y
-// antes de que el clic salga hacia `document`.
-menuOverflowPanel.addEventListener("click", (evento) => {
-  const item = evento.target.closest("[role='menuitem'], [role='menuitemradio']");
-  if (!item) return;
-  cerrarMenuOverflow();
-  menuOverflowTrigger.focus();
-});
-
-// -------------------------------------------------- Menú «Menú ▾» (barra)
-
-// Superficie ancha (>= 48rem) de las acciones: exportar, compartir y
-// repo. Mismo ciclo de vida que el menú ☰ (WAI-ARIA APG, patrón
-// «Menu Button»): alternar con el trigger, clic fuera cierra, `Escape`
-// cierra y devuelve el foco al trigger, y activar un ítem cierra y
-// devuelve el foco. En `<48rem` este menú está oculto y las mismas
-// acciones viven en el menú ☰.
-
-/** ¿El menú «Menú ▾» está abierto? */
-function menuAccionesAbierto() {
-  return !menuAccionesPanel.hidden;
-}
-
-function alternarMenuAcciones() {
-  if (menuAccionesAbierto()) cerrarMenuAcciones();
-  else abrirMenuAcciones();
-}
-
-function abrirMenuAcciones() {
-  menuAccionesPanel.hidden = false;
-  menuAccionesTrigger.setAttribute("aria-expanded", "true");
-  // Cerrar al hacer click fuera (con pequeño delay para no cerrar
-  // inmediatamente), igual que el menú ☰.
-  setTimeout(() => {
-    document.addEventListener("click", clickFueraMenuAcciones, { once: true });
-  }, 0);
-}
-
-function cerrarMenuAcciones() {
-  menuAccionesPanel.hidden = true;
-  menuAccionesTrigger.setAttribute("aria-expanded", "false");
-}
-
-function clickFueraMenuAcciones(evento) {
-  if (!menuAcciones.contains(evento.target)) {
-    cerrarMenuAcciones();
-  } else {
-    setTimeout(() => {
-      document.addEventListener("click", clickFueraMenuAcciones, { once: true });
-    }, 0);
-  }
-}
-
-// Un solo oyente por botón: un toque/clic tiene que alternar una única vez.
-menuAccionesTrigger.addEventListener("click", alternarMenuAcciones);
-
-// Al activar un ítem, el menú se cierra y el foco vuelve al trigger. Va en
-// el panel (burbuja) para correr después del oyente propio del ítem —que
-// dispara la exportación— y antes de que el clic salga hacia `document`.
-menuAccionesPanel.addEventListener("click", (evento) => {
-  // El checkbox entra en el selector: si no, al alternarlo el menú no se
-  // cierra ni devuelve el foco al trigger.
-  const item = evento.target.closest("[role='menuitem'], [role='menuitemcheckbox']");
-  if (!item) return;
-  cerrarMenuAcciones();
-  menuAccionesTrigger.focus();
-});
-
-// Escape cierra menú «Menú ▾», menú overflow y explorador
+// Navegación con teclado del menú enfocado + Escape global (cierra menú
+// abierto y devuelve el foco al trigger; si no hay menú, cierra el
+// explorador). Patrón WAI-ARIA APG «Menu Button».
 window.addEventListener("keydown", (evento) => {
-  if (evento.key !== "Escape" || evento.defaultPrevented) return;
-  if (menuAccionesAbierto()) {
-    evento.preventDefault();
-    cerrarMenuAcciones();
-    menuAccionesTrigger.focus();
-    return;
-  }
-  if (!menuOverflowPanel.hidden) {
-    evento.preventDefault();
-    cerrarMenuOverflow();
-    menuOverflowTrigger.focus();
-    return;
-  }
+  if (evento.defaultPrevented) return;
   const foco = document.activeElement;
-  if (foco && foco.closest("[data-accion-panel]")) return;
+  const panelFoco = foco instanceof Element ? foco.closest("[role='menu']") : null;
+  const menu = panelFoco ? menus.get(panelFoco) : null;
+  if (menu && menuAbierto(menu)) {
+    const items = itemsMenu(menu.panel);
+    const actual = items.indexOf(foco);
+    if (evento.key === "ArrowDown") {
+      evento.preventDefault();
+      items[(actual + 1) % items.length].focus();
+      return;
+    }
+    if (evento.key === "ArrowUp") {
+      evento.preventDefault();
+      items[(actual - 1 + items.length) % items.length].focus();
+      return;
+    }
+    if (evento.key === "Home") {
+      evento.preventDefault();
+      items[0].focus();
+      return;
+    }
+    if (evento.key === "End") {
+      evento.preventDefault();
+      items[items.length - 1].focus();
+      return;
+    }
+    // Tab no se intercepta: sale del menú por su orden natural y el
+    // `focusout` del panel lo cierra (ver `registrarMenu`).
+  }
+  if (evento.key !== "Escape") return;
+  for (const otro of menus.values()) {
+    if (!menuAbierto(otro)) continue;
+    evento.preventDefault();
+    cerrarMenu(otro, true);
+    return;
+  }
+  const focoActual = document.activeElement;
+  if (focoActual && focoActual.closest("[data-accion-panel]")) return;
   if (!exploradorAbierto()) return;
   evento.preventDefault();
   cerrarExplorador();
   botonExplorador.focus();
 });
+
+// Los tres menús del sistema. Solo el de formato se guarda con nombre:
+// es el único que hay que cerrar desde afuera (la barra que lo contiene
+// se oculta con el editor).
+registrarMenu(menuVistaTrigger, menuVistaPanel);
+registrarMenu(menuAccionesTrigger, menuAccionesPanel);
+const menuFormato = registrarMenu(menuFormatoTrigger, menuFormatoPanel);
 
 // ----------------------------------------- Reglas de corte (48rem)
 
@@ -4806,19 +4921,16 @@ function moverFocoTrasCorte() {
   if (destino) destino.focus();
 }
 
-// Corte único en 48rem: una media query muestra la barra y oculta el ☰;
-// al cruzar el corte, además se cierra el menú que quedó del lado opuesto
-// y se reubica el foco. El resto del resize mide `--topbar-alto` (la
-// topbar puede pasar a dos filas) y refresca badge y desplegable.
+// Corte único en 48rem: una media query ajusta la topbar; al cruzarlo se
+// reubica el foco si quedó en un control recién oculto. El resto del
+// resize mide `--topbar-alto` (la topbar puede pasar a dos filas) y
+// re-coloca el menú abierto, que se posiciona `fixed` desde el
+// rectángulo del trigger.
 let corteAncho = window.matchMedia("(min-width: 48rem)").matches;
 
 window.addEventListener("resize", () => {
   const ancho = window.matchMedia("(min-width: 48rem)").matches;
-  // (1) menú «Menú ▾» abierto → bajar de 48rem lo cierra.
-  if (!ancho && menuAccionesAbierto()) cerrarMenuAcciones();
-  // (2) menú ☰ abierto → subir a >= 48rem lo cierra.
-  if (ancho && !menuOverflowPanel.hidden) cerrarMenuOverflow();
-  // (3) el foco en un control recién oculto pasa al primer control
+  // El foco en un control recién oculto pasa al primer control
   // enfocable visible de `.acciones` (solo al cruzar el corte).
   if (ancho !== corteAncho) {
     corteAncho = ancho;
@@ -4826,13 +4938,15 @@ window.addEventListener("resize", () => {
   }
   // El badge se actualiza antes de medir: aparecer o desaparecer cambia
   // el alto de la topbar (puede pasar de una fila a dos), así que medir
-  // antes dejaría `--topbar-alto` desfasado para el desplegable.
+  // antes dejaría `--topbar-alto` desfasado.
   actualizarNamespaceBadge();
-  // Los dos desplegables (explorador y menú overflow) caen debajo de la
-  // topbar con `--topbar-alto`: se re-mide en cada resize, con o sin
-  // desplegable abierto, porque la topbar cambia de alto sola.
+  // El desplegable del explorador cae debajo de la topbar con
+  // `--topbar-alto`: se re-mide en cada resize.
   if (!window.matchMedia("(max-width: 60rem)").matches) cerrarExplorador();
   actualizarTopbarAlto();
+  // Un menú abierto se vuelve a colocar contra su trigger (el panel es
+  // `fixed`: sin re-colocarlo quedaría flotando en la posición vieja).
+  for (const menu of menus.values()) if (menuAbierto(menu)) colocarPanel(menu);
 });
 
 // Asegurar que --topbar-alto esté siempre disponible (fallback por si falla el JS inicial)
@@ -4999,7 +5113,7 @@ function rellenarToast(toast, rellenar) {
  *   auto-cierre a los 6 s, pausado por hover y por foco.
  * - `error`: `role="alert"` —ya es asertivo por ARIA, sin `aria-live`
  *   adicional— y SIN auto-cierre: solo lo cierra la X. Su superficie es
- *   la barra ☰/Exportar, que puede estar cerrada.
+ *   el menú «Menú ▾», que puede estar cerrado.
  *
  * @param {string|null} id - ID de la notificación; `null` para avisos
  *   locales de la app (operaciones y exportaciones), que no hay que
@@ -5172,14 +5286,20 @@ function inicializarToolbar() {
 
   const observador = new MutationObserver(() => {
     toolbar.hidden = editor.disabled;
+    // Si la barra se oculta con el menú «Más ▾» abierto, el panel (que
+    // vive dentro de la barra) se va con ella: el estado del menú tiene
+    // que quedar en `hidden` para no desincronizarse del trigger.
+    if (toolbar.hidden) cerrarMenu(menuFormato, false);
   });
   observador.observe(editor, { attributes: true, attributeFilter: ["disabled"] });
   toolbar.hidden = editor.disabled;
 
   // Un solo manejador para las dos familias: `data-md` (formatos) y
-  // `data-herr` (deshacer/rehacer, buscar/reemplazar).
+  // `data-herr` (deshacer/rehacer, buscar/reemplazar). Los ítems del
+  // menú «Más ▾» llevan `data-md` igual: una acción, un manejador. El
+  // cierre del menú y el foco los hace el oyente de su panel.
   toolbar.addEventListener("click", (evento) => {
-    const boton = evento.target.closest(".tool-btn");
+    const boton = evento.target.closest(".tool-btn, .menu-item[data-md]");
     if (!boton || !toolbar.contains(boton)) return;
     if (boton.dataset.md) aplicarFormato(boton.dataset.md);
     else manejarHerramienta(boton.dataset.herr);
@@ -5648,303 +5768,114 @@ buscarTexto.addEventListener("compositionend", () => {
 buscarMayusculas.addEventListener("change", () => buscar());
 buscarPalabra.addEventListener("change", () => buscar());
 
-// ---------------------------------------------------------- Bienvenida
-// Nota de entrada del producto: se crea solo si falta y es la que se
-// muestra por defecto en cada arranque. Nunca se reescribe, así que el
-// usuario puede editarla o vaciarla y su texto sobrevive.
+// ---------------------------------------------------------- Plantillas
+//
+// Las plantillas son documentos `.md` de `plantillas/`, listados en su
+// manifiesto (`/plantillas/indice.json`). No se instalan solas: el
+// explorador ofrece elegir una al crear un proyecto, y solo entonces se
+// crea la primera nota con ese contenido. Un proyecto «Plantillas» que
+// exista de arranques anteriores es contenido del usuario y no se toca.
 
-const PROYECTO_BIENVENIDA = "Bienvenida";
-const NOTA_BIENVENIDA = "nota-de-bienvenida";
-// Ruta sin puntos a propósito: `_normalizar_urls_en_links` (renderer.py)
-// mandaría `[texto](tutorial.md)` a `https://tutorial.md`.
-const NOTA_TUTORIAL = "tutorial";
-// Nota MCP: información sobre el servidor MCP integrado
-const NOTA_MCP = "mcp";
-
-const CONTENIDO_BIENVENIDA = `# ¡Hola! Bienvenido/a a PurpleMD 💜
-
-Tomate un minuto para leer esta nota: te cuenta lo más importante para empezar. Después, hacela tuya: podés vaciarla o escribir encima.
-
-Si querés el recorrido completo —los dos paneles, la barra de herramientas, deshacer y rehacer, buscar y reemplazar—, **[Hacé el tutorial](tutorial)**.
-
-**[¿Qué es el servidor MCP?](mcp)** — información sobre el servidor MCP integrado y cómo usarlo.
-
-## Tus primeros pasos
-
- 1. En **Desktop**, usá el panel izquierdo. En **Mobile**, abrí el **Explorador** con el botón correspondiente.
-2. En **«Proyecto nuevo»**, escribí un nombre y apretá **«Crear»**. Un proyecto es tu espacio de trabajo: puede ser para trabajo, recetas, ideas o lo que quieras.
-3. Con el proyecto seleccionado, creá tu primera nota desde **«Nota nueva (ruta)»**. Podés organizarla en carpetas, por ejemplo: \`recetas/tortas\`.
-4. Escribí tranquilo: mientras no aprietes **«Guardar»**, los cambios no se guardan.
-
-## Dos cosas que conviene saber
-
-- **No hay autoguardado:** para guardar lo que escribiste, apretá **«Guardar»** o usá \`Ctrl\`/\`Cmd\` + \`S\`.
-- **Cada navegador tiene su propio espacio:** sin cuentas ni registro, tus datos no se mezclan con los de otra persona.
-
-## Plantillas para arrancar más rápido
-
-En el explorador vas a encontrar el proyecto **«Plantillas»**, con documentos listos para copiar, completar y exportar a PDF: propuesta comercial, presupuesto formal, presupuesto de servicio, contrato de servicios, informe técnico, ficha de cliente, orden de trabajo, detalle de cobro y guía paso a paso.
-
-Los campos a completar van entre corchetes, por ejemplo \`[FECHA]\` o \`[MONTO_TOTAL]\`. Abrí la que te sirva, hacé una copia en tu proyecto y rellená. Si editás o borrás alguna en «Plantillas», se respeta: no vuelve a crearse.
-
-## Unas cositas más
-
-- Para moverte entre notas usás el árbol del Explorador; para **encontrar texto adentro de una nota**, \`Ctrl\`/\`Cmd\` + \`F\`.
-- **Sin sincronización entre equipos:** cada equipo tiene su propio espacio.
-
- ## Si querés apoyar el proyecto
-
- Si PurpleMD te sirvió, hay un par de maneras fáciles de darle una mano:
-
- - **Compartilo:** **«Compartir PurpleMD»**, disponible en el menú ☰ y también en **«Menú ▾»**, te permite compartir PurpleMD por X, LinkedIn, Mastodon o correo. También podés pasarle el link a quien creas que le pueda servir. ¿Querés compartir _tu_ proyecto en lugar del editor? Usá **«Menú ▾» → «Exportar .zip»** y mandale el archivo.
-
- ## Cuando ya no la necesites
-
- Esta nota es solo una bienvenida. Cuando quieras, vaciala y escribí la tuya: si queda vacía, PurpleMD no va a volver a llenarla.
-
- Y si borrás el proyecto **«Bienvenida»**, se va a crear de nuevo la próxima vez que abras PurpleMD.
-`;
-
-const CONTENIDO_TUTORIAL = `# Tutorial de PurpleMD
-
-Recorrido completo del editor, en orden. Al terminar, volvé a la [bienvenida](nota-de-bienvenida) o vaciá esta nota: es tuya.
-
-## 1. Los dos paneles
-
-- En **Desktop**, escribís a la **izquierda** y ves cómo queda a la **derecha**.
-- En **Mobile**, escribís **arriba** y ves la vista previa **abajo**.
-
-La vista previa se actualiza sola apenas dejás de tipear, y el segmentado de la barra (o **menú ☰ → Visualizador**) te deja quedarte con un solo panel.
-
-La vista previa también navega: un enlace como [el de la bienvenida](nota-de-bienvenida) abre esa nota en el editor. Enlazar notas es \`[texto](ruta)\`, con una ruta sin puntos.
-
-## 2. La barra de herramientas
-
-Aparece arriba del editor y hace la mayor parte del trabajo por vos: **H1**, **H2** y **H3** para títulos; **negrita**, _cursiva_, ~~tachado~~ y \`código\` en línea; cita, listas con viñetas, numeradas y de tareas; enlace, imagen, tabla, línea horizontal y bloque de código.
-
-Los dos primeros botones son **↶ deshacer** y **↷ rehacer**; los dos últimos abren **buscar** y **reemplazar**.
-
-## 3. Guardar y deshacer
-
-- **No hay autoguardado:** para guardar lo que escribiste, apretá **«Guardar»** o \`Ctrl\`/\`Cmd\` + \`S\`.
-- \`Ctrl\`/\`Cmd\` + \`Z\` deshace; \`Ctrl\`/\`Cmd\` + \`Y\` (o \`Ctrl\`/\`Cmd\` + \`Shift\` + \`Z\`) rehace. Los botones ↶ y ↻ se apagan solos cuando no queda historial.
-- Cambiar de nota limpia el historial: lo que deshiciste no viaja de una nota a otra.
-
-## 4. Buscar y reemplazar
-
-- \`Ctrl\`/\`Cmd\` + \`F\` abre la barra de buscar; \`Ctrl\`/\`Cmd\` + \`H\` la abre con la fila de **Reemplazar**.
-- \`Enter\` pasa a la coincidencia siguiente, \`Shift\` + \`Enter\` a la anterior, y \`Escape\` (o **✕**) cierra la barra y te devuelve el foco al editor.
-- **Mayúsculas** distingue «A» de «a» y **Palabra completa** busca solo palabras enteras; el contador dice «3 de 12».
-- **Reemplazar** cambia la coincidencia actual y **Reemplazar todos** las de una; las dos se deshacen con \`Ctrl\`/\`Cmd\` + \`Z\` de una sola vez.
-
-## 5. Qué podés escribir
-
-Markdown te permite usar títulos, listas, casillas para tareas, **negrita**, _cursiva_, \`código\`, ~~texto tachado~~, citas, tablas y más.
-
-> Un consejo queda así, escribiendo \`>\` al principio.
-
-## 6. Todos los atajos
-
-| Atajo | Qué hace |
-| --- | --- |
-| \`Ctrl\`/\`Cmd\` + \`S\` | Guarda lo que escribiste |
-| \`Ctrl\`/\`Cmd\` + \`B\` | Negrita |
-| \`Ctrl\`/\`Cmd\` + \`I\` | Cursiva |
-| \`Ctrl\`/\`Cmd\` + \`K\` | Convierte lo seleccionado en enlace |
-| \`Ctrl\`/\`Cmd\` + \`Z\` | Deshacer |
-| \`Ctrl\`/\`Cmd\` + \`Y\` o \`Shift\` + \`Z\` | Rehacer |
-| \`Ctrl\`/\`Cmd\` + \`F\` | Buscar en la nota |
-| \`Ctrl\`/\`Cmd\` + \`H\` | Buscar y reemplazar |
-| \`Tab\` | Inserta dos espacios |
-| \`Shift\` + \`Tab\` | Sale del editor |
-| \`Escape\` | Cierra lo que esté abierto |
-
-Los atajos de formato actúan con el cursor dentro del editor: así \`Ctrl\`/\`Cmd\` + \`F\` no secuestra el buscador del navegador, salvo que estés escribiendo.
-
-## 7. Llevátelo con vos
-
-- **«Menú ▾» → «Descargar .md»** descarga la nota tal cual está.
-- **«Menú ▾» → «Exportar .pdf»** convierte la nota en PDF.
-- **«Menú ▾» → «Exportar .zip»** exporta el proyecto entero.
-- **«Menú ▾» → «Compartir PurpleMD»** te deja compartirla por X, LinkedIn, Mastodon o correo.
-`;
-
-const CONTENIDO_MCP = `# Servidor MCP (Model Context Protocol)
-
-PurpleMD incluye un **servidor MCP**: le permite a una IA como Claude leer y escribir tus notas desde su propio cliente, siempre con tu permiso y solo las tuyas.
-
-## Cómo conectarlo
-
-1. Abrí **menú → Servidor MCP**.
-2. Apretá **«Generar mi token»** y copialo.
-3. Pegalo en tu aplicación, donde te pida el token de PurpleMD.
-
-Tu token es solo tuyo: sirve para tus datos y dura 90 días.
-
-En **menú → Servidor MCP** está todo lo demás, listo para copiar.
-
----
-
-## Volver
-
-Volvé a la [bienvenida](nota-de-bienvenida) o al [tutorial](tutorial).
-`;
-
-/**
- * Comprueba si un recurso de la API responde.
- * @param {string} ruta - Ruta absoluta de la API.
- * @returns {Promise<boolean>} `true` si responde OK; `false` si da 404
- *   (o si la lectura falla por completo, que en ese caso lo decide la
- *   operación de creación siguiente).
- */
-async function existeRecurso(ruta) {
-  try {
-    await pedir(ruta);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
-/**
- * Crea una nota de la semilla si falta, sin tocar la que ya existe.
- * @param {string} base - Ruta base del proyecto en la API.
- * @param {string} path - Ruta de la nota.
- * @param {string} contenido - Texto, solo si va a crearse.
- * @returns {Promise<{hay: boolean, creó: boolean}>} Si la nota quedó
- *   (ya existía o se creó) y si esta llamada fue la que la creó.
- */
-async function asegurarNota(base, path, contenido) {
-  if (await existeRecurso(`${base}/notes/${rutaUrl(path)}`)) return { hay: true, creó: false };
-  try {
-    await pedir(`${base}/notes`, conJson("POST", { path, content: contenido }));
-    return { hay: true, creó: true };
-  } catch (_) {
-    // 409 (ya existe) u otro fallo: no se reintenta en este arranque.
-    return { hay: false, creó: false };
-  }
-}
-
-/**
- * Crea el proyecto «Bienvenida» con sus dos notas, la de bienvenida y
- * la del tutorial, si faltan.
- *
- * Es idempotente y no destructiva: si el proyecto o alguna nota ya
- * existen, no se les toca el contenido (el usuario puede editarlos o
- * vaciarlos). El tutorial se suma aunque la bienvenida sea vieja, así
- * que nadie se queda sin las dos. Sirve tanto con
- * `PURPLEMD_STORAGE=memory` (donde la semilla se recrea en cada
- * arranque) como con `filesystem`.
- *
- * @returns {Promise<boolean>} `true` si la semilla está completa: hay
- *   que seleccionarla y abrirla.
- */
-async function asegurarBienvenida() {
-  const base = `/api/projects/${encodeURIComponent(nsProject(PROYECTO_BIENVENIDA))}`;
-  let creóAlgo = false;
-
-  if (!(await existeRecurso(`${base}/tree`))) {
-    try {
-      await pedir("/api/projects", conJson("POST", { name: nsProject(PROYECTO_BIENVENIDA) }));
-      creóAlgo = true;
-    } catch (_) {
-      // 409 (alguien lo creó entre medio) u otro fallo: lo resuelve la
-      // comprobación de la lista de abajo.
-    }
-  }
-
-  const bienvenida = await asegurarNota(base, NOTA_BIENVENIDA, CONTENIDO_BIENVENIDA);
-  const tutorial = await asegurarNota(base, NOTA_TUTORIAL, CONTENIDO_TUTORIAL);
-  const mcp = await asegurarNota(base, NOTA_MCP, CONTENIDO_MCP);
-  creóAlgo = creóAlgo || bienvenida.creó || tutorial.creó || mcp.creó;
-
-  // Recién creada, la lista hay que refrescarla para que el proyecto
-  // aparezca en el explorador antes de seleccionarlo.
-  if (creóAlgo) await cargarProyectos();
-
-  return bienvenida.hay && estado.proyectos.some((p) => p.name === nsProject(PROYECTO_BIENVENIDA));
-}
-
-// ------------------------------------------------------------- Plantillas
-// Documentos de ejemplo (propuesta, presupuesto, contratos, guías) que viven como
-// recursos .md en `plantillas/`, servidos por /plantillas. El manifiesto
-// `plantillas/indice.json` es el que enumera qué copiar: agregar una
-// plantilla es dropear el archivo y sumarlo ahí, sin tocar este código.
-// Mismo criterio que la bienvenida: idempotente y no destructiva, las
-// notas que el usuario editó (o borró) no se vuelven a crear.
-
+/** Manifiesto de plantillas (ruta relativa al montaje `/plantillas`). */
 const MANIFIESTO_PLANTILLAS = "/plantillas/indice.json";
 
+/** Contenido de cada plantilla ya descargada, para no repetir pedidos. */
+const plantillasContenido = new Map();
+
+/** «propuesta-comercial» → «Propuesta comercial». */
+function nombrePlantilla(ruta) {
+  const texto = ruta.split("/").pop().replace(/-/g, " ");
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
 /**
- * Carga las plantillas de `plantillas/indice.json` en su proyecto.
+ * Carga el manifiesto y llena el selector del formulario de proyecto.
  *
- * Pide el árbol una sola vez y solo crea las notas que falten: en cada
- * arranque son tres requests (manifiesto, proyecto, árbol) y ninguna
- * escritura si ya están todas.
+ * Sin manifiesto (instalación mínima) no se muestra el selector y el
+ * formulario queda como siempre: crear un proyecto no depende de esto.
  *
- * Corre en paralelo con la bienvenida y no pinta el explorador, así que
- * quien la llama es la que refresca la lista si esta creó algo.
- *
- * @returns {Promise<boolean>} Si esta llamada creó alguna nota.
+ * @returns {Promise<boolean>} Si había plantillas para ofrecer.
  */
-async function asegurarPlantillas() {
+async function cargarPlantillas() {
   let manifiesto;
   try {
     manifiesto = await pedir(MANIFIESTO_PLANTILLAS);
   } catch (_) {
-    return false; // Sin manifiesto (instalación mínima) no hay nada que sembrar.
-  }
-  const proyecto = manifiesto.proyecto;
-  const rutas = manifiesto.plantillas;
-  if (!proyecto || !Array.isArray(rutas) || rutas.length === 0) return false;
-
-  const base = `/api/projects/${encodeURIComponent(nsProject(proyecto))}`;
-  if (!(await existeRecurso(`${base}/tree`))) {
-    try {
-      await pedir("/api/projects", conJson("POST", { name: nsProject(proyecto) }));
-    } catch (_) {
-      return false; // 409 u otro fallo: sin proyecto no se puede sembrar.
-    }
-  }
-
-  // Árbol actual: lo que ya existe no se toca (ni se descarga).
-  let existentes = new Set();
-  try {
-    const arbol = await pedir(`${base}/tree`);
-    existentes = new Set(arbol.entries.filter((e) => e.type === "note").map((e) => e.path));
-  } catch (_) {
     return false;
   }
-
-  let creóAlgo = false;
+  const rutas = manifiesto.plantillas;
+  if (!Array.isArray(rutas) || rutas.length === 0) return false;
   for (const ruta of rutas) {
-    if (existentes.has(ruta)) continue;
-    try {
-      // El .md es texto plano, no JSON: `pedir` no sirve acá.
-      const origen = await fetch(`/plantillas/${rutaUrl(`${ruta}.md`)}`);
-      if (!origen.ok) continue;
-      const contenido = await origen.text();
-      await pedir(`${base}/notes`, conJson("POST", { path: ruta, content: contenido }));
-      creóAlgo = true;
-    } catch (_) {
-      // 409 (alguien la creó entre medio) u otro fallo: se omite y listo.
-    }
+    const opcion = document.createElement("option");
+    opcion.value = ruta;
+    opcion.textContent = nombrePlantilla(ruta);
+    proyectoPlantilla.append(opcion);
   }
+  proyectoPlantillas.hidden = false;
+  vacioPlantillas.hidden = false;
+  return true;
+}
 
-  // El refresco del explorador lo hace quien llama, al final del arranque:
-  // pintar la lista acá podría deseleccionar la bienvenida recién abierta.
-  return creóAlgo;
+/**
+ * Descarga (y cachea) el `.md` de una plantilla.
+ *
+ * @param {string} ruta - Ruta de la plantilla en su manifiesto.
+ * @returns {Promise<string>} Contenido markdown.
+ */
+async function contenidoPlantilla(ruta) {
+  if (plantillasContenido.has(ruta)) return plantillasContenido.get(ruta);
+  // El .md es texto plano, no JSON: `pedir` no sirve acá.
+  const respuesta = await fetch(`/plantillas/${rutaUrl(`${ruta}.md`)}`);
+  if (!respuesta.ok) throw new Error("no se pudo descargar la plantilla");
+  const contenido = await respuesta.text();
+  plantillasContenido.set(ruta, contenido);
+  return contenido;
+}
+
+/**
+ * Crea la primera nota del proyecto activo desde una plantilla y la abre.
+ *
+ * El proyecto ya existe (lo creó el formulario): un fallo acá no lo
+ * deshace, solo avisa junto al formulario que quedó sin nota inicial.
+ *
+ * @param {string} ruta - Ruta de la plantilla elegida en el selector.
+ */
+async function crearNotaDesdePlantilla(ruta) {
+  const proyecto = estado.proyectoActivo;
+  if (!proyecto) return;
+  try {
+    const contenido = await contenidoPlantilla(ruta);
+    const nota = await pedir(
+      `/api/projects/${encodeURIComponent(nsProject(proyecto))}/notes`,
+      conJson("POST", { path: ruta, content: contenido }),
+    );
+    mostrarToast(
+      null,
+      "Crear proyecto",
+      `Nota «${nota.path}» creada desde la plantilla «${nombrePlantilla(ruta)}».`,
+    );
+    await cargarArbol(nsProject(proyecto));
+    await abrirNota(nota.path);
+  } catch (error) {
+    pintarEstado(
+      proyectoEstado,
+      "error",
+      `El proyecto se creó, pero no se pudo cargar la plantilla: ${error.message}`,
+    );
+  }
 }
 
 async function iniciar() {
   inicializarSesion();
   actualizarTopbarAlto(); // Fijar --topbar-alto antes de cualquier dropdown
-  // Las dos superficies del visualizador (menú ☰ y segmentado de la barra)
-  // contra `zona[data-vista]`: al recargar tiene que mostrar «Editor y
-  // previsualización», el estado inicial.
+  // El menú «Vista» contra `zona[data-vista]`: al recargar tiene que
+  // mostrar «Editor y previsualización», el estado inicial.
   sincronizarOpcionesVista(zona.dataset.vista);
   // Activar scroll sincronizado si la vista inicial es "ambos"
   if (zona.dataset.vista === "ambos") activarScrollSincronizado();
+  // `tema.js` ya fijó `data-tema` antes del primer pintado; acá solo se
+  // pinta el `title`/`aria-label` del botón sol/luna (la acción vigente).
+  pintarBotonTema();
   inicializarToolbar(); // Toolbar Markdown estilo Office
   refrescarGuardado();
   refrescarHabilitacion();
@@ -5964,9 +5895,9 @@ async function iniciar() {
 /**
  * Vuelve a la última ubicación guardada si todavía existe.
  *
- * Es el camino preferido de `arrancar()`: la bienvenida solo se abre si
- * este devuelve `false`. La semilla de bienvenida se ejecuta igual (ver
- * `arrancar`): lo único que cambia es qué se abre después, no si se crea.
+ * Es el camino preferido de `arrancar()`: sin ubicación guardada (o si
+ * ya no existe) el arranque abre el proyecto más reciente, y si no hay
+ * proyectos queda el estado vacío del explorador.
  *
  * @param {Array<{name: string}>} proyectos - Listado ya cargado de la API.
  * @returns {Promise<boolean>} `true` si se restauró, aunque sea solo el
@@ -5991,45 +5922,29 @@ async function restaurarUbicacion(proyectos) {
 }
 
 /**
- * Carga los datos de la app y deja la primera nota abierta.
+ * Carga los datos de la app y deja el espacio de trabajo en su lugar.
  *
  * Separado de `iniciar()` porque hay dos puertas de entrada con el mismo
  * camino a partir de acá: sesión con Google y modo invitado. Se ejecuta
  * una sola vez por página — el intervalo de avisos de abajo lo
  * duplicaría.
+ *
+ * No crea proyectos ni notas: un espacio vacío empieza vacío y el
+ * estado vacío del explorador es el que ofrece las primeras acciones.
  */
 async function arrancar() {
   inicializarNamespaceBadge();
 
+  // Las plantillas se ofrecen al crear un proyecto; el pedido del
+  // manifiesto corre en paralelo con la carga de proyectos y no pinta
+  // nada más, así que no puede robarle el foco a lo que se abre abajo.
+  cargarPlantillas();
   const proyectos = await cargarProyectos();
-  // La nota de bienvenida es la que se muestra por defecto: es el
-  // primer contacto con el producto y explica el resto. Va ANTES que la
-  // semilla de plantillas porque ambas crean su proyecto y, sobre un
-  // Drive recién creado, en paralelo habrían hecho dos `POST
-  // /api/projects` a la vez: las dos ven `buscar_raiz() == null` y las
-  // dos crean una carpeta raíz «projects» (carrera que reparte los
-  // proyectos entre dos árboles).
-  const bienvenida = await asegurarBienvenida();
-  // La semilla de plantillas es la más lenta (una request por archivo):
-  // recién acá arranca, en paralelo con lo de abajo. La raíz ya existe
-  // porque la bienvenida la creó, así que no puede duplicarla. No pinta
-  // el explorador ni selecciona nada, así que no puede robarle el foco
-  // a la nota que se abre abajo.
-  const plantillas = asegurarPlantillas();
-  if (await restaurarUbicacion(proyectos)) {
-    // Ya se volvió a donde estaba el usuario: la bienvenida no se abre.
-  } else if (bienvenida) {
-    if (await seleccionarProyecto(PROYECTO_BIENVENIDA)) {
-      await abrirNota(NOTA_BIENVENIDA);
-    }
-  } else if (proyectos.length) {
-    // Sin semilla (p. ej. la API no respondió): el proyecto más reciente
-    // y ninguna nota abierta, como hasta ahora.
+  if (!(await restaurarUbicacion(proyectos)) && proyectos.length) {
+    // Sin ubicación guardada (o si ya no existe): el proyecto más
+    // reciente queda seleccionado y ninguna nota abierta.
     await seleccionarProyecto(stripNs(proyectos[0].name));
   }
-  // Recién acá, con el foco ya puesto: si la semilla creó algo, el
-  // proyecto «Plantillas» entra en la lista del explorador.
-  if (await plantillas) await cargarProyectos();
   cargarNotificaciones();
   setInterval(cargarNotificaciones, 30000);
 }

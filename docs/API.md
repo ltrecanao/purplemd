@@ -92,10 +92,12 @@ Además de `/api`, el servidor monta dos directorios de solo lectura:
 | `/plantillas/...` | Plantillas de documentos (`.md`) y su manifiesto `indice.json`. |
 
 Las plantillas no viven en el código: el frontend las lee de
-`/plantillas` y las copia al proyecto «Plantillas» en el primer
-arranque (idempotente y no destructiva). Agregar una plantilla es
-dropear el `.md` en `plantillas/` y sumarlo al manifiesto; un test
-del CI falla si el directorio y el manifiesto divergen.
+`/plantillas` y las ofrece en el selector «Empezar con una plantilla»
+del formulario de proyecto. Solo si el usuario elige una, se crea la
+primera nota del proyecto con ese contenido; nunca se instalan solas.
+Agregar una plantilla es dropear el `.md` en `plantillas/` y sumarlo al
+manifiesto; un test del CI falla si el directorio y el manifiesto
+divergen.
 
 ## Borrado de directorios
 

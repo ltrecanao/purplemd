@@ -26,24 +26,31 @@ MINIMO_AA = 4.5
 MINIMO_AAA = 7.0
 
 
-def _bloque_oscuro(css: str) -> str:
-    """Devuelve el cuerpo del bloque `@media (prefers-color-scheme: dark)`.
-
-    El `:root` del tema oscuro es un bloque anidado dentro del `@media`, así
-    que hay que balancear llaves y no cortar en el primer `}`.
-    """
-    resto = css[css.index("@media (prefers-color-scheme: dark)") :]
-    apertura = resto.index("{")  # cierra la condición del media
-    cierre = resto.index("{", apertura)  # abre el `:root`
+def _cuerpo(css: str, inicio: int) -> str:
+    """Devuelve el cuerpo de la regla que abre en `inicio` (llaves balanceadas)."""
+    apertura = css.index("{", inicio)
     nivel = 0
-    for i in range(cierre, len(resto)):
-        if resto[i] == "{":
+    for i in range(apertura, len(css)):
+        if css[i] == "{":
             nivel += 1
-        elif resto[i] == "}":
+        elif css[i] == "}":
             nivel -= 1
             if nivel == 0:
-                return resto[cierre + 1 : i]
-    raise AssertionError("el bloque oscuro de style.css nunca cierra")
+                return css[apertura + 1 : i]
+    raise AssertionError(f"la regla que empieza en {inicio} nunca cierra")
+
+
+def _regla(css: str, selector: str) -> str:
+    """Cuerpo de la PRIMERA regla cuyo selector es exactamente `selector`.
+
+    Se busca `selector` seguido de espacios y `{` (no dentro de un comentario
+    ni de otro selector que simplemente lo contenga), y se balancean llaves.
+    """
+    patron = re.compile(rf"(?<![\w-]){re.escape(selector)}\s*\{{")
+    coincidencia = patron.search(css)
+    if not coincidencia:
+        raise AssertionError(f"no se encontró la regla `{selector}` en style.css")
+    return _cuerpo(css, coincidencia.start())
 
 
 def _tokens(bloque: str) -> dict:
@@ -51,13 +58,22 @@ def _tokens(bloque: str) -> dict:
 
 
 def _temas() -> dict:
-    """Pares `{claro, oscuro}` de tokens, con el oscuro heredando del claro."""
+    """Tokens de los tres bloques de la paleta, por nombre.
+
+    - `claro`: `:root`, el valor por defecto.
+    - `respaldo`: `:root:not([data-tema])` dentro del media query (sin JS).
+    - `oscuro`: `:root[data-tema="oscuro"]`, el camino vivo.
+    """
     css = CSS.read_text(encoding="utf-8")
-    idx = css.index("@media (prefers-color-scheme: dark)")
-    claro = _tokens(css[:idx])
+    claro = _tokens(_regla(css, ":root"))
+    media = _regla(css, "@media (prefers-color-scheme: dark)")
+    respaldo = _tokens(_regla(media, ":root:not([data-tema])"))
+    vivo = _tokens(_regla(css, ':root[data-tema="oscuro"]'))
+    # El tema oscuro que se mide es el camino vivo, heredando del claro
+    # los tokens que no reescribe (aunque en la práctica no debe faltar ninguno).
     oscuro = dict(claro)
-    oscuro.update(_tokens(_bloque_oscuro(css)))
-    return {"claro": claro, "oscuro": oscuro}
+    oscuro.update(vivo)
+    return {"claro": claro, "oscuro": oscuro, "respaldo": respaldo, "vivo": vivo}
 
 
 def _luminancia(hexcolor: str) -> float:
@@ -100,6 +116,14 @@ PARES_TEXTO = [
     ("--sobre-acento", "--acento-fuerte", "botón acento (hover/active)"),
     # .btn-peligro:hover invierte: fondo --error, texto --panel.
     ("--panel", "--error", "botón peligro (hover)"),
+    # Botón oficial de Google: texto de su guía sobre su propio fondo,
+    # en reposo, hover y active (los tres fondos vienen de tokens).
+    ("--google-texto", "--google-fondo", "botón Google"),
+    ("--google-texto", "--google-hover", "botón Google (hover)"),
+    ("--google-texto", "--google-activo", "botón Google (active)"),
+    # Letra «MD» del logo en la pantalla de acceso: cae sobre `.sesion-caja`
+    # (`--panel`).
+    ("--logo-letra", "--panel", "letra del logo"),
 ]
 
 # Texto principal: lo que AGENTS.md exige a AAA.
@@ -114,11 +138,27 @@ class ContrasteTests(unittest.TestCase):
         cls.temas = _temas()
 
     def test_los_dos_temas_definen_los_mismos_tokens(self):
-        """El bloque oscuro no puede dejar tokens sin definir ni de más."""
+        """El tema oscuro no puede dejar tokens sin definir ni de más."""
         self.assertEqual(
             set(self.temas["claro"]),
-            set(self.temas["oscuro"]),
+            set(self.temas["vivo"]),
             "claro y oscuro deben declarar exactamente los mismos tokens",
+        )
+
+    def test_el_media_query_y_el_bloque_vivo_son_identicos(self):
+        """El respaldo sin JS y el camino vivo no pueden divergir.
+
+        `@media (prefers-color-scheme: dark) { :root:not([data-tema]) }`
+        pinta la página que todavía no corrió `tema.js` (o la que corre
+        sin JS); `:root[data-tema="oscuro"]` manda cuando el usuario
+        elige tema, aunque el sistema diga lo contrario. Si los dos
+        bloques dijeran cosas distintas, el mismo usuario vería dos
+        oscuros según cuándo mirara.
+        """
+        self.assertEqual(
+            self.temas["respaldo"],
+            self.temas["vivo"],
+            "el media query y :root[data-tema='oscuro'] deben declarar los mismos tokens",
         )
 
     def test_ningun_token_esta_vacio_o_mal_formado(self):
@@ -187,12 +227,16 @@ class MedicionesTests(unittest.TestCase):
         ("claro", ("--sobre-acento", "--acento"), 7.10),
         ("claro", ("--error", "--panel"), 6.54),
         ("claro", ("--ok", "--fondo"), 5.43),
+        ("claro", ("--google-texto", "--google-fondo"), 16.48),
+        ("claro", ("--logo-letra", "--panel"), 16.67),
         ("oscuro", ("--texto", "--fondo"), 15.58),
         ("oscuro", ("--texto-tenue", "--fondo"), 7.69),
         ("oscuro", ("--sobre-acento", "--acento"), 6.70),
         ("oscuro", ("--sobre-acento", "--acento-fuerte"), 8.41),
         ("oscuro", ("--error", "--panel"), 9.14),
         ("oscuro", ("--ok", "--fondo"), 10.69),
+        ("oscuro", ("--google-texto", "--google-fondo"), 12.84),
+        ("oscuro", ("--logo-letra", "--panel"), 14.51),
     ]
 
     @classmethod

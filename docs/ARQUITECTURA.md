@@ -2,7 +2,7 @@
 
 Cómo está armado PurpleMD: datos en disco, backends de persistencia,
 acceso con Google y comportamiento del frontend (superficies, menús,
-caché y semilla). La referencia HTTP está en [API.md](API.md), el
+caché y plantillas). La referencia HTTP está en [API.md](API.md), el
 acceso en [AUTH.md](AUTH.md) y las reglas de accesibilidad en
 [ACCESIBILIDAD.md](ACCESIBILIDAD.md).
 
@@ -114,8 +114,12 @@ Detalles del flujo OAuth, de las cookies y de Drive: [AUTH.md](AUTH.md).
 
 ## Frontend
 
-Compuesto por `static/index.html`, `static/css/style.css` y
-`static/js/app.js` (módulo ES, sin dependencias externas).
+Compuesto por `static/index.html`, `static/css/style.css`,
+`static/js/app.js` (módulo ES, sin dependencias externas) y
+`static/js/tema.js` (script clásico en el `<head>`, sin dependencias).
+Las páginas aparte —`static/privacy.html`, `static/terms.html` y
+`static/wiki/index.html`— reutilizan el mismo CSS y `tema.js`, y se
+sirven en `/privacy`, `/terms` y `/wiki`.
 
 - **Pantalla de acceso**: al arrancar el JS pregunta
   `GET /api/auth/me`. Si el servidor exige sesión y no hay sesión, se
@@ -140,67 +144,76 @@ Compuesto por `static/index.html`, `static/css/style.css` y
   explorador ya es columna (estrecha hasta 60rem —el texto de cada ítem
   que lleva `title` se muestra por su tooltip—, ancha desde ahí) y el
   botón «Explorador» no se ve.
-- Menú «Más acciones» (☰): la superficie angosta (menos de 48rem) de
-  vistas y archivo. Agrupa sus ítems en tres grupos con nombre,
-  «Visualizador», «Archivo» y «Difusión». «Visualizador» ofrece tres
-  opciones exclusivas como `menuitemradio` con `aria-checked`:
-  «Editor y previsualización» (estado inicial), «Solo previsualización»
-  y «Solo editor»; «Archivo» agrupa «Descargar .md» y «Exportar .pdf»
-  (con una nota abierta) y «Exportar .zip» (con proyecto activo), en
-  ese orden, igual que en «Menú ▾» de la barra ancha, y «Difusión»
-  lleva «Compartir PurpleMD», siempre disponible, y «Ver en GitHub»
-  (con el logo de Octocat, `role="menuitem"` sobre un `<a>` con
-  `target="_blank"`), que abre el repositorio en una pestaña nueva. Al
-  elegir una
-  opción, `aria-checked` se sincroniza con `zona[data-vista]`, el menú
-  se cierra y el foco vuelve al botón ☰ (igual que con `Escape`, que
-  solo cierra). Ocultar es solo `display:none` en CSS: el DOM no se
-  toca, así que el texto del editor, el HTML renderizado, el scroll y
-  el cursor se conservan. `Guardar` y `Ctrl`/`Cmd`+`S` funcionan en las
-  tres vistas. La vista no se persiste: al recargar vuelve al estado
-  inicial, «Editor y previsualización».
-- Barra de acciones (48rem o más): la superficie ancha, con un corte
-  único de 48rem (768px) que oculta el ☰ y muestra, en ese orden, el
-  segmentado de vistas («Radio Group» de la WAI-ARIA APG con HTML nativo:
-  `fieldset` + `legend` oculto «Visualizador» + tres `radio`, sin
-  `role="toolbar"`, que exigiría roving tabindex) y el
-  menú «Menú ▾» («Menu Button» de la APG con el mismo ciclo de vida
-  que el ☰ y el panel anclado bajo su trigger, no a ancho completo, con
-  «Descargar .md», «Exportar .pdf», «Exportar .zip», «Compartir
-  PurpleMD» y «Ver en GitHub» adentro —los tres primeros en el mismo
-  orden que el grupo «Archivo» del ☰, y el último un `<a>` con
-  `role="menuitem"` y `target="_blank"`, igual que en el ☰, así las
-  dos superficies ofrecen la entrada al repositorio).
-  «Descargar .md», «Exportar .pdf» y «Exportar .zip» están en las dos
-  superficies con la misma etiqueta y habilitación (una sola regla por
-  acción, `data-accion`: nota abierta para descargar y para el pdf,
-  proyecto activo para el zip), y el trigger «Menú» se apaga cuando
-  no hay ni nota ni proyecto. El PDF siempre sale con el pie
-  «Generado con PurpleMD ♥» (el número de página se mantiene: es
-  paginación, no branding). Si las etiquetas no
-  entran, la barra envuelve en varias filas: nunca se truncan ni se
-  achican y los targets siguen teniendo 44px (WCAG 2.5.5). Al cruzar el
-  corte se cierra el menú del lado opuesto y, si el foco quedó en un
-  control recién ocultado, pasa al primer control enfocable visible de
-  la barra (WCAG 2.4.3).
-- Regla de superficies: el explorador importa y crea; en angosto el menú
-  ☰ descarga y exporta; en ancho la barra muestra el visualizador y el
-  menú `Menú` reúne las acciones (descargar, exportar, compartir y
-  repo). Importar avisa su **éxito**
+- Menú «Vista ▾»: la única superficie de las vistas, en cualquier
+  ancho. Ofrece tres opciones exclusivas como `menuitemradio` con
+  `aria-checked`: «Editor y previsualización» (estado inicial), «Solo
+  previsualización» y «Solo editor». Al elegir una opción, `aria-checked`
+  se sincroniza con `zona[data-vista]`, el menú se cierra y el foco
+  vuelve al trigger (igual que con `Escape`, que solo cierra). Ocultar es
+  solo `display:none` en CSS: el DOM no se toca, así que el texto del
+  editor, el HTML renderizado, el scroll y el cursor se conservan.
+  `Guardar` y `Ctrl`/`Cmd`+`S` funcionan en las tres vistas. La vista no
+  se persiste: al recargar vuelve al estado inicial, «Editor y
+  previsualización».
+- Menú «Menú ▾»: superficie única de las acciones secundarias en
+  cualquier ancho, agrupadas por tipo de operación: «Sincronizar»
+  (siempre disponible, se apaga mientras hay un guardado o una
+  sincronización en vuelo), «Archivo» («Descargar .md», «Exportar .pdf»
+  con una nota abierta, «Exportar .zip» con proyecto activo), «Difusión»
+  («Compartir PurpleMD», siempre disponible, y «Ver en GitHub», con el
+  logo de Octocat: un `<a role="menuitem">` con `target="_blank"`) y
+  «Servidor». Nunca se apaga entero: siempre hay algo que ofrecer. El
+  PDF siempre sale con el pie «Generado con PurpleMD ♥» (el número de
+  página se mantiene: es paginación, no branding).
+- Menú «Más ▾» de la barra de formato: el formato secundario del editor
+  (tachado, código en línea, imagen, tabla, línea horizontal y bloque de
+  código), con ítems etiquetados y el mismo `data-md` que los botones
+  visibles (una acción, un manejador). Su panel vive dentro de
+  `role="toolbar"` para ocultarse con la barra, y su trigger es un
+  `.tool-btn` más, así que entra en el mismo roving tabindex.
+- Sistema de menús único: los tres menús comparten el ciclo de vida de
+  «Menu Button» (WAI-ARIA APG) —alternar con el trigger, clic fuera
+  cierra, `Escape` cierra y devuelve el foco al trigger, activar un ítem
+  cierra y devuelve el foco, flechas/`Inicio`/`Fin` navegan, `Tab` sale
+  del menú y su `focusout` lo cierra— y solo hay uno abierto a la vez.
+  El panel se posiciona `fixed` desde el rectángulo del trigger, por
+  eso nunca se recorta contra los bordes de la ventana (se abre hacia
+  arriba si no entra debajo y se alinea al borde derecho cuando
+  sobra), y se vuelve a colocar en cada `resize`.
+- Barra superior: `marca | badge | cuenta | Explorador (angosto) | Vista
+  ▾ | ☀/🌙 | Menú ▾ | Guardar`. Si las etiquetas no entran, envuelve en
+  varias filas: nunca se truncan ni se achican y los targets siguen
+  teniendo 44px (WCAG 2.5.5). Al cruzar el corte de 48rem (768px), si el
+  foco quedó en un control recién ocultado, pasa al primer control
+  enfocable visible de la barra (WCAG 2.4.3).
+- Tema claro/oscuro: `tema.js` es un script clásico en el `<head>`, antes
+  del CSS, que resuelve y aplica `data-tema` en `<html>` antes del primer
+  pintado (sin destello del color opuesto). Una sola clave en
+  `localStorage` (`purplemd_tema`, `claro` u `oscuro`); sin clave manda
+  `prefers-color-scheme` (con listener de cambio). El botón ☀/🌙 de la
+  barra alterna y persiste la elección; el swap de iconos lo hace el CSS
+  desde `data-tema` (el icono muestra la ACCIÓN, no el estado) y el JS
+  solo pinta `title`/`aria-label`. La paleta se apoya en tres bloques de
+  `style.css` —`:root` (claro), el media query sobre
+  `:root:not([data-tema])` (respaldo sin JS) y
+  `:root[data-tema="oscuro"]` (camino vivo)— con paridad exacta entre
+  los dos últimos, garantizada por `tests/test_contraste.py`.
+- Regla de superficies: el explorador importa y crea; el menú «Menú ▾»
+  sincroniza, descarga, exporta, comparte y ofrece el servidor MCP; la
+  barra de formato formatea. Importar avisa su **éxito**
   con un toast y su **error** en `#importar-estado`, junto a los botones
   de la fila.
-- Al arrancar se asegura la semilla de bienvenida: si el proyecto
-  **Bienvenida** o sus notas `nota-de-bienvenida` y `tutorial` faltan,
-  los crea —nunca pisa el contenido ya existente, que el usuario puede
-  editar o vaciar— y la primera es la que se muestra por defecto. El
-  tutorial se suma aunque la bienvenida sea vieja. Solo si la semilla
-  no se puede crear se vuelve al comportamiento previo: proyecto más
-  reciente y ninguna nota abierta.
-- La semilla de **plantillas** corre en paralelo con la de bienvenida:
-  es la más lenta (una petición por archivo) y no pinta el explorador
-  ni selecciona nada, así que no puede robarle el foco a la nota que se
-  abre abajo. Solo si creó algo, el proyecto «Plantillas» entra en la
-  lista al final del arranque, con el foco ya puesto.
+- El arranque **no crea proyectos ni notas**: el explorador arranca con
+  el estado vacío («Tu espacio de trabajo»), que ofrece crear el primer
+  proyecto o elegir una plantilla. Si hay proyectos, se restaura la
+  última ubicación guardada o, sin ella, queda seleccionado el más
+  reciente.
+- Las **plantillas** de `/plantillas` no se instalan: el frontend lee su
+  manifiesto (`indice.json`) y llena el selector «Empezar con una
+  plantilla» del formulario de proyecto. Solo si el usuario elige una,
+  al crear el proyecto se crea además su primera nota con ese contenido
+  y se abre. Sin manifiesto, el selector no aparece y el formulario
+  queda como siempre.
 - Dos formularios de creación, de proyecto y de nota (esta última con
   ruta, p. ej. `diseños/logo`); los errores `404`, `409` y `422` se
   muestran ahí, en español y de forma persistente, junto al formulario
@@ -219,7 +232,7 @@ Compuesto por `static/index.html`, `static/css/style.css` y
   completo ni le intercepta el clic (WCAG 2.2 SC 2.4.11). Cada toast
   lleva `role="status"` con `aria-live="polite"` si es éxito, o
   `role="alert"` **sin auto-cierre** si es error: así los errores de
-  exportación (que viven en la barra ☰/Menú, que puede estar cerrada)
+  exportación (que viven en el menú «Menú ▾», que puede estar cerrado)
   solo los cierra la X. El error de importación no va al toast: queda en
   `#importar-estado`.
 - Cada fila de proyecto, carpeta y nota tiene dos botones: renombrar y
@@ -245,13 +258,12 @@ Compuesto por `static/index.html`, `static/css/style.css` y
 - Los HTML ya renderizados se cachean por hash del texto, con un tope de
   100 entradas; una respuesta vieja no pisa a una más nueva.
 - Los enlaces relativos de la vista previa abren la nota del proyecto
-  activo (la semilla usa `[Hacé el tutorial](tutorial)`); los que tienen
-  esquema o son anclas quedan para el navegador.
+  activo (p. ej. `[Ver recetas](recetas)`); los que tienen esquema o son
+  anclas quedan para el navegador.
 - Guardado manual (botón «Guardar» o `Ctrl`/`Cmd`+`S`): mientras hay
   cambios sin guardar no deja cambiar de nota. El ítem «Descargar .md»
-  arma el archivo en el cliente, sin endpoint de descarga; aparece en las
-  dos superficies (ítem del menú ☰ en angosto e ítem del menú «Menú ▾»
-  en ancho) con el mismo manejador y la misma habilitación
+  arma el archivo en el cliente, sin endpoint de descarga; vive en el
+  menú «Menú ▾» con la misma habilitación que el resto de las acciones
   (`data-accion="descargar"`).
 - No hay frameworks, bundlers ni librerías de JavaScript en el cliente:
   el render lo hace el backend.

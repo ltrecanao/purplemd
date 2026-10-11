@@ -35,11 +35,12 @@ cliente, sin autoguardado, y con acceso opcional vía Google.
   PurpleMD ♥») y el proyecto completo como `.zip`, con su import.
 - Árbol de carpetas plegable, validación de rutas y tamaños (sin path
   traversal; 1 MB por nota), escrituras atómicas y `GET /health`.
-- Al arrancar crea el proyecto **Bienvenida** con sus notas
-  `nota-de-bienvenida`, `tutorial` y **`mcp`** si faltan —nunca pisa lo que ya
-  existe—.
+- El espacio de trabajo arranca **vacío**: no crea proyectos ni notas de
+  ejemplo. Un estado inicial ofrece crear el primer proyecto o empezar
+  con una de las **nueve plantillas** (elegibles al crear un proyecto,
+  nunca instalan nada solas).
 - Enlaces entre notas desde la vista previa: `[texto](ruta)` abre esa
-  nota del proyecto activo (es como viaja la bienvenida a su tutorial);
+  nota del proyecto activo;
   los enlaces externos quedan para el navegador.
 - Servidor **MCP** integrado para que clientes compatibles con MCP puedan
 consultar y gestionar proyectos y notas mediante herramientas.
@@ -55,6 +56,8 @@ consultar y gestionar proyectos y notas mediante herramientas.
   el servidor no recibe ni conserva nada.
 - **Política de Privacidad** y **Condiciones del Servicio** disponibles
   en la pantalla de acceso (`/privacy`, `/terms`).
+- **Documentación de uso** en `/wiki`: primeros pasos, editor, proyectos
+  y plantillas, cuenta y almacenamiento, e integración MCP.
 
 ## Qué no hace hoy
 
@@ -83,9 +86,6 @@ notas:
 - **update_note**
 - **move_note**
 - **delete_note**
-- **search_notes**
-- **create_project**
-- **delete_project**
 
 El servidor MCP se inicia automáticamente junto con PurpleMD; no es
 necesario ejecutar un proceso adicional.
@@ -98,8 +98,8 @@ credenciales de Google, el token es la variable de entorno
 `PURPLEMD_MCP_TOKEN` y el alcance es la raíz compartida. Sin token
 responde `403`; con un token inválido o vencido, `401`.
 
-La nota `mcp` del proyecto **Bienvenida** incluye guía completa de
-configuración (Claude Desktop, clientes MCP, desarrollo local).
+La wiki (`/wiki#mcp`) y el panel «Servidor MCP» de la app incluyen la
+guía de configuración (Claude Desktop, clientes MCP, desarrollo local).
 
 ## Arranque rápido
 
@@ -150,17 +150,21 @@ descarte (el formato OCI la ignora). Verificación, permisos y detalle:
 | Guardar | Botón *Guardar* o `Ctrl`/`Cmd`+`S` |
 | Buscar / reemplazar | Barra de formato o `Ctrl`/`Cmd`+`F` / `Ctrl`/`Cmd`+`H` |
 | Deshacer / rehacer | Barra de formato o `Ctrl`/`Cmd`+`Z` / `Ctrl`/`Cmd`+`Y` |
-| Cambiar de vista | Segmentado de la barra o menú ☰ → *Visualizador* |
-| Descargar .md | Menú ☰ / *Menú ▾* → *Descargar .md* |
-| Exportar PDF o ZIP | Menú ☰ / *Menú ▾* → *Exportar .pdf* / *Exportar .zip* |
-| Compartir / ver el repo | Menú ☰ / *Menú ▾* → *Compartir PurpleMD* / *Ver en GitHub* |
+| Cambiar de vista | Menú *Vista ▾* (editor y previsualización, solo previsualización, solo editor) |
+| Formato menos frecuente | Menú *Más ▾* de la barra de formato |
+| Sincronizar | Menú *Menú ▾* → *Sincronizar* |
+| Descargar .md | Menú *Menú ▾* → *Descargar .md* |
+| Exportar PDF o ZIP | Menú *Menú ▾* → *Exportar .pdf* / *Exportar .zip* |
+| Compartir / ver el repo | Menú *Menú ▾* → *Compartir PurpleMD* / *Ver en GitHub* |
+| Tema claro / oscuro | Botón ☀ / 🌙 de la barra superior |
 | Crear o importar | Explorador (proyectos, *Importar .md* / *.zip*) |
+| Plantillas | Explorador → *Empezar con una plantilla* (al crear un proyecto) |
+| Documentación | Menú *Menú ▾* → *Documentación* (`/wiki`) |
 | Cerrar lo que esté abierto | `Escape` |
 
-> Superficies: en pantallas angostas (menos de 48rem) todo vive en el
-> menú **☰**; desde 48rem la barra superior muestra el visualizador y el
-> menú **Menú ▾**. La nota `tutorial` que crea la app incluye la
-> tabla de atajos completa.
+> Superficies: una sola por menú en cualquier ancho —*Vista ▾*, *Menú ▾*
+> y *Más ▾*— con el panel posicionado para no salirse de la pantalla.
+> La tabla de atajos completa vive en la wiki (`/wiki#atajos`).
 
 ## Almacenamiento
 

@@ -1802,3 +1802,12 @@ def terms() -> FileResponse:
         Path(__file__).parent / "static" / "terms.html",
         media_type="text/html",
     )
+
+
+@app.get("/wiki", include_in_schema=False)
+def wiki() -> FileResponse:
+    """Documentación de uso: primeros pasos, editor, cuenta y MCP."""
+    return FileResponse(
+        Path(__file__).parent / "static" / "wiki" / "index.html",
+        media_type="text/html",
+    )

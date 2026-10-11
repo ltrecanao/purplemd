@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Documentación de PurpleMD: primeros pasos del editor, proyectos y plantillas, cuenta y almacenamiento, y configuración del servidor MCP.">
+  <title>Documentación - PurpleMD</title>
+  <script src="/static/js/tema.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="wiki-page">
+  <header class="topbar wiki-topbar">
+    <a class="wiki-marca" href="/" aria-label="Volver a PurpleMD">
+      <img class="marca-img marca-img-claro" src="/static/assets/wordmark.svg" alt="PurpleMD" width="131" height="26">
+      <img class="marca-img marca-img-oscuro" src="/static/assets/wordmark-oscuro.svg" alt="PurpleMD" width="131" height="26">
+    </a>
+    <a class="btn" href="/">Volver a PurpleMD</a>
+  </header>
+
+  <div class="wiki-cuerpo">
+    <nav class="wiki-nav" aria-label="Secciones de la documentación">
+      <h2 class="wiki-nav-titulo">En esta guía</h2>
+      <ul>
+        <li><a href="#primeros-pasos">Primeros pasos</a>
+          <ul>
+            <li><a href="#que-es">Qué es PurpleMD</a></li>
+            <li><a href="#crear-proyecto">Crear el primer proyecto</a></li>
+            <li><a href="#crear-notas">Crear y editar notas</a></li>
+            <li><a href="#carpetas">Organizar notas en carpetas</a></li>
+          </ul>
+        </li>
+        <li><a href="#editor">Editor</a>
+          <ul>
+            <li><a href="#vista-previa">Markdown y vista previa</a></li>
+            <li><a href="#atajos">Formato y atajos</a></li>
+            <li><a href="#buscar">Buscar y reemplazar</a></li>
+            <li><a href="#temas">Temas claro y oscuro</a></li>
+            <li><a href="#exportar">Importar y exportar</a></li>
+          </ul>
+        </li>
+        <li><a href="#proyectos">Proyectos y plantillas</a>
+          <ul>
+            <li><a href="#organizar-proyectos">Crear y organizar</a></li>
+            <li><a href="#plantillas">Usar plantillas</a></li>
+            <li><a href="#zip">Proyectos completos (.zip)</a></li>
+          </ul>
+        </li>
+        <li><a href="#cuenta">Cuenta y almacenamiento</a>
+          <ul>
+            <li><a href="#invitado">Modo invitado</a></li>
+            <li><a href="#google">Autenticación con Google</a></li>
+            <li><a href="#almacenamiento">Dónde viven tus datos</a></li>
+            <li><a href="#sincronizacion">Sincronización: qué hace y qué no</a></li>
+          </ul>
+        </li>
+        <li><a href="#mcp">Integración MCP</a>
+          <ul>
+            <li><a href="#mcp-que">Qué permite</a></li>
+            <li><a href="#mcp-requisitos">Requisitos previos</a></li>
+            <li><a href="#mcp-configuracion">Configuración paso a paso</a></li>
+            <li><a href="#mcp-clientes">Clientes compatibles</a></li>
+            <li><a href="#mcp-tokens">Autenticación y tokens</a></li>
+            <li><a href="#mcp-herramientas">Herramientas disponibles</a></li>
+            <li><a href="#mcp-problemas">Problemas frecuentes</a></li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+
+    <main class="wiki-contenido legal-content">
+      <h1>Documentación de PurpleMD</h1>
+      <p>Guía de uso del editor: cómo empezar, cómo organizar tus notas y cómo configurar las integraciones opcionales. Todo lo de esta página está disponible en la app; si algo cambia en la interfaz, manda la app.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="primeros-pasos">Primeros pasos</h2>
+
+      <h3 id="que-es">Qué es PurpleMD</h3>
+      <p>PurpleMD es un editor de Markdown con dos paneles: escribís a la izquierda (o arriba, en pantallas chicas) y ves cómo queda a la derecha (o abajo). Cada nota es un archivo <code>.md</code> dentro de un proyecto, con subcarpetas las veces que haga falta.</p>
+      <ul>
+        <li><strong>Sin autoguardado:</strong> los cambios se guardan cuando apretás «Guardar».</li>
+        <li><strong>Sin cuentas obligatorias:</strong> podés trabajar como invitado o entrar con Google.</li>
+        <li><strong>Sin dependencias en el navegador:</strong> la vista previa la renderiza el servidor, y el HTML crudo se muestra como texto (nunca se ejecuta).</li>
+      </ul>
+
+      <h3 id="crear-proyecto">Crear el primer proyecto</h3>
+      <ol>
+        <li>En el explorador (a la izquierda en escritorio; en móvil, abrilo con el botón «Explorador»), escribí un nombre en <strong>«Proyecto nuevo»</strong>.</li>
+        <li>Apretá <strong>«Crear»</strong>. El proyecto queda seleccionado y listo para recibir notas.</li>
+      </ol>
+      <p>Si todavía no tenés proyectos, el explorador muestra <strong>«Tu espacio de trabajo»</strong> con la misma acción a mano. Un espacio nuevo empieza vacío: PurpleMD no crea proyectos ni notas de ejemplo por su cuenta.</p>
+
+      <h3 id="crear-notas">Crear y editar notas</h3>
+      <ol>
+        <li>Con un proyecto seleccionado, escribí un nombre en <strong>«Nota nueva»</strong> y apretá «Crear».</li>
+        <li>La nota se abre en el editor. Escribí en Markdown y la vista previa se actualiza sola.</li>
+        <li>Cuando quieras guardar, apretá <strong>«Guardar»</strong> o <code>Ctrl</code>/<code>Cmd</code> + <code>S</code>.</li>
+      </ol>
+      <p>En «Nota nueva» podés escribir <code>recetas/tortas</code>: la nota nace adentro de la carpeta <code>recetas</code>, que se crea sola si no existe.</p>
+
+      <h3 id="carpetas">Organizar notas en carpetas</h3>
+      <ul>
+        <li>Cada fila del árbol tiene dos botones: <strong>renombrar</strong> (en notas y carpetas dice «Mover») y <strong>eliminar</strong>.</li>
+        <li>Al renombrar o mover, editás la ruta completa: <code>diseños/logo</code> es una nota <code>logo</code> dentro de la carpeta <code>diseños</code>.</li>
+        <li>Las carpetas se pliegan con la flecha, y PurpleMD recuerda cuáles tenías plegadas.</li>
+        <li>Eliminar una carpeta pide confirmación y borra todo lo que tiene adentro: el backend no hace papelera.</li>
+      </ul>
+
+      <!-- ============================================================ -->
+      <h2 id="editor">Editor</h2>
+
+      <h3 id="vista-previa">Markdown y vista previa</h3>
+      <p>La vista previa se actualiza unos milisegundos después de que dejás de tipear. El menú <strong>«Vista ▾»</strong> de la barra superior elige qué se ve:</p>
+      <ul>
+        <li><strong>Editor y previsualización</strong> (por defecto),</li>
+        <li><strong>Solo previsualización</strong> para leer, o</li>
+        <li><strong>Solo editor</strong> para escribir sin distracciones.</li>
+      </ul>
+      <p>La vista previa también navega: un enlace como <code>[Ver recetas](recetas)</code> abre esa nota del proyecto activo en el editor. Los enlaces externos (<code>https://…</code>) se abren en el navegador.</p>
+      <p>El Markdown soportado es CommonMark con tablas, tachado y listas de tareas. Lo que escribas como HTML crudo se escapa y se muestra como texto.</p>
+
+      <h3 id="atajos">Formato y atajos</h3>
+      <p>La barra de formato hace el trabajo pesado: títulos (H1, H2, H3), <strong>negrita</strong>, <em>cursiva</em>, cita, listas (con viñetas, numeradas y de tareas), enlace, buscar y reemplazar. Lo menos frecuente vive en el menú <strong>«Más ▾»</strong>: tachado, código en línea, imagen, tabla, línea horizontal y bloque de código. Los dos primeros botones son ↶ deshacer y ↷ rehacer.</p>
+      <table>
+        <caption>Atajos de teclado</caption>
+        <thead>
+          <tr><th scope="col">Atajo</th><th scope="col">Qué hace</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>Ctrl</code>/<code>Cmd</code> + <code>S</code></td><td>Guarda lo que escribiste</td></tr>
+          <tr><td><code>Ctrl</code>/<code>Cmd</code> + <code>B</code></td><td>Negrita</td></tr>
+          <tr><td><code>Ctrl</code>/<code>Cmd</code> + <code>I</code></td><td>Cursiva</td></tr>
+          <tr><td><code>Ctrl</code>/<code>Cmd</code> + <code>K</code></td><td>Convierte lo seleccionado en enlace</td></tr>
+          <tr><td><code>Ctrl</code>/<code>Cmd</code> + <code>Z</code></td><td>Deshacer</td></tr>
+          <tr><td><code>Ctrl</code>/<code>Cmd</code> + <code>Y</code> o <code>Shift</code> + <code>Z</code></td><td>Rehacer</td></tr>
+          <tr><td><code>Ctrl</code>/<code>Cmd</code> + <code>F</code></td><td>Buscar en la nota</td></tr>
+          <tr><td><code>Ctrl</code>/<code>Cmd</code> + <code>H</code></td><td>Buscar y reemplazar</td></tr>
+          <tr><td><code>Tab</code></td><td>Inserta dos espacios</td></tr>
+          <tr><td><code>Shift</code> + <code>Tab</code></td><td>Sale del editor</td></tr>
+          <tr><td><code>Escape</code></td><td>Cierra lo que esté abierto</td></tr>
+        </tbody>
+      </table>
+      <p>Los atajos de formato actúan con el cursor dentro del editor: así <code>Ctrl</code>/<code>Cmd</code> + <code>F</code> no secuestra el buscador del navegador mientras escribís.</p>
+
+      <h3 id="buscar">Buscar y reemplazar</h3>
+      <ul>
+        <li><code>Ctrl</code>/<code>Cmd</code> + <code>F</code> abre la barra de buscar; <code>Ctrl</code>/<code>Cmd</code> + <code>H</code> la abre con la fila de <strong>Reemplazar</strong>.</li>
+        <li><code>Enter</code> pasa a la coincidencia siguiente, <code>Shift</code> + <code>Enter</code> a la anterior, y <code>Escape</code> (o la ✕) cierra la barra y te devuelve el foco al editor.</li>
+        <li><strong>Mayúsculas</strong> distingue «A» de «a» y <strong>Palabra completa</strong> busca solo palabras enteras; el contador dice «3 de 12».</li>
+        <li><strong>Reemplazar</strong> cambia la coincidencia actual y <strong>Reemplazar todos</strong> las de una; las dos se deshacen con <code>Ctrl</code>/<code>Cmd</code> + <code>Z</code> de una sola vez.</li>
+      </ul>
+
+      <h3 id="temas">Temas claro y oscuro</h3>
+      <p>El botón ☀ / 🌙 de la barra superior cambia el tema y PurpleMD recuerda tu elección en ese navegador. Si todavía no elegiste, sigue la preferencia del sistema operativo.</p>
+
+      <h3 id="exportar">Importar y exportar</h3>
+      <ul>
+        <li><strong>«Menú ▾» → «Descargar .md»</strong> descarga la nota actual.</li>
+        <li><strong>«Menú ▾» → «Exportar .pdf»</strong> convierte la nota en PDF.</li>
+        <li><strong>«Menú ▾» → «Exportar .zip»</strong> exporta el proyecto completo.</li>
+        <li><strong>«Importar .md»</strong> y <strong>«Importar .zip»</strong>, en el explorador, importan una nota o un proyecto entero.</li>
+      </ul>
+      <p>Límites útiles: cada nota admite hasta 1 MB; un archivo .zip hasta 10 MB y 50 MB una vez descomprimido. Los nombres aceptan letras (con tildes y <code>ñ</code>), números, espacios, <code>_</code> y <code>-</code>.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="proyectos">Proyectos y plantillas</h2>
+
+      <h3 id="organizar-proyectos">Crear y organizar proyectos</h3>
+      <ul>
+        <li>Cada fila de proyecto tiene <strong>renombrar</strong> y <strong>eliminar</strong> (con confirmación).</li>
+        <li>La lista muestra la fecha de última modificación de cada proyecto.</li>
+        <li>Mientras hay cambios sin guardar no deja cambiar de proyecto ni de nota: guardá primero.</li>
+        <li>Al recargar la página, PurpleMD vuelve al proyecto y la nota en los que estabas.</li>
+      </ul>
+
+      <h3 id="plantillas">Usar plantillas</h3>
+      <p>Las plantillas son documentos de ejemplo que sirven para arrancar un documento formal sin partir de una página en blanco. PurpleMD trae nueve:</p>
+      <ul>
+        <li>propuesta comercial · presupuesto formal · contrato de servicios</li>
+        <li>informe técnico · ficha de cliente · orden de trabajo</li>
+        <li>presupuesto de servicio · detalle de cobro · guía paso a paso</li>
+      </ul>
+      <p>Cómo se usan:</p>
+      <ol>
+        <li>Al crear un proyecto, elegí una plantilla en <strong>«Empezar con una plantilla»</strong> (opcional; por defecto es «Sin plantilla»).</li>
+        <li>Al crear el proyecto, PurpleMD crea además su primera nota con el contenido de la plantilla y la abre.</li>
+        <li>Los campos a completar van entre corchetes, por ejemplo <code>[FECHA]</code> o <code>[MONTO_TOTAL]</code>: completalos y listo.</li>
+      </ol>
+      <blockquote>
+        <p>Las plantillas no son proyectos tuyos: no se crean solas ni aparecen en tu lista hasta que vos elegís una. Si borrás o editás la nota creada, es tuya; PurpleMD no la vuelve a crear.</p>
+      </blockquote>
+
+      <h3 id="zip">Proyectos completos (.zip)</h3>
+      <p>«Menú ▾» → «Exportar .zip» descarga el proyecto entero con su estructura de carpetas. «Importar .zip», en el explorador, lo vuelve a crear tal cual. Es también la manera recomendada de mover trabajo entre cuentas o entre un navegador y otro.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="cuenta">Cuenta y almacenamiento</h2>
+
+      <h3 id="invitado">Modo invitado</h3>
+      <p>La pantalla de acceso ofrece <strong>«Continuar sin cuenta»</strong>. En ese modo:</p>
+      <ul>
+        <li>Tus proyectos viven en <code>localStorage</code> del navegador; el servidor no recibe ni conserva nada de lo que escribís.</li>
+        <li>El markdown solo viaja al servidor en dos operaciones puntuales, la vista previa y el PDF, que convierten y se olvidan.</li>
+        <li><strong>El export es el respaldo:</strong> con «Exportar .zip» armás el respaldo cuando quieras.</li>
+        <li>Salir no borra nada: tus datos quedan en el navegador.</li>
+        <li>Si después entrás con Google, el modo invitado se apaga solo y sus datos quedan guardados por si volvés.</li>
+      </ul>
+      <p>Contraparte: al vivir en un solo navegador, no hay copia en el servidor, no se sincroniza con otros dispositivos y los datos se pierden si limpiás el navegador. Si trabajás en modo invitado, exportá seguido.</p>
+
+      <h3 id="google">Autenticación con Google</h3>
+      <p>Si el sitio está configurado con credenciales de Google, al abrirlo aparece la pantalla de acceso con dos caminos: <strong>«Continuar con Google»</strong> y <strong>«Continuar sin cuenta»</strong>.</p>
+      <ul>
+        <li>La sesión dura 30 días en el navegador; después hay que volver a entrar.</li>
+        <li>Cada cuenta ve solo lo suyo: el servidor guarda los proyectos de cada cuenta por separado.</li>
+        <li>PurpleMD pide solo los alcances <code>openid email profile</code>, <code>drive.file</code> (archivos que crea la app) y <code>drive.appdata</code> (su carpeta oculta de Drive). No pide acceso a todo tu Drive.</li>
+        <li>Podés desconectar la app desde <a href="https://myaccount.google.com/permissions">tus permisos de Google</a> en cualquier momento.</li>
+      </ul>
+
+      <h3 id="almacenamiento">Dónde viven tus datos</h3>
+      <p>Depende de cómo esté configurado el servidor (lo decide quien lo administra):</p>
+      <table>
+        <caption>Modos de almacenamiento</caption>
+        <thead>
+          <tr><th scope="col">Modo</th><th scope="col">Dónde vive</th><th scope="col">Notas</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Invitado</td>
+            <td><code>localStorage</code> del navegador</td>
+            <td>El servidor no guarda nada. Exportá .zip como respaldo.</td>
+          </tr>
+          <tr>
+            <td>Cuenta, en el servidor</td>
+            <td>Carpeta propia del servidor, una por cuenta</td>
+            <td>Desde cualquier dispositivo entrás con tu cuenta y ves tus proyectos.</td>
+          </tr>
+          <tr>
+            <td>Cuenta, en Google Drive</td>
+            <td>Carpeta oculta <code>appDataFolder</code> de tu Drive</td>
+            <td>Solo la app puede verla; el borrado es permanente.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 id="sincronizacion">Sincronización: qué hace y qué no</h3>
+      <ul>
+        <li><strong>«Menú ▾» → «Sincronizar»</strong> guarda los cambios pendientes y recarga la lista de proyectos y el árbol desde el servidor. Es una refrescada manual, no un sistema de colaboración.</li>
+        <li><strong>No hay colaboración en tiempo real</strong> ni presencia compartida: cada quien escribe en su propio espacio.</li>
+        <li>Con cuenta de Google, tus datos viven en el servidor (o en tu Drive), así que entrar desde otro dispositivo con la misma cuenta muestra los mismos proyectos.</li>
+        <li>En modo invitado no hay nada que sincronizar entre dispositivos: los datos viven en ese navegador.</li>
+      </ul>
+
+      <!-- ============================================================ -->
+      <h2 id="mcp">Integración MCP</h2>
+      <p>El servidor MCP es una integración <strong>opcional y avanzada</strong>: permite que una IA compatible lea y escriba tus notas desde su propio cliente, con tu permiso y solo las tuyas. No hace falta conocerlo para usar PurpleMD: crear proyectos, escribir notas y exportar funcionan igual sin ella.</p>
+
+      <h3 id="mcp-que">Qué permite</h3>
+      <ul>
+        <li>Listar tus proyectos y ver el árbol de notas de cada uno.</li>
+        <li>Leer, crear, editar, mover y borrar notas por medio de tu cliente MCP.</li>
+        <li>Todo pasa por la misma API que usa la app, con el alcance de tu cuenta.</li>
+      </ul>
+
+      <h3 id="mcp-requisitos">Requisitos previos</h3>
+      <ul>
+        <li>Un servidor de PurpleMD con login de Google encendido, y <strong>una sesión tuya</strong> en ese servidor: desde la app generás el token que identifica a tu cuenta.</li>
+        <li>O, si el servidor corre sin credenciales de Google, una variable de entorno <code>PURPLEMD_MCP_TOKEN</code> que el admin reparte (régimen compartido, alcanza la raíz común de proyectos).</li>
+        <li>Un cliente MCP que hable por Streamable HTTP y permita mandar una cabecera personalizada.</li>
+      </ul>
+      <p>El <strong>modo invitado no es alcanzable por el MCP</strong>: sus datos viven en el navegador, no en el servidor.</p>
+
+      <h3 id="mcp-configuracion">Configuración paso a paso</h3>
+      <ol>
+        <li>Abrí <strong>«Menú ▾» → «Servidor MCP»</strong> en PurpleMD.</li>
+        <li>Apretá <strong>«Generar mi token»</strong> y copialo (con sesión de Google; sin credenciales, usá el token que reparte el admin).</li>
+        <li>En tu cliente, usá estos datos:</li>
+      </ol>
+      <pre><code>Endpoint: https://TU-SERVIDOR/mcp
+Cabecera: X-PurpleMD-Token: TU_TOKEN</code></pre>
+      <p>Por ejemplo, con <a href="https://www.npmjs.com/package/mcp-remote"><code>mcp-remote</code></a> como puente para clientes sin soporte nativo de HTTP:</p>
+      <pre><code>npx mcp-remote https://TU-SERVIDOR/mcp --header "X-PurpleMD-Token: TU_TOKEN"</code></pre>
+
+      <h3 id="mcp-clientes">Clientes compatibles</h3>
+      <p>Funciona con cualquier cliente MCP que hable <strong>Streamable HTTP</strong> y permita mandar una cabecera personalizada con la URL y el token de arriba. El panel «Servidor MCP» trae una configuración de ejemplo lista para copiar para <strong>Claude Desktop</strong> (a través de <code>mcp-remote</code>); en desarrollo local, la misma receta apunta a <code>http://localhost:8000/mcp</code>.</p>
+
+      <h3 id="mcp-tokens">Autenticación y tokens</h3>
+      <ul>
+        <li>El token que genera la app es solo tuyo: identifica tu cuenta y alcanza solo tus datos (en el servidor o en tu Drive, según la configuración).</li>
+        <li>Cada token sirve <strong>90 días</strong> desde que se emitió; el panel te dice la fecha exacta de vencimiento. Después, generá otro.</li>
+        <li>El servidor no guarda los tokens: se firman con cada emisión. Para revocar todos a la vez, quien administra rota la clave secreta del servidor (eso además cierra todas las sesiones).</li>
+        <li>Los dos regímenes no se mezclan: el token de una cuenta no sirve en un servidor sin login, ni el token compartido sirve con login encendido.</li>
+      </ul>
+
+      <h3 id="mcp-herramientas">Herramientas disponibles</h3>
+      <table>
+        <caption>Las siete herramientas del servidor MCP</caption>
+        <thead>
+          <tr><th scope="col">Herramienta</th><th scope="col">Qué hace</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>list_projects</code></td><td>Lista tus proyectos</td></tr>
+          <tr><td><code>get_project_tree</code></td><td>Devuelve el árbol de notas de un proyecto</td></tr>
+          <tr><td><code>read_note</code></td><td>Lee una nota</td></tr>
+          <tr><td><code>create_note</code></td><td>Crea una nota</td></tr>
+          <tr><td><code>update_note</code></td><td>Guarda los cambios de una nota</td></tr>
+          <tr><td><code>move_note</code></td><td>Mueve o renombra una nota</td></tr>
+          <tr><td><code>delete_note</code></td><td>Elimina una nota</td></tr>
+        </tbody>
+      </table>
+      <p>Ejemplos de lo que le podís pedir a tu IA una vez conectada: «listá mis proyectos», «creá una nota borrador en el proyecto X», «mové la nota a la carpeta clientes» o «borrá la nota Y».</p>
+
+      <h3 id="mcp-problemas">Problemas frecuentes</h3>
+      <table>
+        <caption>Síntomas y causas habituales</caption>
+        <thead>
+          <tr><th scope="col">Síntoma</th><th scope="col">Causa y solución</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/mcp</code> responde <strong>403</strong></td>
+            <td>Falta la cabecera <code>X-PurpleMD-Token</code>. Con login, generá el token en la app; sin credenciales, falta la variable <code>PURPLEMD_MCP_TOKEN</code>.</td>
+          </tr>
+          <tr>
+            <td><code>/mcp</code> responde <strong>401</strong></td>
+            <td>El token venció (90 días), está mal escrito o firmado con otra clave. Generá otro desde la app.</td>
+          </tr>
+          <tr>
+            <td>«Generar mi token» responde <strong>401</strong></td>
+            <td>Tu sesión de Google venció: volvé a entrar en PurpleMD.</td>
+          </tr>
+          <tr>
+            <td>«Generar mi token» responde <strong>503</strong></td>
+            <td>El servidor corre sin credenciales de Google: no hay tokens por cuenta; usá el token compartido del admin.</td>
+          </tr>
+          <tr>
+            <td>El cliente no conecta con un dominio propio</td>
+            <td>Por protección contra ataques DNS, el transporte acepta solo <code>localhost</code>, <code>127.0.0.1</code> y <code>purplemd.onrender.com</code>. Quien administra debe sumar su dominio a la lista permitida de <code>api.py</code>.</td>
+          </tr>
+          <tr>
+            <td>Quiero usarlo en modo invitado</td>
+            <td>No se puede: los datos del invitado no llegan al servidor. Entrá con tu cuenta.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <footer class="wiki-pie">
+        <p>PurpleMD · <a href="/">Volver a la app</a> · <a href="https://github.com/ltrecanao/purplemd">Código en GitHub</a> · <a href="/privacy">Privacidad</a> · <a href="/terms">Condiciones</a></p>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

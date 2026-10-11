@@ -769,6 +769,14 @@ class CabecerasTests(AuthTestCase):
         self.assertNotIn('onclick=', html)
         self.assertIn('src="/static/js/app.js"', html)
 
+    def test_la_wiki_tampoco_lleva_estilos_ni_eventos_inline(self):
+        """La wiki es frontend servido por la misma app: misma CSP, mismas reglas."""
+        html = (Path(__file__).parent.parent / "static" / "wiki" / "index.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn('style="', html)
+        self.assertNotIn('onclick=', html)
+
     def test_swagger_no_lleva_csp(self):
         """Swagger carga su JS desde un CDN: imponerle la CSP lo rompería."""
         r = self.client.get("/docs")

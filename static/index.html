@@ -6,20 +6,24 @@
   <title>PurpleMD</title>
   <meta name="description" content="Editor de markdown ligero: notas en proyectos con subcarpetas y previsualización.">
   <link rel="icon" type="image/svg+xml" href="/static/assets/corazon.svg">
+  <!-- Tema antes del primer pintado: script clásico de mismo origen (la
+       CSP permite `script-src 'self'`, no inline) que resuelve y aplica
+       `data-tema` en `<html>`. Va antes de la hoja de estilos para que
+       el color correcto se pinte de una, sin destello del tema opuesto.
+       La alternancia y la persistencia viven en `app.js`. -->
+  <script src="/static/js/tema.js"></script>
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <header class="topbar">
     <!-- Marca como SVG (trazados embebidos): idéntica en cualquier
-         sistema, sin depender de las fuentes del visitante. La variante
-         oscura se sirve con la misma regla que el CSS
-         (`prefers-color-scheme`), porque el MD oscuro no se lee sobre
-         el fondo #14111d. -->
+         sistema, sin depender de las fuentes del visitante. Las dos
+         variantes están en la página y el CSS muestra la del tema
+         activo (`data-tema`), porque el MD oscuro no se lee sobre el
+         fondo claro ni el claro sobre #14111d. -->
     <h1 class="marca">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="/static/assets/wordmark-oscuro.svg">
-        <img src="/static/assets/wordmark.svg" alt="PurpleMD" width="131" height="26">
-      </picture>
+      <img class="marca-img marca-img-claro" src="/static/assets/wordmark.svg" alt="PurpleMD" width="131" height="26">
+      <img class="marca-img marca-img-oscuro" src="/static/assets/wordmark-oscuro.svg" alt="PurpleMD" width="131" height="26">
     </h1>
     <div class="acciones">
       <!-- Badge con namespace del usuario (localStorage). Solo aparece
@@ -35,39 +39,69 @@
            (< 60rem), donde el explorador no es una columna lateral. El
            texto es fijo («Explorador») y `aria-expanded` refleja el estado. -->
       <button type="button" id="explorador-toggle" class="btn" aria-expanded="false" aria-controls="explorador" aria-label="Abrir explorador">Explorador</button>
-      <!-- Menú overflow: superficie angosta (< 48rem) de vistas y
-           archivo. Patrón «Menu Button» de la WAI-ARIA APG: el botón ☰
-           lleva `aria-haspopup` + `aria-expanded` y abre el panel con
-           `role="menu"`. El envoltorio es solo contenedor: un menú solo
-           admite ítems y grupos como hijos, el trigger va fuera. Desde
-           48rem este bloque se oculta y su lugar lo toma la barra de
-           acciones (corte único en el CSS). -->
-      <div class="menu-overflow">
-        <button type="button" class="btn menu-overflow-trigger" aria-expanded="false" aria-haspopup="true" aria-label="Más acciones" title="Más acciones">☰</button>
-        <!-- Dos grupos con nombre (ARIA admite `menu > group > menuitem*`):
-             «Visualizador» con las opciones exclusivas y «Archivo» con las
-             acciones de archivo. Al activar un ítem el menú se cierra y
-             el foco vuelve al trigger. Cada `data-accion` comparte
-             manejador y `disabled` con el control homólogo de la barra
-             (una acción, dos superficies). -->
-        <div class="menu-overflow-panel" role="menu" aria-label="Acciones adicionales" hidden>
-          <div class="menu-overflow-grupo" role="group" aria-label="Visualizador">
-            <button type="button" class="menu-overflow-item" role="menuitemradio" aria-checked="true" data-vista="ambos">Editor y previsualización</button>
-            <button type="button" class="menu-overflow-item" role="menuitemradio" aria-checked="false" data-vista="preview">Solo previsualización</button>
-            <button type="button" class="menu-overflow-item" role="menuitemradio" aria-checked="false" data-vista="editor">Solo editor</button>
+      <!-- Menú «Vista»: único control de visualización en TODOS los
+           anchos (antes: segmentado en ancho y grupo «Visualizador» del
+           menú ☰ en angosto; dos superficies para lo mismo). Patrón
+           «Menu Button» de la WAI-ARIA APG: el trigger lleva
+           `aria-haspopup` + `aria-expanded` y abre un panel con
+           `role="menu"`; las tres opciones son `menuitemradio` con
+           `aria-checked`, porque son estados exclusivos y no un ciclo.
+           El envoltorio `.menu` es solo contenedor: un menú admite
+           ítems, grupos y separadores; el trigger va fuera. -->
+      <div class="menu" data-menu="vista">
+        <button type="button" id="vista-trigger" class="btn menu-trigger" aria-expanded="false" aria-haspopup="true" aria-controls="vista-panel" title="Elegir qué paneles se muestran: editor, previsualización o los dos">Vista<span class="menu-caret" aria-hidden="true">▼</span></button>
+        <div class="menu-panel" id="vista-panel" role="menu" aria-label="Visualización" hidden>
+          <button type="button" class="menu-item" role="menuitemradio" aria-checked="true" data-vista="ambos">Editor y previsualización</button>
+          <button type="button" class="menu-item" role="menuitemradio" aria-checked="false" data-vista="preview">Solo previsualización</button>
+          <button type="button" class="menu-item" role="menuitemradio" aria-checked="false" data-vista="editor">Solo editor</button>
+        </div>
+      </div>
+      <!-- Tema claro/oscuro a la vista: alterna al instante y persiste
+           la elección en `localStorage` (`purplemd_tema`, manejado por
+           `tema.js` + `app.js`); sin elección guardada manda el
+           sistema. El icono muestra el tema al que se cambia (patrón de
+           GitHub) y `title`/`aria-label` describen la ACCIÓN, no el
+           estado. El tema no se repite en ningún otro menú. -->
+      <button type="button" id="tema-toggle" class="btn btn-icono" title="Cambiar a tema oscuro" aria-label="Cambiar a tema oscuro">
+        <svg class="tema-icono tema-luna" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13.5 10.1A5.75 5.75 0 0 1 5.9 2.5a5.75 5.75 0 1 0 7.6 7.6z"/>
+        </svg>
+        <svg class="tema-icono tema-sol" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="8" cy="8" r="3.1"/>
+          <path d="M8 1.3v1.5M8 13.2v1.5M1.3 8h1.5M13.2 8h1.5M3.3 3.3l1.1 1.1M11.6 11.6l1.1 1.1M12.7 3.3l-1.1 1.1M4.4 11.6l-1.1 1.1"/>
+        </svg>
+      </button>
+      <!-- Menú «Menú ▾»: superficie única de las acciones secundarias
+           en TODOS los anchos (antes: menú ☰ en angosto y «Menú ▾» en
+           ancho; dos superficies para las mismas acciones). «Menu
+           Button» de la WAI-ARIA APG: el panel se posiciona con el JS
+           del menú (nunca se sale de la pantalla) y al activar un ítem
+           se cierra y el foco vuelve al trigger. Agrupa por tipo de
+           operación —Sincronizar, Archivo, Difusión y Servidor— y
+           nunca se apaga: siempre hay algo que ofrecer (sincronizar,
+           compartir o el servidor MCP). El caret va `aria-hidden` para
+           que el nombre accesible sea solo «Menú». -->
+      <div class="menu" data-menu="acciones">
+        <button type="button" id="acciones-trigger" class="btn menu-trigger" aria-expanded="false" aria-haspopup="true" aria-controls="acciones-panel" title="Más acciones: sincronizar, descargar, exportar, compartir, la documentación o el servidor MCP">Menú<span class="menu-caret" aria-hidden="true">▼</span></button>
+        <div class="menu-panel" id="acciones-panel" role="menu" aria-label="Acciones adicionales" hidden>
+          <!-- Sincronizar no depende de tener nota abierta y su
+               `disabled` lo comparte con el resto de las `data-accion`
+               (una acción, un manejo). -->
+          <button type="button" class="menu-item" role="menuitem" data-accion="sincronizar" title="Guarda los cambios pendientes y recarga proyectos y árbol desde el servidor">Sincronizar</button>
+          <hr class="menu-separador">
+          <div class="menu-grupo" role="group" aria-label="Archivo">
+            <button type="button" class="menu-item" role="menuitem" data-accion="descargar" title="Descarga el contenido actual del editor" disabled>Descargar .md</button>
+            <button type="button" class="menu-item" role="menuitem" data-accion="pdf" title="Exporta la nota abierta a PDF" disabled>Exportar .pdf</button>
+            <button type="button" class="menu-item" role="menuitem" data-accion="zip" title="Exporta el proyecto completo" disabled>Exportar .zip</button>
           </div>
-          <div class="menu-overflow-grupo" role="group" aria-label="Archivo">
-            <button type="button" id="descargar" class="menu-overflow-item" role="menuitem" data-accion="descargar" title="Descarga el contenido actual del editor" disabled>Descargar .md</button>
-            <button type="button" id="exportar-pdf" class="menu-overflow-item" role="menuitem" data-accion="pdf" title="Exporta la nota abierta a PDF" disabled>Exportar .pdf</button>
-            <button type="button" id="exportar-zip" class="menu-overflow-item" role="menuitem" data-accion="zip" title="Exporta el proyecto completo" disabled>Exportar .zip</button>
-          </div>
-          <div class="menu-overflow-grupo" role="group" aria-label="Difusión">
-            <button type="button" id="compartir" class="menu-overflow-item" role="menuitem" data-accion="compartir" title="Comparte PurpleMD en redes">Compartir PurpleMD</button>
+          <hr class="menu-separador">
+          <div class="menu-grupo" role="group" aria-label="Difusión">
+            <button type="button" class="menu-item" role="menuitem" data-accion="compartir" title="Comparte PurpleMD en redes">Compartir PurpleMD</button>
             <!-- Link externo: `<a>` con `role="menuitem"` hereda el ciclo
                  de vida del menú (al clickearlo se cierra y devuelve el
                  foco al trigger) y permite abrir en pestaña nueva o
                  copiar el enlace. -->
-            <a class="menu-overflow-item" role="menuitem"
+            <a class="menu-item" role="menuitem"
                href="https://github.com/ltrecanao/purplemd"
                target="_blank" rel="noopener noreferrer"
                title="Ver el código de PurpleMD en GitHub">
@@ -77,66 +111,18 @@
               Ver en GitHub
             </a>
           </div>
-          <!-- Servidor MCP: misma acción en las dos superficies, con el
-               mismo `data-accion` que despacha `accionesCompartidas`
-               (app.js). No lleva `disabled`: es una acción global, no
-               depende de tener nota ni proyecto. -->
-          <div class="menu-overflow-grupo" role="group" aria-label="Servidor">
-            <button type="button" class="menu-overflow-item" role="menuitem" data-accion="mcp" title="Conectá un cliente MCP a tus notas y generá tu token">Servidor MCP</button>
+          <hr class="menu-separador">
+          <!-- Integración: ambas acciones son globales, no dependen de
+               tener nota ni proyecto, así que sus ítems nunca se apagan.
+               La documentación es un enlace discreto a la wiki; el MCP
+               es una capacidad opcional y avanzada, no parte del flujo
+               normal de escritura. -->
+          <div class="menu-grupo" role="group" aria-label="Integración">
+            <a class="menu-item" role="menuitem" href="/wiki" title="Guía de uso y configuración de PurpleMD">Documentación</a>
+            <button type="button" class="menu-item" role="menuitem" data-accion="mcp" title="Opcional y avanzado: conectá un cliente MCP a tus notas y generá tu token">Servidor MCP</button>
           </div>
         </div>
       </div>
-      <!-- Segmentado de vistas: superficie ancha (>= 48rem). «Radio
-           Group» de la WAI-ARIA APG con HTML nativo: `fieldset` +
-           `legend` oculto + tres `radio` con label visible. El estado es
-           el `checked` nativo sincronizado con `zona[data-vista]`; sin
-           `role="toolbar"` (ese rol exige roving tabindex) ni ARIA
-           pintado a mano. -->
-      <fieldset class="segmentado">
-        <legend class="solo-lectores">Visualizador</legend>
-        <input type="radio" name="vista" id="vista-ambos" class="solo-lectores" data-vista="ambos" checked>
-        <label for="vista-ambos">Editor y previsualización</label>
-        <input type="radio" name="vista" id="vista-preview" class="solo-lectores" data-vista="preview">
-        <label for="vista-preview">Solo previsualización</label>
-        <input type="radio" name="vista" id="vista-editor" class="solo-lectores" data-vista="editor">
-        <label for="vista-editor">Solo editor</label>
-      </fieldset>
-      <!-- Menú «Menú ▾»: superficie ancha del menú de acciones
-           (descargar, exportar, compartir y repo), en el mismo orden
-           que los grupos «Archivo» y «Difusión» del menú ☰.
-           Patrón «Menu Button» de la WAI-ARIA APG con el mismo ciclo de
-           vida que el ☰; el panel se ancla bajo su trigger y alineado a
-           la derecha, nunca a ancho completo (ese es el patrón del
-           menú angosto). El caret va `aria-hidden` para que el nombre
-           accesible sea solo «Menú». -->
-      <div class="menu-acciones">
-        <button type="button" class="btn menu-acciones-trigger" aria-expanded="false" aria-haspopup="true" title="Más acciones: descargar, exportar, compartir, ver el repositorio o conectar el servidor MCP" disabled>Menú<span class="menu-acciones-caret" aria-hidden="true">▼</span></button>
-        <div class="menu-acciones-panel" role="menu" aria-label="Acciones adicionales" hidden>
-          <button type="button" class="menu-acciones-item" role="menuitem" data-accion="descargar" title="Descarga el contenido actual del editor" disabled>Descargar .md</button>
-          <button type="button" class="menu-acciones-item" role="menuitem" data-accion="pdf" title="Exporta la nota abierta" disabled>Exportar .pdf</button>
-          <button type="button" class="menu-acciones-item" role="menuitem" data-accion="zip" title="Exporta el proyecto completo" disabled>Exportar .zip</button>
-          <hr class="menu-separador">
-          <button type="button" class="menu-acciones-item" role="menuitem" data-accion="compartir" title="Comparte PurpleMD en redes">Compartir PurpleMD</button>
-          <!-- Mismo link que en el menú ☰: superficie ancha (>=48rem)
-               también necesita la entrada al repositorio. -->
-          <a class="menu-acciones-item" role="menuitem"
-             href="https://github.com/ltrecanao/purplemd"
-             target="_blank" rel="noopener noreferrer"
-             title="Ver el código de PurpleMD en GitHub">
-            <svg class="menu-item-icono" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
-            </svg>
-            Ver en GitHub
-          </a>
-          <!-- Mismo ítem que en el menú ☰: una acción, dos superficies. -->
-          <hr class="menu-separador">
-          <button type="button" class="menu-acciones-item" role="menuitem" data-accion="mcp" title="Conectá un cliente MCP a tus notas y generá tu token">Servidor MCP</button>
-        </div>
-      </div>
-      <!-- Sincronizar: guarda lo pendiente y recarga proyectos y árbol
-           desde el servidor. Va junto a «Guardar» (misma fila, envuelve
-           en pantallas angostas) y no depende de tener una nota abierta. -->
-      <button type="button" id="sincronizar" class="btn" title="Guarda los cambios pendientes y recarga proyectos y árbol desde el servidor">Sincronizar</button>
       <button type="button" id="guardar" class="btn btn-acento" disabled>Guardar</button>
     </div>
   </header>
@@ -212,9 +198,15 @@
            sobre la que se trabajó ya no existe (se eliminó). -->
       <p id="explorador-estado" class="estado estado-lista" role="status" aria-live="polite" tabindex="-1"></p>
 
-      <section id="bienvenida" class="bienvenida" hidden>
-        <h3 class="bienvenida-titulo">Creá tu primer proyecto</h3>
-        <p class="bienvenida-texto">Toda nota vive dentro de un proyecto con subcarpetas. Creá uno para empezar a escribir.</p>
+      <!-- Estado vacío: solo cuando todavía no hay proyectos. La acción
+           primaria lleva el foco al formulario de creación, que vive
+           justo debajo; las plantillas son una vía opcional, nunca algo
+           que se cree solo. -->
+      <section id="espacio-vacio" class="vacio-espacio" hidden>
+        <h3 class="vacio-espacio-titulo">Tu espacio de trabajo</h3>
+        <p class="vacio-espacio-texto">Todavía no tenés proyectos. Creá uno para empezar a organizar tus notas.</p>
+        <button type="button" id="vacio-crear" class="btn btn-acento">Crear un proyecto</button>
+        <p class="vacio-plantillas">o <button type="button" id="vacio-plantilla" class="btn-enlace">empezá con una plantilla</button></p>
       </section>
 
       <form id="proyecto-form" class="crear">
@@ -223,15 +215,24 @@
           <input id="proyecto-nombre" name="proyecto" type="text" autocomplete="off" required aria-label="Proyecto nuevo">
           <button type="submit" class="btn">Crear</button>
         </div>
+        <!-- Plantillas: aparecen solo si el manifiesto cargó. Elegir una
+             crea la primera nota del proyecto con ese contenido; no
+             instala proyectos ni notas por su cuenta. -->
+        <div id="proyecto-plantillas" class="crear-plantilla" hidden>
+          <label for="proyecto-plantilla">Empezar con una plantilla</label>
+          <select id="proyecto-plantilla" name="plantilla" class="crear-select">
+            <option value="">Sin plantilla</option>
+          </select>
+        </div>
         <p id="proyecto-estado" class="estado" role="status" aria-live="polite"></p>
       </form>
 
       <ul id="proyectos-lista" class="lista proyectos" hidden></ul>
 
       <form id="nota-form" class="crear" hidden>
-        <label for="nota-ruta">Nota nueva (ruta)</label>
+        <label for="nota-ruta">Nota nueva</label>
         <div class="crear-campos">
-          <input id="nota-ruta" name="ruta" type="text" autocomplete="off" placeholder="diseños/logo" required aria-label="Nota nueva (ruta)">
+          <input id="nota-ruta" name="ruta" type="text" autocomplete="off" placeholder="nombre o carpeta/nombre" required aria-label="Nota nueva" title="Con «/» la organizás en carpetas, por ejemplo: recetas/tortas">
           <button type="submit" class="btn">Crear</button>
         </div>
         <p id="nota-estado" class="estado" role="status" aria-live="polite"></p>
@@ -272,7 +273,13 @@
                fila que rompa la cabecera del panel. -->
           <p id="guardar-estado" class="estado" role="status" aria-live="polite"><span id="guardar-destino"></span> <span id="guardar-resumen">Sin nota abierta</span></p>
         </div>
-        <!-- Toolbar Markdown estilo Office -->
+        <!-- Barra de formato, en dos niveles. Visible queda lo que se
+             usa mientras se escribe —historial, títulos, formato en
+             línea, listas, enlace y buscar/reemplazar—; lo menos
+             frecuente vive en el menú «Más ▾», con ítems etiquetados y
+             el mismo `data-md` que los botones (una acción, un
+             manejador). `role="toolbar"` con roving tabindex, que es lo
+             que el rol exige (ver `habilitarRovingToolbar`). -->
         <div class="editor-toolbar" role="toolbar" aria-label="Formato Markdown" hidden>
           <div class="toolbar-group">
             <button type="button" class="tool-btn" data-herr="deshacer" title="Deshacer - Ctrl+Z" aria-label="Deshacer" disabled>&#8630;</button>
@@ -286,33 +293,55 @@
           </div>
           <div class="toolbar-divider" aria-hidden="true"></div>
           <div class="toolbar-group">
-            <button type="button" class="tool-btn" data-md="bold" title="Negrita (**texto**) - Ctrl+B" aria-label="Negrita"><strong>B</strong></button>
-            <button type="button" class="tool-btn" data-md="italic" title="Cursiva (*texto*) - Ctrl+I" aria-label="Cursiva"><em>I</em></button>
-            <button type="button" class="tool-btn" data-md="strikethrough" title="Tachado (~~texto~~)" aria-label="Tachado"><s>S</s></button>
-            <button type="button" class="tool-btn" data-md="code" title="Código inline (`codigo`)" aria-label="Código inline">&#96;</button>
+            <button type="button" class="tool-btn tool-btn-letra" data-md="bold" title="Negrita (**texto**) - Ctrl+B" aria-label="Negrita"><strong>B</strong></button>
+            <button type="button" class="tool-btn tool-btn-letra" data-md="italic" title="Cursiva (*texto*) - Ctrl+I" aria-label="Cursiva"><em>I</em></button>
           </div>
           <div class="toolbar-divider" aria-hidden="true"></div>
           <div class="toolbar-group">
-            <button type="button" class="tool-btn" data-md="quote" title="Cita (> texto)" aria-label="Cita">></button>
+            <button type="button" class="tool-btn" data-md="quote" title="Cita (> texto)" aria-label="Cita">&gt;</button>
             <button type="button" class="tool-btn" data-md="ul" title="Lista viñetas (- item)" aria-label="Lista viñetas">&#8226;</button>
             <button type="button" class="tool-btn" data-md="ol" title="Lista numerada (1. item)" aria-label="Lista numerada">1.</button>
             <button type="button" class="tool-btn" data-md="task" title="Task list (- [ ])" aria-label="Lista de tareas">[ ]</button>
+            <button type="button" class="tool-btn" data-md="link" title="Enlace [texto](url) - Ctrl+K" aria-label="Enlace">
+              <svg class="tool-icono" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6.6 9.4a2.6 2.6 0 0 0 3.7 0l2.1-2.1a2.6 2.6 0 0 0-3.7-3.7l-.9.9"/>
+                <path d="M9.4 6.6a2.6 2.6 0 0 0-3.7 0L3.6 8.7a2.6 2.6 0 0 0 3.7 3.7l.9-.9"/>
+              </svg>
+            </button>
           </div>
           <div class="toolbar-divider" aria-hidden="true"></div>
           <div class="toolbar-group">
-            <button type="button" class="tool-btn" data-md="link" title="Enlace [texto](url) - Ctrl+K" aria-label="Enlace">&#128279;</button>
-            <button type="button" class="tool-btn" data-md="image" title="Imagen ![alt](url)" aria-label="Imagen">&#128247;</button>
-            <button type="button" class="tool-btn" data-md="table" title="Tabla" aria-label="Tabla">&#9472;</button>
-            <button type="button" class="tool-btn" data-md="hr" title="Línea horizontal (---)" aria-label="Línea horizontal">&#8213;</button>
+            <button type="button" class="tool-btn" data-herr="buscar" title="Buscar - Ctrl+F" aria-label="Buscar">
+              <svg class="tool-icono" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <circle cx="7" cy="7" r="4.3"/>
+                <path d="M10.2 10.2 14 14"/>
+              </svg>
+            </button>
+            <button type="button" class="tool-btn" data-herr="reemplazar" title="Reemplazar - Ctrl+H" aria-label="Reemplazar">
+              <svg class="tool-icono" viewBox="0 0 16 16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2.8 5.6h9.4M9.9 3.2l2.4 2.4-2.4 2.4"/>
+                <path d="M13.2 10.4H3.8M6.1 8 3.7 10.4 6.1 12.8"/>
+              </svg>
+            </button>
           </div>
           <div class="toolbar-divider" aria-hidden="true"></div>
           <div class="toolbar-group">
-            <button type="button" class="tool-btn" data-md="codeblock" title="Bloque de código (```)" aria-label="Bloque de código">{ }</button>
-          </div>
-          <div class="toolbar-divider" aria-hidden="true"></div>
-          <div class="toolbar-group">
-            <button type="button" class="tool-btn" data-herr="buscar" title="Buscar - Ctrl+F" aria-label="Buscar">&#128269;</button>
-            <button type="button" class="tool-btn" data-herr="reemplazar" title="Reemplazar - Ctrl+H" aria-label="Reemplazar">&#128270;</button>
+            <!-- Menú «Más ▾» de la barra: formato secundario, un solo
+                 nivel y con etiqueta en cada ítem. El panel vive DENTRO
+                 de `role="toolbar"` para que se oculte con la barra, y
+                 su trigger es un `.tool-btn` más, así que entra en el
+                 mismo roving tabindex. -->
+            <div class="menu" data-menu="formato">
+              <button type="button" id="formato-trigger" class="tool-btn tool-btn-texto menu-trigger" aria-expanded="false" aria-haspopup="true" aria-controls="formato-panel" aria-label="Más formato" title="Más formato: tachado, código en línea, imagen, tabla, línea horizontal y bloque de código">Más<span class="menu-caret" aria-hidden="true">▼</span></button>
+              <div class="menu-panel" id="formato-panel" role="menu" aria-label="Más formato" hidden>
+                <button type="button" class="menu-item" role="menuitem" data-md="strikethrough" title="Tachado (~~texto~~)">Tachado</button>
+                <button type="button" class="menu-item" role="menuitem" data-md="code" title="Código inline (`codigo`)">Código en línea</button>
+                <button type="button" class="menu-item" role="menuitem" data-md="image" title="Imagen ![alt](url)">Imagen</button>
+                <button type="button" class="menu-item" role="menuitem" data-md="table" title="Tabla con cabecera y fila de separador">Tabla</button>
+                <button type="button" class="menu-item" role="menuitem" data-md="hr" title="Línea horizontal (---)">Línea horizontal</button>
+                <button type="button" class="menu-item" role="menuitem" data-md="codeblock" title="Bloque de código (```)">Bloque de código</button>
+              </div>
+            </div>
           </div>
         </div>
         <!-- Barra de buscar y reemplazar: se abre con el botón de la

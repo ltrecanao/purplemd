@@ -137,7 +137,7 @@ test por regla que lo pide, leyendo el archivo: la paleta
 backend no los permitiría (`tests/test_auth.py::CabecerasTests`).
 
 La paleta de color se valida sola: `tests/test_contraste.py` lee
-`static/css/style.css`, recalcula los 26 pares de tokens de ambos temas y
+`static/css/style.css`, recalcula los pares de tokens de ambos temas y
 falla si alguno baja de AA (4.5:1), si el texto principal baja de AAA
 (7:1) o si las mediciones dejan de coincidir con las de
 [ACCESIBILIDAD.md](ACCESIBILIDAD.md).

@@ -1,5 +1,16 @@
 /* Tema de purplemd: fondo lavanda suave y acento violeta. Los tokens viven
-   en :root; el modo oscuro solo reescribe esos mismos tokens. */
+   en :root; el tema oscuro reescribe esos mismos tokens.
+
+   Tres caminos, uno solo de verdad:
+   - `:root` (abajo) es el tema claro, el valor por defecto.
+   - `@media (prefers-color-scheme: dark)` solo cubre `:root` SIN
+     `data-tema`: es el respaldo para la página que todavía no corrió
+     `tema.js` (o la que no corre JS).
+   - `:root[data-tema="oscuro"]`, más abajo en el archivo, es el camino
+     vivo cuando el usuario elige tema: manda aunque el sistema diga lo
+     contrario. `tests/test_contraste.py` exige que ese bloque declare
+     exactamente los mismos tokens que el media query, para que los dos
+     no puedan divergir. */
 
 :root {
   color-scheme: light;
@@ -14,6 +25,16 @@
   --sobre-acento: #ffffff;
   --ok: #14733d;
   --error: #b3261e;
+  /* Letra «MD» del logo de la pantalla de acceso: en claro va oscura. */
+  --logo-letra: #1e1e1e;
+  /* Botón oficial de Google: colores de su guía de branding, que
+     cambian de tema igual que el resto de la interfaz. */
+  --google-fondo: #ffffff;
+  --google-borde: #747775;
+  --google-texto: #1f1f1f;
+  --google-hover: #f8fafd;
+  --google-hover-borde: #5f6368;
+  --google-activo: #f1f3f4;
   --radio: 0.5rem;
   --esp-1: 0.25rem;
   --esp-2: 0.5rem;
@@ -33,8 +54,10 @@
   --topbar-alto: 3.5rem;
 }
 
+/* Respaldo sin JS / antes de `tema.js`: solo aplica a `<html>` que no
+   tenga `data-tema`. En cuanto el tema se resuelve, manda el atributo. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-tema]) {
     color-scheme: dark;
     --fondo: #14111d;
     --panel: #1c1828;
@@ -47,7 +70,40 @@
     --sobre-acento: #171226;
     --ok: #4ade80;
     --error: #fca5a5;
+    --logo-letra: #ece9f7;
+    --google-fondo: #1f1f1f;
+    --google-borde: #8e918f;
+    --google-texto: #e3e3e3;
+    --google-hover: #2a2a2a;
+    --google-hover-borde: #c4c7c5;
+    --google-activo: #333333;
   }
+}
+
+/* Tema oscuro elegido por el usuario: es el camino vivo, y por eso
+   repite los valores del bloque de arriba (el media query no puede
+   «apagar» un `data-tema` que ya está puesto). La igualdad de los dos
+   bloques la garantiza `tests/test_contraste.py`. */
+:root[data-tema="oscuro"] {
+  color-scheme: dark;
+  --fondo: #14111d;
+  --panel: #1c1828;
+  --texto: #ece9f7;
+  --texto-tenue: #a9a2c6;
+  --borde: #322b47;
+  --acento: #a78bfa;
+  --acento-fuerte: #b9a3fa;
+  --acento-suave: #2a2342;
+  --sobre-acento: #171226;
+  --ok: #4ade80;
+  --error: #fca5a5;
+  --logo-letra: #ece9f7;
+  --google-fondo: #1f1f1f;
+  --google-borde: #8e918f;
+  --google-texto: #e3e3e3;
+  --google-hover: #2a2a2a;
+  --google-hover-borde: #c4c7c5;
+  --google-activo: #333333;
 }
 
 *,
@@ -124,11 +180,38 @@ body {
 
 /* La marca es una imagen: la altura fija conserva el ritmo de la barra
    (el wordmark mide 563×112, así que el ancho sale solo). Si la imagen
-   no carga, el `alt` hereda el estilo del bloque de arriba. */
-.marca img {
+   no carga, el `alt` hereda el estilo del bloque de arriba.
+
+   Las dos variantes viajan en la página y se muestran según `data-tema`
+   (el atributo que fija `tema.js` antes del primer pintado); el media
+   query es el respaldo para la página que no corrió JS. Solo una de las
+   dos está en el árbol accesible a la vez: `display: none` la saca. */
+.marca-img {
   display: block;
   height: 1.65rem;
   width: auto;
+}
+
+.marca-img-oscuro {
+  display: none;
+}
+
+:root[data-tema="oscuro"] .marca-img-claro {
+  display: none;
+}
+
+:root[data-tema="oscuro"] .marca-img-oscuro {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema]) .marca-img-claro {
+    display: none;
+  }
+
+  :root:not([data-tema]) .marca-img-oscuro {
+    display: block;
+  }
 }
 
 /* `flex-wrap` es la regla del corte: a 768–959px la barra puede ir en
@@ -207,6 +290,45 @@ body {
   background: var(--acento);
 }
 
+/* Botón de icono (tema claro/oscuro): caja cuadrada con el mismo
+   target de 44px que el resto de la barra (WCAG 2.5.5). */
+.btn-icono {
+  padding: 0;
+  width: 44px;
+}
+
+.tema-icono {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+}
+
+/* El icono dice la ACCIÓN, no el estado (como en GitHub): en tema
+   claro se muestra la luna («cambiar a oscuro») y en oscuro el sol.
+   El sol arranca oculto; `data-tema` siempre está puesto porque lo
+   fija `tema.js`, y el media query es el respaldo sin JS. */
+.tema-sol {
+  display: none;
+}
+
+:root[data-tema="oscuro"] .tema-sol {
+  display: block;
+}
+
+:root[data-tema="oscuro"] .tema-luna {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema]) .tema-sol {
+    display: block;
+  }
+
+  :root:not([data-tema]) .tema-luna {
+    display: none;
+  }
+}
+
 /* --- Cuenta y pantalla de acceso (integración con Google) --------- */
 
 /* Separador del menú ☰. Va como clase y no como atributo `style`:
@@ -275,13 +397,8 @@ body {
   width: 10rem;
   height: auto;
   flex: none;
-  color: #1e1e1e; /* tema claro: "MD" oscuro */
-}
-
-@media (prefers-color-scheme: dark) {
-  .sesion-logo {
-    color: #ece9f7; /* tema oscuro: "MD" claro */
-  }
+  /* La letra «MD» del logo sigue el tema (token `--logo-letra`). */
+  color: var(--logo-letra);
 }
 
 /* --- Encabezado --- */
@@ -318,10 +435,10 @@ body {
   width: 100%;
   min-height: 40px;
   padding: 10px 24px;
-  border: 1px solid #747775;
+  border: 1px solid var(--google-borde);
   border-radius: 4px;
-  background: #ffffff;
-  color: #1f1f1f;
+  background: var(--google-fondo);
+  color: var(--google-texto);
   font-family: "Google Sans", "Roboto", system-ui, sans-serif;
   font-size: 14px;
   font-weight: 500;
@@ -332,12 +449,12 @@ body {
 }
 
 .btn-google:hover {
-  background: #f8fafd;
-  border-color: #5f6368;
+  background: var(--google-hover);
+  border-color: var(--google-hover-borde);
 }
 
 .btn-google:active {
-  background: #f1f3f4;
+  background: var(--google-activo);
 }
 
 .btn-google:focus-visible {
@@ -366,22 +483,8 @@ body {
   margin-inline: -18px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .btn-google {
-    background: #1f1f1f;
-    border-color: #8e918f;
-    color: #e3e3e3;
-  }
-
-  .btn-google:hover {
-    background: #2a2a2a;
-    border-color: #c4c7c5;
-  }
-
-  .btn-google:active {
-    background: #333333;
-  }
-}
+/* Los colores del botón Google ya viven en tokens (`--google-*`), así
+   que siguen el tema activo sin reglas por separado. */
 
 /* --- Separador y acción secundaria --- */
 
@@ -526,58 +629,74 @@ body {
   color: var(--texto);
 }
 
-/* --- Menú overflow (acciones secundarias en mobile) --- */
+/* --- Menús: «Vista», «Menú ▾» y «Más ▾» del editor --- */
 
-.menu-overflow {
+/* Un solo sistema para los tres menús de la interfaz y el mismo ciclo
+   de vida en todos: el trigger alterna, un clic fuera cierra,
+   `Escape` cierra y devuelve el foco, y al activar un ítem el menú se
+   cierra y el foco vuelve al trigger (WAI-ARIA APG, patrón «Menu
+   Button»). `.menu` es solo contenedor: el panel va hermano del
+   trigger, porque un `role="menu"` admite ítems, grupos y
+   separadores, no el disparador. */
+.menu {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-.menu-overflow-trigger {
-  padding: 0.5rem 0.75rem;
-  font-size: 1.2rem;
-  line-height: 1;
-  min-width: 44px;
-  min-height: 44px;
-  display: flex;
+/* Trigger con etiqueta visible («Vista ▾», «Menú ▾», «Más ▾»): el
+   caret es decoración y va `aria-hidden` en el HTML, para que el
+   nombre accesible sea solo la etiqueta. */
+.menu-trigger {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.15em;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
-.menu-overflow-panel {
+.menu-caret {
+  margin-left: 0.35em;
+  font-size: 0.7em;
+  line-height: 1;
+}
+
+/* El panel es `fixed` y lo posiciona el JS a partir del rectángulo del
+   trigger (`colocarPanel`): así nunca se sale de la pantalla, nunca
+   queda tapado y funciona igual con el trigger en la primera o en la
+   segunda fila, en cualquier ancho. El `top` de acá es solo el punto de
+   partida mientras el JS mide. */
+.menu-panel {
   position: fixed;
-  top: var(--topbar-alto);
-  right: var(--esp-4);
-  left: var(--esp-4);
+  top: var(--topbar-alto, 3.5rem);
   z-index: 9999;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  width: max-content;
+  min-width: 12rem;
+  max-width: calc(100vw - 1rem);
+  max-height: calc(100dvh - 1rem);
+  overflow-y: auto;
   padding: var(--esp-2);
   background: var(--panel);
-  border: 2px solid var(--acento);
+  border: 1px solid var(--borde);
   border-radius: var(--radio);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
-  min-width: 0;
-  max-width: 100vw;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
 }
 
-/* Grupos del menú («Vista» y «Archivo»): el panel aplica su `gap` solo
-   entre sus hijos directos, así que cada grupo repite el mismo ritmo
-   vertical que tenían los ítems sueltos. */
-.menu-overflow-grupo {
+/* Grupos con nombre («Archivo», «Difusión», «Servidor»): el `gap` del
+   panel es solo entre hijos directos, así que cada grupo repite el
+   mismo ritmo vertical que tenían los ítems sueltos. */
+.menu-grupo {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-/* Ítems del menú ☰ y del menú «Menú ▾»: misma caja, mismo ciclo de
-   vida visual, distinta superficie. */
-.menu-overflow-item,
-.menu-acciones-item {
+/* Ítems de los tres menús: misma caja, mismo ciclo de vida visual. */
+.menu-item {
   display: flex;
   align-items: center;
   gap: var(--esp-2);
@@ -596,31 +715,41 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.menu-overflow-item:hover:not(:disabled),
-.menu-acciones-item:hover:not(:disabled) {
+.menu-item:hover:not(:disabled) {
   background: var(--acento-suave);
 }
 
-.menu-overflow-item:active:not(:disabled),
-.menu-acciones-item:active:not(:disabled) {
+.menu-item:active:not(:disabled) {
   background: var(--borde);
 }
 
-.menu-overflow-item:disabled,
-.menu-acciones-item:disabled {
+.menu-item:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   pointer-events: none;
 }
 
-/* Los dos links del menú («Ver en GitHub» en ☰ y en «Menú ▾»):
-   mismo estilo que los botones, sin subrayado ni color de enlace. */
-a.menu-overflow-item,
-a.menu-acciones-item {
+/* Opción vigente (menú «Vista»): palomita y peso extra, para que la
+   selección no se distinga solo por el color (WCAG 1.4.1). El estado
+   real es `aria-checked`, sincronizado con `zona[data-vista]`. */
+.menu-item[aria-checked="true"] {
+  font-weight: 600;
+}
+
+.menu-item[aria-checked="true"]::after {
+  content: "✓";
+  margin-left: auto;
+  padding-left: var(--esp-3);
+  color: var(--acento);
+}
+
+/* El link del menú («Ver en GitHub»): mismo estilo que los botones,
+   sin subrayado ni color de enlace. */
+a.menu-item {
   text-decoration: none;
 }
 
-/* Icono inline de los menús (logo de GitHub): hereda el color del ítem
+/* Icono inline del menú (logo de GitHub): hereda el color del ítem
    (`currentColor`), así sigue el tema claro/oscuro. */
 .menu-item-icono {
   width: 1.1rem;
@@ -628,106 +757,11 @@ a.menu-acciones-item {
   flex: none;
 }
 
-/* --- Barra de acciones (superficie ancha: >= 48rem) --- */
-
-/* Mobile-first: en angosto estos controles no existen todavía y las
-   acciones de archivo viven en el menú ☰. Un único media query
-   `min-width: 48rem` (al final de la hoja) muestra la barra y oculta el
-   ☰ a la vez. */
-.segmentado,
-.menu-acciones {
-  display: none;
-}
-
-/* Segmentado de visualizador: «Radio Group» de la WAI-ARIA APG con HTML nativo
-   (`fieldset` + `legend` oculto + `radio`), sin `role="toolbar"` (ese rol
-   exige roving tabindex y, sin él, quedaría no conforme). El estado es
-   el `checked` nativo: cada input va oculto visualmente pero sigue
-   enfocable, así que Tab entra al grupo y las flechas lo recorren
-   marcando, como manda el HTML nativo. Los labels son los segmentos
-   visibles y se envuelven (nunca se achican: WCAG 2.5.5). */
-.segmentado {
-  position: relative;
-  align-items: center;
-  gap: var(--esp-1);
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
-  font: inherit;
-}
-
-.segmentado label {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0.5rem 0.9rem;
-  border: 1px solid var(--borde);
-  border-radius: var(--radio);
-  background: var(--panel);
-  color: var(--texto);
-  font-size: 0.9rem;
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.segmentado label:hover {
-  background: var(--acento-suave);
-}
-
-/* Segmento elegido: fondo de acento, texto inverso y peso extra, para
-   que la selección no se distinga solo por el color (WCAG 1.4.1). */
-.segmentado input:checked + label {
-  background: var(--acento);
-  border-color: var(--acento);
-  color: var(--sobre-acento);
-  font-weight: 600;
-}
-
-/* El input está oculto visualmente: su foco se dibuja en el label. */
-.segmentado input:focus-visible + label {
-  outline: 2px solid var(--acento);
-  outline-offset: 2px;
-}
-
-/* Menú «Menú ▾»: APG «Menu Button». El panel se ancla bajo su trigger
-   y alineado a la derecha (`position: absolute`), nunca a ancho
-   completo: eso es el patrón móvil del menú ☰. */
-.menu-acciones {
-  position: relative;
-  align-items: center;
-}
-
-.menu-acciones-caret {
-  margin-left: 0.35em;
-  font-size: 0.7em;
-}
-
-.menu-acciones-panel {
-  position: absolute;
-  top: calc(100% + var(--esp-1));
-  right: 0;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  /* `max-content` lo acota a sus ítems; `min-width: 100%` evita que
-     quede más angosto que su propio trigger. */
-  width: max-content;
-  min-width: 100%;
-  padding: var(--esp-2);
-  background: var(--panel);
-  border: 2px solid var(--acento);
-  border-radius: var(--radio);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.3);
-}
-
 /* Transiciones suaves */
 .btn,
-.menu-overflow-trigger,
-.menu-overflow-item,
-.menu-acciones-item,
+.menu-trigger,
+.menu-item,
+.tool-btn,
 .proyecto,
 .entrada-nota,
 .carpeta summary {
@@ -789,9 +823,9 @@ a.menu-acciones-item {
 }
 
 .btn:focus-visible,
-.menu-overflow-trigger:focus-visible,
-.menu-overflow-item:focus-visible,
-.menu-acciones-item:focus-visible,
+.menu-trigger:focus-visible,
+.menu-item:focus-visible,
+.tool-btn:focus-visible,
 .proyecto:focus-visible,
 .entrada-nota:focus-visible,
 .carpeta summary:focus-visible {
@@ -925,22 +959,60 @@ a.menu-acciones-item {
   border-bottom: 1px solid var(--borde);
 }
 
-/* Bloque de bienvenida: solo visible cuando todavía no hay proyectos. */
-.bienvenida {
+/* Estado vacío del explorador: solo visible cuando todavía no hay
+   proyectos. Restringido por diseño: un título, una frase, la acción
+   primaria (que lleva el foco al formulario de abajo) y el camino
+   opcional a las plantillas. Sin ejemplos, promos ni ilustraciones. */
+.vacio-espacio {
+  display: grid;
+  gap: var(--esp-2);
   padding: var(--esp-4);
   border-bottom: 1px solid var(--borde);
 }
 
-.bienvenida-titulo {
-  margin: 0 0 var(--esp-2);
+/* `display: grid` ganaría sobre el `hidden` del HTML: acá se lo devuelve. */
+.vacio-espacio[hidden] {
+  display: none;
+}
+
+.vacio-espacio-titulo {
+  margin: 0;
   font-size: 1rem;
   color: var(--acento);
 }
 
-.bienvenida-texto {
+.vacio-espacio-texto {
   margin: 0;
   color: var(--texto-tenue);
   font-size: 0.9rem;
+}
+
+.vacio-espacio .btn {
+  justify-self: start;
+}
+
+.vacio-plantillas {
+  margin: 0;
+  color: var(--texto-tenue);
+  font-size: 0.85rem;
+}
+
+/* Enlace con forma de texto (no de botón): la vía secundaria del estado
+   vacío no compite con la acción primaria. */
+.btn-enlace {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--acento);
+  font: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.btn-enlace:hover {
+  color: var(--acento-fuerte);
 }
 
 .crear {
@@ -977,6 +1049,30 @@ a.menu-acciones-item {
 
 .crear input[aria-invalid="true"] {
   border-color: var(--error);
+}
+
+/* Plantilla opcional al crear un proyecto: el contenedor nace oculto y
+   solo aparece si el manifiesto cargó (ver `cargarPlantillas`). El
+   selector hereda el look de los inputs para que el formulario siga
+   leyéndose como una sola pieza. */
+.crear-plantilla {
+  display: grid;
+  gap: var(--esp-1);
+}
+
+.crear-plantilla[hidden] {
+  display: none;
+}
+
+.crear-select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.9rem;
+  min-height: 44px;
 }
 
 .crear .estado {
@@ -1265,7 +1361,7 @@ a.menu-acciones-item {
   display: none;
 }
 
-/* --- Toolbar del Editor (estilo Office) --- */
+/* --- Barra de formato del editor ------------------------------- */
 
 .editor-toolbar {
   display: flex;
@@ -1303,10 +1399,35 @@ a.menu-acciones-item {
   background: transparent;
   color: var(--texto);
   border-radius: var(--radio);
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.12s, color 0.12s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Iconos en línea (enlace, buscar, reemplazar): trazo fino en
+   `currentColor`, así heredan el color del botón y siguen el tema y
+   el hover sin reglas propias. */
+.tool-icono {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+/* «B» e «I»: negrita y cursiva son los controles más usados de la
+   barra, y un punto más de tamaño las ubica sin meter otro color. */
+.tool-btn-letra {
+  font-size: 0.95rem;
+}
+
+/* Trigger «Más ▾» de la barra: lleva etiqueta visible en vez de
+   icono, para que el menú se descubra sin adivinar qué esconde. */
+.tool-btn-texto {
+  width: auto;
+  min-width: 44px;
+  padding: 0 0.4rem;
+  gap: 0.1em;
 }
 
 .tool-btn:hover {
@@ -1385,15 +1506,17 @@ a.menu-acciones-item {
   cursor: pointer;
 }
 
+/* En angosto la barra mantiene el mismo target de escritorio (32px,
+   cómodo al tacto) y aprieta solo el aire entre controles: los botones
+   se apilan en dos filas antes que achicarse hasta ser difíciles de
+   tocar. */
 @media (max-width: 48rem) {
   .editor-toolbar {
     padding: 4px 6px;
     gap: 2px;
   }
   .tool-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
   }
   .toolbar-divider {
     height: 20px;
@@ -1692,18 +1815,6 @@ a.menu-acciones-item {
    superficie. En ancho no hay hamburguesa: el visualizador vive en la
    barra y descarga, exportaciones, compartir y repo en su menú «Menú ▾». */
 @media (min-width: 48rem) {
-  .menu-overflow {
-    display: none;
-  }
-
-  .segmentado {
-    display: flex;
-  }
-
-  .menu-acciones {
-    display: flex;
-  }
-
   /* Desde 48rem los toasts suben a la esquina superior derecha, DEBAJO
      de la topbar: `top` con `--topbar-alto` (medido por el JS) + un
      espaciado deja el bloque fuera del rectángulo de la barra (`z-index`
@@ -1744,7 +1855,8 @@ a.menu-acciones-item {
   .panel-explorador .panel-titulo,
   .panel-explorador .cantidad,
   .panel-explorador .crear label,
-  .panel-explorador .bienvenida-texto,
+  .panel-explorador .vacio-espacio-texto,
+  .panel-explorador .vacio-plantillas,
   .panel-explorador .vacio,
   .panel-explorador .proyecto-fecha {
     display: none;
@@ -1916,5 +2028,201 @@ a.menu-acciones-item {
     overflow-y: auto;
     z-index: 4;
     box-shadow: 0 12px 28px rgb(0 0 0 / 0.18);
+  }
+}
+
+/* --- Wiki de documentación (`/wiki`) --- */
+
+/* La wiki es una página aparte con el mismo sistema visual: marca arriba,
+   navegación por temas y contenido. Mobile-first: en angosto la
+   navegación es una tarjeta sobre el contenido; desde 60rem pasa a ser
+   una columna lateral pegajosa. No lleva JS propio. */
+.wiki-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.wiki-topbar {
+  position: sticky;
+  top: 0;
+}
+
+.wiki-marca {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+  color: var(--acento);
+}
+
+.wiki-cuerpo {
+  display: grid;
+  gap: var(--esp-4);
+  padding: var(--esp-4);
+  width: 100%;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.wiki-nav {
+  padding: var(--esp-3);
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+.wiki-nav-titulo {
+  margin: 0 0 var(--esp-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--texto-tenue);
+}
+
+.wiki-nav ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.wiki-nav ul ul {
+  padding-left: var(--esp-3);
+}
+
+.wiki-nav a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radio);
+  color: var(--texto);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.wiki-nav a:hover {
+  background: var(--acento-suave);
+  color: var(--acento);
+}
+
+.wiki-nav ul ul a {
+  min-height: 36px;
+  color: var(--texto-tenue);
+  font-size: 0.85rem;
+}
+
+.wiki-nav ul ul a:hover {
+  color: var(--acento);
+}
+
+.wiki-contenido {
+  line-height: 1.7;
+  max-width: 48rem;
+}
+
+/* Las anclas del índice caen justo debajo de la topbar sticky. */
+.wiki-contenido h2,
+.wiki-contenido h3 {
+  scroll-margin-top: 5rem;
+}
+
+.wiki-contenido h2 {
+  margin-top: var(--esp-6);
+}
+
+.wiki-contenido pre {
+  margin: 0 0 var(--esp-3);
+  padding: var(--esp-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.wiki-contenido pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.wiki-contenido table {
+  width: 100%;
+  margin: 0 0 var(--esp-3);
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.wiki-contenido caption {
+  caption-side: top;
+  text-align: left;
+  padding-bottom: var(--esp-2);
+  font-size: 0.85rem;
+  color: var(--texto-tenue);
+}
+
+.wiki-contenido th,
+.wiki-contenido td {
+  padding: var(--esp-2);
+  border: 1px solid var(--borde);
+  text-align: left;
+  vertical-align: top;
+}
+
+.wiki-contenido th {
+  background: var(--acento-suave);
+  font-weight: 600;
+}
+
+.wiki-contenido blockquote {
+  margin: 0 0 var(--esp-3);
+  padding: var(--esp-2) var(--esp-3);
+  border-left: 3px solid var(--acento);
+  background: var(--acento-suave);
+  color: var(--texto-tenue);
+}
+
+.wiki-contenido blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+.wiki-pie {
+  margin-top: var(--esp-6);
+  padding-top: var(--esp-3);
+  border-top: 1px solid var(--borde);
+  color: var(--texto-tenue);
+  font-size: 0.85rem;
+}
+
+.wiki-pie a {
+  color: var(--acento);
+  text-decoration: none;
+}
+
+.wiki-pie a:hover {
+  text-decoration: underline;
+}
+
+/* Pantalla ancha: índice a la izquierda, pegajoso, y el contenido a la
+   derecha con su ancho de lectura. */
+@media (min-width: 60rem) {
+  .wiki-cuerpo {
+    grid-template-columns: 16rem minmax(0, 1fr);
+    gap: var(--esp-6);
+    align-items: start;
+  }
+
+  .wiki-nav {
+    position: sticky;
+    top: calc(var(--topbar-alto, 3.5rem) + var(--esp-4));
+    max-height: calc(100vh - var(--topbar-alto, 3.5rem) - var(--esp-6));
+    overflow-y: auto;
   }
 }

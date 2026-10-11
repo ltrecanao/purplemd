@@ -127,7 +127,7 @@ app.add_middleware(
 - Todo par que baje de AA es un bug a corregir; los que quedan entre AA y AAA son una decisión de diseño
   registrada en `docs/ACCESIBILIDAD.md`.
 - **Hay que mantener el test automatizado de paleta**: `tests/test_contraste.py` lee `static/css/style.css`,
-  recalcula los 26 pares de ambos temas y falla si alguno baja de su umbral o si las mediciones publicadas
+  recalcula los pares de ambos temas y falla si alguno baja de su umbral o si las mediciones publicadas
   dejan de coincidir. Cualquier cambio de token obliga a volver a medir y a actualizar esa tabla.
 - **El texto del explorador no puede quedar invisible**: entre 48rem y 60rem el colapso
   (`font-size: 0` recuperado por `attr(title)`) solo aplica donde hay `title` que reemplazar, y lo
