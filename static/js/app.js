@@ -1604,15 +1604,16 @@ function destinoGuardado() {
 /**
  * Pinta el destino en la luz de sincronización.
  *
- * El tono va por `style.cssText` (CSSOM, no lo bloquea la CSP): `.estado`
- * tiñe a todos sus hijos con el tono del estado y el destino tiene el
- * suyo propio, que puede ser otro (p. ej. destino en `error` y estado en
- * `ok`).
+ * El tono va por una propiedad CSSOM (`style.color`): `.estado` tiñe a
+ * todos sus hijos con el tono del estado y el destino tiene el suyo
+ * propio, que puede ser otro (p. ej. destino en `error` y estado en
+ * `ok`). No se usa `cssText` ni `setAttribute("style", …)`: la CSP del
+ * backend (`style-src 'self'`) bloquea los estilos inline.
  */
 function pintarDestino() {
   const destino = destinoGuardado();
   guardarDestino.textContent = destino.texto;
-  guardarDestino.style.cssText = `color: ${destino.color};`;
+  guardarDestino.style.color = destino.color;
 }
 
 /**
@@ -3652,36 +3653,15 @@ async function compartirApp() {
     },
   ];
 
-  // Crear backdrop semi-transparente (overlay)
+  // Crear backdrop semi-transparente (overlay). Su estilo (y el del
+  // panel) vive en clases de `style.css`: la CSP del backend bloquea los
+  // estilos inline que el código intente aplicar desde `cssText`.
   const backdrop = document.createElement("div");
   backdrop.className = "compartir-backdrop";
-  backdrop.style.cssText = `
-    position: fixed;
-    inset: 0;
-    background: rgb(0 0 0 / 0.4);
-    backdrop-filter: blur(2px);
-    z-index: 9998;
-    animation: fadeIn 0.15s ease-out;
-  `;
 
   // Crear panel modal centrado
   const panel = document.createElement("div");
   panel.className = "accion compartir-panel";
-  panel.style.cssText = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--panel);
-    border: 1px solid var(--borde);
-    border-radius: var(--radio);
-    box-shadow: 0 16px 48px rgb(0 0 0 / 0.3);
-    padding: 16px;
-    z-index: 9999;
-    width: min(300px, 90vw);
-    max-width: 90vw;
-    animation: slideUp 0.2s ease-out;
-  `;
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-modal", "true");
   panel.setAttribute("aria-label", "Compartir PurpleMD");
@@ -3689,14 +3669,7 @@ async function compartirApp() {
   // Título del modal
   const tituloModal = document.createElement("h3");
   tituloModal.textContent = "Compartir PurpleMD";
-  tituloModal.style.cssText = `
-    margin: 0 0 12px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--texto);
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--borde);
-  `;
+  tituloModal.className = "modal-titulo";
   panel.append(tituloModal);
 
   // Cierre del modal: se define antes de los botones que lo usan (si no,
@@ -3720,25 +3693,8 @@ async function compartirApp() {
   opciones.forEach((opt) => {
     const btn = document.createElement("button");
     btn.type = "button";
+    btn.className = "compartir-opcion";
     btn.innerHTML = `${opt.icono}<span>${opt.label}</span>`;
-    btn.style.cssText = `
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-      padding: 10px 14px;
-      border: none;
-      background: transparent;
-      color: var(--texto);
-      font: inherit;
-      font-size: 0.9rem;
-      cursor: pointer;
-      border-radius: 6px;
-      margin: 2px 0;
-      transition: background 0.1s;
-    `;
-    btn.onmouseenter = () => btn.style.background = "var(--acento-suave)";
-    btn.onmouseleave = () => btn.style.background = "transparent";
     btn.onclick = opt.accion ?? (() => {
       window.open(opt.url, "_blank", "noopener,noreferrer");
       cleanup();
@@ -3750,25 +3706,8 @@ async function compartirApp() {
   // Botón cerrar
   const btnCerrar = document.createElement("button");
   btnCerrar.type = "button";
+  btnCerrar.className = "modal-cerrar";
   btnCerrar.textContent = "Cancelar";
-  btnCerrar.style.cssText = `
-    display: block;
-    width: 100%;
-    padding: 10px 14px;
-    margin-top: 8px;
-    border: 1px solid var(--borde);
-    background: transparent;
-    color: var(--texto);
-    font: inherit;
-    font-size: 0.9rem;
-    font-weight: 500;
-    text-align: center;
-    cursor: pointer;
-    border-radius: 6px;
-    transition: background 0.1s;
-  `;
-  btnCerrar.onmouseenter = () => btnCerrar.style.background = "var(--acento-suave)";
-  btnCerrar.onmouseleave = () => btnCerrar.style.background = "transparent";
   btnCerrar.onclick = cleanup;
   panel.append(btnCerrar);
 
@@ -3829,13 +3768,10 @@ function abrirServidorMcp() {
   // Un solo panel a la vez: un segundo clic no duplica oyentes ni backdrops.
   if (cerrarPanelMcp) return;
 
-  const ESTILO_PARRAFO =
-    "margin: 0 0 8px; font-size: 0.85rem; line-height: 1.45; color: var(--texto);";
-
   /** Párrafo con texto plano (siempre por `textContent`). */
   const parrafo = (contenedor, texto) => {
     const p = document.createElement("p");
-    p.style.cssText = ESTILO_PARRAFO;
+    p.className = "mcp-parrafo";
     p.textContent = texto;
     contenedor.append(p);
     return p;
@@ -3844,12 +3780,12 @@ function abrirServidorMcp() {
   /** Párrafo con etiqueta en negrita y valor monoespaciado. */
   const dato = (contenedor, etiqueta, valor) => {
     const p = document.createElement("p");
-    p.style.cssText = ESTILO_PARRAFO;
+    p.className = "mcp-parrafo";
     const fuerte = document.createElement("strong");
     fuerte.textContent = etiqueta;
     const codigo = document.createElement("code");
+    codigo.className = "mcp-valor";
     codigo.textContent = valor;
-    codigo.style.cssText = "overflow-wrap: anywhere;";
     p.append(fuerte, document.createTextNode(" "), codigo);
     contenedor.append(p);
     return p;
@@ -3857,34 +3793,12 @@ function abrirServidorMcp() {
 
   const backdrop = document.createElement("div");
   backdrop.className = "compartir-backdrop";
-  backdrop.style.cssText = `
-    position: fixed;
-    inset: 0;
-    background: rgb(0 0 0 / 0.4);
-    backdrop-filter: blur(2px);
-    z-index: 9998;
-    animation: fadeIn 0.15s ease-out;
-  `;
 
   const panel = document.createElement("div");
-  panel.className = "accion compartir-panel";
-  panel.style.cssText = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--panel);
-    border: 1px solid var(--borde);
-    border-radius: var(--radio);
-    box-shadow: 0 16px 48px rgb(0 0 0 / 0.3);
-    padding: 16px;
-    z-index: 9999;
-    width: min(440px, 92vw);
-    max-width: 92vw;
-    max-height: 85vh;
-    overflow-y: auto;
-    animation: slideUp 0.2s ease-out;
-  `;
+  // El estilo de todo el panel vive en clases de `style.css`: la CSP del
+  // backend bloquea los estilos inline que el código intente aplicar
+  // desde `cssText`, y el panel quedaría sin maqueta.
+  panel.className = "accion compartir-panel mcp-panel";
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-modal", "true");
   panel.setAttribute("aria-label", "Servidor MCP");
@@ -3913,14 +3827,7 @@ function abrirServidorMcp() {
 
   const titulo = document.createElement("h3");
   titulo.textContent = "Servidor MCP";
-  titulo.style.cssText = `
-    margin: 0 0 12px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--texto);
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--borde);
-  `;
+  titulo.className = "modal-titulo";
   panel.append(titulo);
 
   // La guía completa vive en la wiki: el panel solo da lo mínimo para
@@ -3929,9 +3836,8 @@ function abrirServidorMcp() {
   documentacion.href = "/wiki#mcp";
   documentacion.target = "_blank";
   documentacion.rel = "noopener noreferrer";
+  documentacion.className = "mcp-doc";
   documentacion.textContent = "Ver la guía completa en la documentación";
-  documentacion.style.cssText =
-    "display: inline-block; margin: 0 0 12px; font-size: 0.85rem; color: var(--acento);";
   panel.append(documentacion);
 
   // ---- Guía corta: cómo conectarlo (URL, cabecera y clientes), qué
@@ -3958,19 +3864,7 @@ function abrirServidorMcp() {
     },
   };
   const bloque = document.createElement("pre");
-  bloque.style.cssText = `
-    margin: 0 0 8px;
-    padding: 8px;
-    border: 1px solid var(--borde);
-    border-radius: var(--radio);
-    background: var(--fondo);
-    color: var(--texto);
-    font-family: var(--mono);
-    font-size: 0.8rem;
-    line-height: 1.4;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  `;
+  bloque.className = "mcp-bloque";
   const bloqueCodigo = document.createElement("code");
   bloqueCodigo.textContent = JSON.stringify(configClaude, null, 2);
   bloque.append(bloqueCodigo);
@@ -3984,7 +3878,7 @@ function abrirServidorMcp() {
 
   parrafo(panel, "Herramientas disponibles:");
   const herramientas = document.createElement("p");
-  herramientas.style.cssText = ESTILO_PARRAFO;
+  herramientas.className = "mcp-parrafo";
   HERRAMIENTAS_MCP.forEach((nombre, i) => {
     if (i > 0) herramientas.append(", ");
     const codigo = document.createElement("code");
@@ -4003,7 +3897,7 @@ function abrirServidorMcp() {
   // Qué significan los errores de /mcp, en una línea y con los códigos
   // destacados como código.
   const errores = document.createElement("p");
-  errores.style.cssText = ESTILO_PARRAFO;
+  errores.className = "mcp-parrafo";
   errores.append("Errores: ");
   [
     ["403", " = falta el token (generá uno desde este panel)"],
@@ -4029,7 +3923,6 @@ function abrirServidorMcp() {
   indicador.className = "estado";
   indicador.setAttribute("role", "status");
   indicador.setAttribute("aria-live", "polite");
-  indicador.style.textAlign = "left";
 
   if (sesion.autenticada) {
     const campo = document.createElement("input");
@@ -4037,12 +3930,9 @@ function abrirServidorMcp() {
     campo.readOnly = true;
     campo.autocomplete = "off";
     campo.spellcheck = false;
+    campo.className = "mcp-campo";
     campo.placeholder = "Tu token aparece acá";
     campo.setAttribute("aria-label", "Token MCP de tu cuenta");
-    campo.style.cssText =
-      "display: block; width: 100%; margin: 0 0 8px; padding: 0.4rem 0.6rem;" +
-      " border: 1px solid var(--borde); border-radius: var(--radio);" +
-      " background: var(--fondo); color: var(--texto); font: inherit; font-size: 0.85rem;";
     panel.append(campo);
 
     const botonGenerar = document.createElement("button");
@@ -4059,7 +3949,6 @@ function abrirServidorMcp() {
 
     const fila = document.createElement("div");
     fila.className = "crear-campos";
-    fila.style.margin = "0 0 8px";
     fila.append(botonGenerar, botonCopiar);
     panel.append(fila);
 
@@ -4154,23 +4043,8 @@ function abrirServidorMcp() {
 
   const btnCerrar = document.createElement("button");
   btnCerrar.type = "button";
+  btnCerrar.className = "modal-cerrar";
   btnCerrar.textContent = "Cerrar";
-  btnCerrar.style.cssText = `
-    display: block;
-    width: 100%;
-    padding: 10px 14px;
-    margin-top: 8px;
-    border: 1px solid var(--borde);
-    background: transparent;
-    color: var(--texto);
-    font: inherit;
-    font-size: 0.9rem;
-    font-weight: 500;
-    text-align: center;
-    cursor: pointer;
-    border-radius: 6px;
-    transition: background 0.1s;
-  `;
   btnCerrar.addEventListener("click", alCerrar);
   panel.append(btnCerrar);
 

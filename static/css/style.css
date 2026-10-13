@@ -816,6 +816,160 @@ a.menu-item {
   }
 }
 
+/* Modal de compartir y panel «Servidor MCP»: backdrop + caja centrada.
+   El estilo vive en clases y no en `style.cssText` de JS porque la CSP
+   del backend (`style-src 'self'`) bloquea los estilos inline que el
+   código intente aplicar (Chrome los reporta como «Applying inline
+   style violates…» y los descarta, dejando los paneles sin maqueta). */
+.compartir-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 9998;
+  animation: fadeIn 0.15s ease-out;
+}
+
+/* `.accion.compartir-panel` (y no solo `.compartir-panel`): la segunda
+   regla `.accion` de los paneles de acción del explorador va más abajo en
+   el archivo y fija `width`, `top`/`left` y `z-index` propios; con la
+   clase compuesta estas reglas las ganan. */
+.accion.compartir-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.3);
+  padding: 16px;
+  z-index: 9999;
+  width: min(300px, 90vw);
+  max-width: 90vw;
+  animation: slideUp 0.2s ease-out;
+}
+
+/* El panel MCP es el mismo modal, un poco más ancho y con scroll. */
+.accion.mcp-panel {
+  width: min(440px, 92vw);
+  max-width: 92vw;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+/* Título de ambos modales: rótulo con filete. */
+.modal-titulo {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--texto);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--borde);
+}
+
+/* Opción del modal de compartir (icono de red + etiqueta). */
+.compartir-opcion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 2px 0;
+  transition: background 0.1s;
+}
+
+.compartir-opcion:hover {
+  background: var(--acento-suave);
+}
+
+/* Botones «Cancelar» y «Cerrar» de ambos modales. */
+.modal-cerrar {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  margin-top: 8px;
+  border: 1px solid var(--borde);
+  background: transparent;
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+
+.modal-cerrar:hover {
+  background: var(--acento-suave);
+}
+
+/* Guía del panel MCP: enlace a la wiki, párrafos, valores monoespaciados
+   y bloque de configuración de Claude Desktop. */
+.mcp-doc {
+  display: inline-block;
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: var(--acento);
+}
+
+.mcp-parrafo {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--texto);
+}
+
+.mcp-valor {
+  overflow-wrap: anywhere;
+}
+
+.mcp-bloque {
+  margin: 0 0 8px;
+  padding: 8px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mcp-campo {
+  display: block;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo);
+  color: var(--texto);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+/* Dentro del panel MCP el indicador va a la izquierda (en los
+   formularios del explorador `.estado` se alinea a la derecha), y la
+   fila de botones del token hereda el margen del resto del panel. */
+.mcp-panel .estado {
+  text-align: left;
+}
+
+.mcp-panel .crear-campos {
+  margin: 0 0 8px;
+}
+
 /* Focus visible mejorado */
 :focus-visible {
   outline: 2px solid var(--acento);
@@ -1637,6 +1791,22 @@ a.menu-item {
 .preview :is(th, td) {
   padding: 0.35rem 0.6rem;
   border: 1px solid var(--borde);
+}
+
+/* Alineación de columnas: markdown-it la emitía como `style="text-align:…"`
+   inline, que el CSP bloquea; el backend la manda como clase (ver
+   `_alineacion_a_clase` en `renderer.py`). En el PDF corre el mismo juego
+   con las reglas homónimas de `_html_para_pdf`. */
+.preview .alineado-izq {
+  text-align: left;
+}
+
+.preview .alineado-centro {
+  text-align: center;
+}
+
+.preview .alineado-der {
+  text-align: right;
 }
 
 .preview th {

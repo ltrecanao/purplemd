@@ -1643,6 +1643,22 @@ def _html_de_markdown(markdown: str, titulo: str) -> str:
       font-weight: 700;
     }}
 
+    /* Alineación de columnas: markdown-it la emitía como atributo `style`
+       inline, que el navegador bloquea por la CSP; el backend la manda como
+       clase (ver `_alineacion_a_clase` en `renderer.py`). */
+
+    .alineado-izq {{
+      text-align: left;
+    }}
+
+    .alineado-centro {{
+      text-align: center;
+    }}
+
+    .alineado-der {{
+      text-align: right;
+    }}
+
     tr:nth-child(even) td {{
       background: #fafbfd;
     }}

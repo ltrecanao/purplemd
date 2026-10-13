@@ -679,6 +679,20 @@ class RenderEndpointTests(ApiTestCase):
         self.assertEqual(response.status_code, 422)
         self.assertIn(str(MAX_RENDER_BYTES), response.text)
 
+    def test_el_html_renderizado_no_lleva_estilos_inline(self):
+        # La CSP del backend (`style-src 'self'`) bloquea los atributos
+        # `style=` inline: markdown-it los emitía para alinear columnas de
+        # tabla y el navegador los descartaba (perdiendo la alineación).
+        # El render manda clases, que el CSS sí aplica.
+        markdown = "| izq | centro | der |\n| :--- | :-: | ---: |\n| a | b | c |\n"
+        response = self.client.post("/api/render", json={"markdown": markdown})
+        self.assertEqual(response.status_code, 200)
+        html = response.json()["html"]
+        self.assertNotIn("style=", html)
+        self.assertIn('class="alineado-izq"', html)
+        self.assertIn('class="alineado-centro"', html)
+        self.assertIn('class="alineado-der"', html)
+
 
 class HealthEndpointTests(ApiTestCase):
     def test_directorio_operativo_da_ok(self):

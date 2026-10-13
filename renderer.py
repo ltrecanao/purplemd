@@ -67,6 +67,24 @@ _md = (
 
 _formatter = HtmlFormatter(style="dracula", nowrap=True)
 
+# markdown-it alinea las columnas de tabla con `style="text-align:…"`, pero
+# la CSP del backend (`style-src 'self'`) descarta cualquier atributo
+# `style` inline: el navegador lo bloquea («Applying inline style violates…»)
+# y la alineación se pierde tanto en la vista previa como en el HTML que va
+# al PDF. Se reemplaza por una clase que el CSS sí aplica. `html: False`
+# garantiza que ningún contenido de usuario pude haber introducido otro
+# `style=` por su cuenta: este sub reemplaza a lo sumo los que emite
+# markdown-it en `th`/`td`.
+_ALINEACION_MD = re.compile(r'style="text-align:(left|center|right)"')
+_ALINEACION_CLASES = {"left": "izq", "center": "centro", "right": "der"}
+
+
+def _alineacion_a_clase(html: str) -> str:
+    """Cambia la alineación de tabla de atributo inline a clase CSS."""
+    return _ALINEACION_MD.sub(
+        lambda m: f'class="alineado-{_ALINEACION_CLASES[m.group(1)]}"', html
+    )
+
 # Bloque de código con lenguaje: <pre><code class="language-X">...</code></pre>
 _BLOQUE = re.compile(
     r'<pre><code class="language-([^"]+)">(.*?)</code></pre>',
@@ -137,7 +155,7 @@ def renderizar(markdown: str) -> str:
     """
     try:
         markdown_normalizado = _normalizar_urls_en_links(markdown)
-        return _resaltar(_md.render(markdown_normalizado))
+        return _alineacion_a_clase(_resaltar(_md.render(markdown_normalizado)))
     except Exception as exc:
         logger.warning("render falló; se devuelve el markdown escapado", exc_info=exc)
         return f"<pre>{escape(markdown)}</pre>"
