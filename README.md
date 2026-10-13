@@ -183,32 +183,41 @@ cuatro rutas de sesión (`/api/auth/*`) que no aparecen en el esquema.
 Tabla completa, cuerpos, errores y límites en
 [docs/API.md](docs/API.md).
 
-## Licencia y uso
+## Modelo del proyecto y licencia
 
-PurpleMD es **código visible** (source-available). El código fuente está
-público para inspección y auditoría, pero con todos los derechos reservados.
+PurpleMD se distribuye bajo la licencia
+[GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
 
-### Uso permitido sin autorización
+### Uso libre y abierto
 
-- **Particulares**: uso libre y gratuito para uso personal no comercial.
-- **Inspección pública**: lectura y auditoría del código fuente.
-- **Evaluación técnica**: prueba interna sin fines de lucro.
+El código fuente está público para lectura, auditoría y uso personal.
+La AGPL-3.0 garantiza que:
 
-### Uso que requiere acuerdo comercial
+- **Desarrolladores y entusiastas** pueden usar PurpleMD libremente.
+- Las modificaciones deben publicarse si se ofrece el software como
+  servicio en red (cláusula copyleft de red).
+- El código permanece abierto y auditable para todos.
 
-Cualquier uso corporativo, comercial o integración en productos de
-terceros requiere un **plan Enterprise** o acuerdo comercial previo:
+### Visión y contribuciones
 
-- Integración en productos o servicios de terceros.
-- Uso dentro de organizaciones con fines comerciales.
-- Modificación o distribución del código.
-- Creación de trabajos derivados.
+PurpleMD es un proyecto de autor. El desarrollo es **cerrado a Pull
+Requests externos** para preservar la cohesión arquitectónica, la
+visión de diseño y la titularidad limpia del código.
 
-**Contacto empresarial**: [purple.empresas@proton.me](mailto:purple.empresas@proton.me?subject=Consulta%20Enterprise%20-%20PurpleMD)
+Esto no significa que no queramos tu feedback:
 
-### Restricciones
+- **Issues abiertos**: reportes de bugs, sugerencias y discusión.
+- **Documentación**: correcciones y ampliaciones bienvenidas.
+- **Ideas**: propuestas conceptuales de funcionalidades.
 
-Sin autorización previa por escrito se prohíbe modificar, redistribuir,
-usar comercialmente o realizar ingeniería inversa de este software.
+Ver [CONTRIBUTING.md](CONTRIBUTING.md) para más detalles.
 
-Ver [LICENSE](LICENSE) para el texto legal completo.
+### Canal Enterprise
+
+Para uso corporativo, integraciones a medida, soporte dedicado o
+escalar PurpleMD a tu infraestructura:
+
+**[purple.empresas@proton.me](mailto:purple.empresas@proton.me?subject=Consulta%20Enterprise%20-%20PurpleMD)**
+
+Los planes Enterprise incluyen soporte prioritario, personalización y
+acuerdos de nivel de servicio.

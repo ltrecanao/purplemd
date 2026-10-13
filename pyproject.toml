@@ -3,7 +3,7 @@ name = "purplemd"
 version = "0.1.0"
 description = "Editor de markdown ligero: FastAPI + frontend vanilla para notas en un directorio local"
 readme = "README.md"
-license = "LicenseRef-Proprietary"
+license = "AGPL-3.0-only"
 requires-python = ">=3.13"
 
 # Dependencias de producción: solo lo necesario para servir la API,
