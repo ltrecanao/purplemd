@@ -183,6 +183,32 @@ cuatro rutas de sesión (`/api/auth/*`) que no aparecen en el esquema.
 Tabla completa, cuerpos, errores y límites en
 [docs/API.md](docs/API.md).
 
-## Licencia
+## Licencia y uso
 
-Distribuido bajo la licencia [MIT](LICENSE).
+PurpleMD es **código visible** (source-available). El código fuente está
+público para inspección y auditoría, pero con todos los derechos reservados.
+
+### Uso permitido sin autorización
+
+- **Particulares**: uso libre y gratuito para uso personal no comercial.
+- **Inspección pública**: lectura y auditoría del código fuente.
+- **Evaluación técnica**: prueba interna sin fines de lucro.
+
+### Uso que requiere acuerdo comercial
+
+Cualquier uso corporativo, comercial o integración en productos de
+terceros requiere un **plan Enterprise** o acuerdo comercial previo:
+
+- Integración en productos o servicios de terceros.
+- Uso dentro de organizaciones con fines comerciales.
+- Modificación o distribución del código.
+- Creación de trabajos derivados.
+
+**Contacto empresarial**: [purple.empresas@proton.me](mailto:purple.empresas@proton.me?subject=Consulta%20Enterprise%20-%20PurpleMD)
+
+### Restricciones
+
+Sin autorización previa por escrito se prohíbe modificar, redistribuir,
+usar comercialmente o realizar ingeniería inversa de este software.
+
+Ver [LICENSE](LICENSE) para el texto legal completo.

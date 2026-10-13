@@ -1,21 +1,30 @@
-MIT License
+Copyright (c) 2026 Purple / ltrecanao. Todos los derechos reservados.
 
-Copyright (c) 2026 ltrecanao
+Código disponible públicamente para inspección y auditoría.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Se prohíbe expresamente, sin autorización previa y por escrito del titular
+de los derechos:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+  - Modificar el código fuente.
+  - Redistribuir total o parcialmente el código o sus binarios.
+  - Usar el software con fines comerciales.
+  - Crear trabajos derivados basados en este código.
+  - Realizar ingeniería inversa con fines de reproducción.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+El uso gratuito está permitido exclusivamente para:
+
+  - Particulares y uso no comercial personal.
+  - Inspección y auditoría del código fuente.
+  - Evaluación técnica interna sin fines de lucro.
+
+Para uso corporativo, comercial o integración en productos de terceros
+es necesario un acuerdo comercial previo. Contacto oficial:
+
+  purple.empresas@proton.me
+
+Este software se distribuye "tal cual", sin garantías de ningún tipo,
+explícitas o implícitas, incluyendo comerciabilidad e idoneidad para un
+propósito particular. El uso es bajo responsabilidad del usuario.
+
+PurpleMD es una marca de Purple. El corazón de la marca y sus assets
+gráficos están protegidos y no pueden ser reutilizados sin autorización.
