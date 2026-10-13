@@ -55,7 +55,9 @@ Los tres checks (`pytest`, `ruff`, `ty`) tienen que salir **verdes antes** de cu
 - `purplemd_auth/` — integración con Google: `config.py` (credenciales), `oauth.py` (Authorization
   Code + PKCE), `sesiones.py` (cookie firmada HMAC-SHA256) y `tokens.py` (refresh tokens en disco).
 - `renderer.py` — markdown-it con `html: False` (no se inyecta HTML crudo) y resaltado con Pygments.
-- `static/` — frontend sin dependencias: `index.html`, `css/style.css`, `js/app.js`.
+- `static/` — frontend sin dependencias: `index.html`, `css/style.css`, `js/app.js`,
+  más las páginas aparte `privacy.html`, `terms.html` y `wiki/index.html`
+  (documentación de uso, servida en `/wiki`).
 - `plantillas/` — documentos `.md` de ejemplo y su manifiesto `indice.json`; se sirven en `/plantillas`.
 - `docs/` — `API.md`, `ARQUITECTURA.md`, `DESARROLLO.md`, `ACCESIBILIDAD.md`, `AUTH.md`.
 
@@ -76,8 +78,10 @@ Los tres checks (`pytest`, `ruff`, `ty`) tienen que salir **verdes antes** de cu
 - El frontend no tiene suite propia. Lo que toca la API se testea en `tests/test_api.py` (proyectos, notas,
   directorios, PDF, render), en `tests/test_zip.py` (export/import) y en
   `tests/test_notificaciones.py` (avisos).
-- Lo único del frontend que sí se testea: `tests/test_auth.py::CabecerasTests` lee `index.html` y
-  exige que **no** haya `style=` ni `onclick=` inline, porque la CSP del backend no los permitiría.
+- Lo único del frontend que sí se testea: `tests/test_auth.py::CabecerasTests` lee
+  `static/index.html` y `static/wiki/index.html` y exige que **no** haya `style=` ni
+  `onclick=` inline, porque la CSP del backend no los permitiría. La ruta `/wiki`
+  y sus secciones se cubren en `tests/test_api.py::IndexYStaticTests`.
 
 ## CORS (FastAPI)
 
