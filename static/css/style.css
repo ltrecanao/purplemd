@@ -2229,6 +2229,9 @@ a.menu-item {
 
 .wiki-cuerpo {
   display: grid;
+  /* minmax(0, 1fr): sin esto la columna toma el max-content de los
+     bloques `pre` largos y desborda la pantalla angosta. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--esp-4);
   padding: var(--esp-4);
   width: 100%;
@@ -2293,6 +2296,7 @@ a.menu-item {
 .wiki-contenido {
   line-height: 1.7;
   max-width: 48rem;
+  min-width: 0;
 }
 
 /* Las anclas del índice caen justo debajo de la topbar sticky. */
@@ -2344,6 +2348,9 @@ a.menu-item {
   border: 1px solid var(--borde);
   text-align: left;
   vertical-align: top;
+  /* Tokens largos (`PURPLEMD_MCP_TOKEN`, URLs) se parten antes que
+     desbordar la tabla en pantallas angostas. */
+  overflow-wrap: anywhere;
 }
 
 .wiki-contenido th {
