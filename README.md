@@ -4,6 +4,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Pydantic](https://img.shields.io/badge/Pydantic-E93E4A?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/)
 [![Demo](https://img.shields.io/badge/demo-purplemd.onrender.com-7C3AED)](https://purplemd.onrender.com/)
+[![Licencia](https://img.shields.io/badge/licencia-AGPL--3.0-7C3AED)](LICENSE)
 
 Editor de markdown con backend **FastAPI**, frontend en HTML, CSS y
 JavaScript vanilla (sin frameworks ni build), un solo proceso y un solo
@@ -143,6 +144,15 @@ podman run -d --name purplemd -p 8002:8000 -e PORT=8000 \
 descarte (el formato OCI la ignora). Verificación, permisos y detalle:
 [docs/DESARROLLO.md](docs/DESARROLLO.md#contenedor).
 
+### Imagen publicada
+
+```bash
+docker pull ghcr.io/ltrecanao/purplemd:latest
+```
+
+Cada push a `main` publica la imagen en GitHub Container Registry; el flujo
+está en [.github/workflows/publish.yml](.github/workflows/publish.yml).
+
 ## Uso esencial
 
 | Acción | Dónde |
@@ -182,6 +192,17 @@ se pisen. Detalle en
 cuatro rutas de sesión (`/api/auth/*`) que no aparecen en el esquema.
 Tabla completa, cuerpos, errores y límites en
 [docs/API.md](docs/API.md).
+
+## Documentación
+
+| Documento | Qué cuenta |
+|---|---|
+| [docs/API.md](docs/API.md) | Endpoints, cuerpos, errores y límites |
+| [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md) | Datos en disco, backends de almacenamiento, sesión y frontend |
+| [docs/AUTH.md](docs/AUTH.md) | Login con Google y almacenamiento en Drive: flujo, variables y troubleshooting |
+| [docs/DESARROLLO.md](docs/DESARROLLO.md) | Arranque, pruebas, contenedor y despliegue |
+| [docs/ACCESIBILIDAD.md](docs/ACCESIBILIDAD.md) | Contraste, targets, foco, avisos y teclado |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Cómo reportar bugs, proponer ideas y colaborar |
 
 ## Modelo del proyecto y licencia
 
