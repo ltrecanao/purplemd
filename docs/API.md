@@ -19,7 +19,7 @@ rutas cuelgan de `https://purplemd.onrender.com`.
 | `PUT` | `/api/projects/{project}/notes/{path}` | `200`, `404`, `422` | Reemplaza todo el contenido (recibe `{"content"}`). |
 | `PATCH` | `/api/projects/{project}/notes/{path}` | `200`, `404`, `409`, `422` | Renombra o mueve la nota (recibe `{"path"}`). |
 | `DELETE` | `/api/projects/{project}/notes/{path}` | `204`, `404`, `422` | Borra la nota; deja las carpetas vacías. |
-| `GET` | `/api/projects/{project}/notes/{path}/pdf` | `200`, `404`, `422` | Exporta la nota como PDF, siempre con el pie «Generado con PurpleMD ♥». |
+| `GET` | `/api/projects/{project}/notes/{path}/pdf` | `200`, `404`, `422` | Exporta la nota como PDF, sin firma de agua (solo paginación). |
 | `PATCH` | `/api/projects/{project}/dirs/{path}` | `200`, `404`, `409`, `422` | Renombra o mueve el directorio con su contenido. |
 | `DELETE` | `/api/projects/{project}/dirs/{path}` | `204`, `404`, `409`, `422` | Borra el directorio; con `?recursive=true`, con todo su contenido. |
 | `GET` | `/api/projects/{project}/export` | `200`, `404`, `422` | Exporta el proyecto completo como `.zip`. |
@@ -204,7 +204,7 @@ recurso—.
 `POST /api/pdf` hace lo mismo pero sobre markdown crudo en vez de leer
 una nota del storage, y por eso es el único que funciona sin sesión: es
 el que usa el modo invitado, que no tiene nada de dónde leer. Comparte
-con `GET .../pdf` el cuerpo (`_html_de_markdown`), el pie, la paginación
+con `GET .../pdf` el cuerpo (`_html_de_markdown`), la paginación
 y el hecho de no salir a la red.
 
 ## Límites

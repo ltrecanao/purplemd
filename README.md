@@ -32,8 +32,8 @@ cliente, sin autoguardado, y con acceso opcional vía Google.
   muestra como texto y no se ejecuta.
 - Guardado manual (botón «Guardar» o `Ctrl`/`Cmd`+`S`) con indicador de
   cambios sin guardar.
-- Exportar la nota como `.md` o PDF (siempre con el pie «Generado con
-  PurpleMD ♥») y el proyecto completo como `.zip`, con su import.
+- Exportar la nota como `.md` o PDF y el proyecto completo como `.zip`,
+  con su import.
 - Árbol de carpetas plegable, validación de rutas y tamaños (sin path
   traversal; 1 MB por nota), escrituras atómicas y `GET /health`.
 - El espacio de trabajo arranca **vacío**: no crea proyectos ni notas de

@@ -146,9 +146,9 @@ class PlantillasTests(ApiTestCase):
         self.assertEqual({p.stem for p in archivos}, set(self.manifiesto()["plantillas"]))
 
     def test_las_plantillas_no_tienen_emojis(self):
-        # La marca de agua del PDF y los encabezados usan fuentes libres:
-        # un emoji podría no tener glifo y salir como cajita. `→` (U+2192)
-        # queda afuera del filtro: es un glifo de texto, no un emoji a color.
+        # Los encabezados del PDF usan fuentes libres: un emoji podría no
+        # tener glifo y salir como cajita. `→` (U+2192) queda afuera del
+        # filtro: es un glifo de texto, no un emoji a color.
         for ruta in self.manifiesto()["plantillas"]:
             with self.subTest(ruta=ruta):
                 texto = (self.raiz / f"{ruta}.md").read_text(encoding="utf-8")
@@ -541,14 +541,14 @@ class NotasEndpointTests(ApiTestCase):
         response = self.client.get("/api/projects/proyecto/notes/no-existe/pdf")
         self.assertEqual(response.status_code, 404)
 
-    def test_pdf_marca_de_agua_lleva_el_corazon_escaped(self):
-        """El pie imprime «♥», no «¶5»: `\2665` es escape CSS y la
-        barra va doble dentro del literal de Python (con una sola,
-        Python la lee como octal y arruina el carácter)."""
+    def test_pdf_no_lleva_firma_de_agua(self):
+        """El pie del PDF es solo paginación: no se imprime ninguna
+        marca de agua «Generado con PurpleMD ♥»."""
         nota = purplemd.Nota(project="p", path="x.md", content="# hola", modified=0.0)
         html = _html_para_pdf(nota)
-        self.assertIn('content: "Generado con PurpleMD \\2665"', html)
-        self.assertNotIn("¶", html)
+        self.assertNotIn("Generado con PurpleMD", html)
+        self.assertNotIn("@bottom-left", html)
+        self.assertIn("@bottom-right", html)
 
     def test_pdf_las_tareas_quedan_en_su_renglon(self):
         """WeasyPrint, sin `display: inline-block`, baja el casillero a un

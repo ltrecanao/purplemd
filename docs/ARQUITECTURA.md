@@ -163,8 +163,8 @@ sirven en `/privacy`, `/terms` y `/wiki`.
   («Compartir PurpleMD», siempre disponible, y «Ver en GitHub», con el
   logo de Octocat: un `<a role="menuitem">` con `target="_blank"`) y
   «Servidor». Nunca se apaga entero: siempre hay algo que ofrecer. El
-  PDF siempre sale con el pie «Generado con PurpleMD ♥» (el número de
-  página se mantiene: es paginación, no branding).
+  PDF no lleva firma de agua (solo el número de página, que es
+  paginación, no branding).
 - Menú «Más ▾» de la barra de formato: el formato secundario del editor
   (tachado, código en línea, imagen, tabla, línea horizontal y bloque de
   código), con ítems etiquetados y el mismo `data-md` que los botones

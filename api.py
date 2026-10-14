@@ -1222,9 +1222,7 @@ def exportar_pdf(
     project: str,
     path: str,
 ) -> Response:
-    """Devuelve la nota como PDF con marca de agua "Generado con PurpleMD ♥".
-    La marca de agua siempre se incluye. No hay parámetro para omitirla.
-    """
+    """Devuelve la nota como PDF; solo paginación, sin firma de agua."""
     nota = purplemd.leer_nota(project, path, storage=almacen)
     html = _html_para_pdf(nota)
     pdf = weasyprint.HTML(string=html, url_fetcher=FETCHER_PDF).write_pdf()
@@ -1349,7 +1347,6 @@ def _html_de_markdown(markdown: str, titulo: str) -> str:
     que garantiza que es un nombre válido (sin `<`, comillas ni saltos de
     línea): acá se usa tal cual, como ya hacía el PDF con storage.
 
-    La marca de agua "Generado con PurpleMD ♥" siempre se incluye en @bottom-left.
     El número de página @bottom-right es paginación del documento y se emite siempre.
     """
     cuerpo = renderer.renderizar(markdown)
@@ -1358,19 +1355,6 @@ def _html_de_markdown(markdown: str, titulo: str) -> str:
     # este CSS, así la paleta del PDF es la por defecto del resaltador.
     paleta = renderer.css_resaltado()
     fondo = renderer.fondo_resaltado()
-    # La marca de agua siempre se incluye en @bottom-left.
-    # `\\2665`: la barra va doble porque el literal es de Python; con una
-    # sola, Python lo lee como escape octal (`¶5`) y el pie no imprime ♥.
-    marca = """      /* Marca de agua a la izquierda con el corazón Unicode \\2665 */
-      @bottom-left {
-        content: "Generado con PurpleMD \\2665";
-        font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
-        font-size: 6.5pt;
-        font-weight: 600;
-        color: var(--accent);
-      }
-
-"""
     return f"""<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1383,7 +1367,7 @@ def _html_de_markdown(markdown: str, titulo: str) -> str:
       size: A4;
       margin: 1.35cm 1.45cm 1.25cm 1.45cm;
 
-{marca}      /* Número de página a la derecha */
+      /* Número de página a la derecha */
       @bottom-right {{
         content: "Pág. " counter(page);
         font-family: "DejaVu Sans", "Liberation Sans", sans-serif;
