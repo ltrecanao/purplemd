@@ -44,6 +44,7 @@ sobre `pytest`; no hay `package.json` ni paso de build para el frontend (JS vani
 
 Los tres checks (`pytest`, `ruff`, `ty`) tienen que salir **verdes antes** de cualquier commit. El CI
 (`.github/workflows/ci.yml`) los repite y además falla si diverge la versión de Python.
+**Un cambio, un commit**: cada cambio va en su propio commit; nunca se mezclan dos cambios distintos en el mismo commit.
 
 ## Estructura del código
 
