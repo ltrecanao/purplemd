@@ -782,6 +782,19 @@ a.menu-item {
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
 
+/* Movimiento reducido: quien lo pide en el sistema no recibe transiciones
+   ni animaciones (WCAG 2.3.3). Va con `!important` porque las reglas de
+   arriba fijan duración por selector y solo así se anulan todas de una. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 .panel-explorador.abierto {
   animation: slideDown 180ms ease;
 }
@@ -1293,23 +1306,70 @@ a.menu-item {
 
 /* --- Árbol de carpetas y notas --- */
 
-/* Cada nivel anida una lista dentro de la carpeta que la contiene. */
+/* Cada nivel anida una lista dentro de la carpeta que la contiene. El
+   borde izquierdo del `ul` anidado es la guía de indentación (estilo
+   VS Code): una línea de 1px por nivel, en el color del borde, que hace
+   legible el anidado de un vistazo. La sangría mide lo mismo que antes
+   (0.85rem + 1px de guía) para no mover las filas existentes. */
 .arbol ul {
   display: flex;
   flex-direction: column;
   gap: 2px;
   margin: 0;
-  padding-left: 0.9rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid var(--borde);
   list-style: none;
+}
+
+/* Ícono de fila: SVG de 16px (1rem) con trazo `currentColor`, así sigue
+   al color del texto y a los dos temas; `flex: 0 0 auto` evita que se
+   deforme o se lo coma el nombre cuando hay que recortarlo. */
+.icono-arbol {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Carpeta abierta: el ícono se llena, que es su variante abierta. El
+   estado del pliegue se lee así en dos sitios (chevron e ícono), no solo
+   en el ángulo de la punta. El relleno es `--borde` (sutil en los dos
+   temas) y no compite con el hover, que pinta la fila entera. */
+.carpeta details[open] > summary .icono-arbol {
+  fill: var(--borde);
+}
+
+/* El nombre vive en su propio `<span>`: `text-overflow` no se aplica a un
+   contenedor flex, así que el recorte elíptico va en un hijo con
+   `min-width: 0`. El `title` de la fila conserva la ruta completa, así
+   que nada se pierde al cortar. */
+.arbol-nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .carpeta summary {
   display: flex;
   align-items: center;
   gap: 0.3em;
-  padding: 0.35rem 0.6rem;
+  /* Fila uniforme de 34px: el resumen lleva borde transparente para que
+     su caja sea idéntica a la de `.entrada-nota` y todas las filas del
+     árbol midan lo mismo. La altura solo sube en punteros táctiles
+     (ver `@media (pointer: coarse)` más abajo). */
+  min-height: 2.125rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid transparent;
   border-radius: var(--radio);
-  font-weight: 600;
+  /* Los íconos ya distinguen carpeta de nota: la jerarquía no necesita
+     negrita para leerse (es el resto de los exploradores modernos). */
+  font-weight: 500;
   cursor: pointer;
   list-style: none;
 }
@@ -1319,25 +1379,48 @@ a.menu-item {
   display: none;
 }
 
+/* Chevron de disclosure propio: dos bordes dibujados en el ::before del
+   <summary> en vez del glifo «▸», que cambia de forma entre sistemas.
+   Sigue siendo nativo: el plegado lo maneja <details> (teclado y
+   `aria-expanded` sin JS de por medio); este pseudo solo pinta el
+   estado, girando 90° al abrir. */
 .carpeta summary::before {
-  content: "▸";
-  font-size: 0.8em;
+  content: "";
+  flex: 0 0 auto;
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
   color: var(--texto-tenue);
+  /* Cerrado, la punta mira a la derecha. */
+  transform: rotate(-45deg);
   transition: transform 120ms ease;
 }
 
 .carpeta details[open] > summary::before {
-  transform: rotate(90deg);
+  transform: rotate(45deg);
 }
 
 .carpeta summary:hover {
   background: var(--acento-suave);
 }
 
+/* Fila de nota: ícono + nombre, en la misma caja de 34px que el
+   resumen de las carpetas. `overflow-wrap` se queda para la franja
+   estrecha, donde el `::before` que repone el tooltip hereda salto. */
 .entrada-nota {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
   width: 100%;
-  padding: 0.35rem 0.6rem;
+  min-height: 2.125rem;
+  /* Reserva el hueco del chevron de la carpeta (0.45em de punta + 0.3em
+     de `gap`): es lo que hace que el ícono de una nota quede a un nivel
+     exacto de sangría respecto del de su carpeta contenedora, y no casi
+     encima (VS Code deja el triángulo vacío en las filas de archivo por
+     lo mismo). En `rem` y no en `em` porque la franja de 48–60rem le
+     pone `font-size: 0` a este botón, y ahí un `em` valdría cero. */
+  padding: 0.25rem 0.6rem 0.25rem 1.35rem;
   border: 1px solid transparent;
   border-radius: var(--radio);
   background: none;
@@ -1355,6 +1438,10 @@ a.menu-item {
 .entrada-nota[aria-current="true"] {
   background: var(--acento-suave);
   border-color: var(--acento);
+  /* Barra de acento al costado: el indicador accesible es `aria-current`
+     y este refuerzo lo hace visible sin depender solo del fondo, que es
+     el mismo que pone el hover. */
+  box-shadow: inset 3px 0 0 0 var(--acento);
   font-weight: 600;
 }
 
@@ -1364,6 +1451,9 @@ a.menu-item {
    sus acciones. Van como hermanos (nunca dentro del botón ni del
    <summary>) para no anidar controles interactivos. */
 .fila {
+  /* Ancla de posicionamiento de sus acciones, que van superpuestas (más
+     abajo). */
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: var(--esp-1);
@@ -1376,11 +1466,25 @@ a.menu-item {
   min-width: 0;
 }
 
+/* Acciones superpuestas al borde derecho de la fila, fuera de su flujo.
+   `.fila > details` contiene a la vez la fila de la carpeta y TODA su
+   lista anidada, así que puestas en el flujo le robaban ~60px a ese
+   `details` —y, con él, a cada nivel del subárbol: la resta se repetía
+   por nivel hasta dejar ~10px de nombre en la tercera. Superponerlas
+   devuelve el ancho completo a la estructura, que es como trabajan los
+   exploradores actuales (VS Code, Notion, Linear): en reposo no tapan
+   nada y salen con el hover o el foco (ver `@media (hover: hover)`).
+   `top: 0` con `height` igual al de la fila porque `.fila` abarca
+   también el subárbol de una carpeta abierta: así las acciones quedan
+   sobre la PRIMERA línea y no en el centro del bloque. */
 .fila-acciones {
+  position: absolute;
+  top: 0;
+  right: var(--esp-1);
   display: flex;
-  flex: 0 0 auto;
+  align-items: center;
+  height: 2.125rem;
   gap: 2px;
-  padding-top: 0.25rem;
 }
 
 /* Botón de acción con símbolo: mínimo para no robarle ancho a la lista. */
@@ -1413,6 +1517,56 @@ a.menu-item {
   border-color: transparent;
   background: none;
   color: var(--texto-tenue);
+}
+
+/* Acciones de fila discretas (el estándar de los exploradores actuales):
+   con puntero de escritorio arrancan apagadas y salen con el cursor sobre
+   la propia fila o con foco de teclado dentro. Fuera de este media query
+   — táctil, donde no hay hover — siguen siempre visibles: esconderlas con
+   `display: none` las volvería invisibles e inalcanzables. `:focus`
+   cubre además el foco que mueve el código (`enfocarTrasOperacion`). */
+@media (hover: hover) {
+  .fila-acciones {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  /* El hijo directo es a propósito: sin él, el hover o el foco de una
+     fila anidada encendería también las acciones de sus carpetas
+     contenedoras. En navegadores sin `:has` solo se pierde esta rama y
+     siguen mandando las dos reglas sueltas de abajo (hover/foco de la
+     propia caja), que no dependen de ese selector. */
+  .fila:has(> .entrada-nota:hover, > .entrada-nota:focus,
+      > details > summary:hover, > details > summary:focus,
+      > .proyecto:hover, > .proyecto:focus) > .fila-acciones,
+  .fila-acciones:hover,
+  .fila-acciones:focus-within {
+    opacity: 1;
+  }
+}
+
+/* En punteros gruesos (táctil) la fila sube al mínimo de 44px de
+   WCAG 2.5.5, el mismo que ya usan los botones; en puntero fino queda en
+   34px, porque la columna es estrecha y fichas más altas obligarían a
+   scrollear para ver el árbol. Las acciones superpuestas siguen esa
+   altura para seguir centradas en la fila. Y como acá NO hay hover
+   —están siempre a la vista— el nombre reserva a su lado el ancho que
+   ocupan: solo el de la propia fila, nunca el del subárbol, que es
+   justamente lo que el overlay vuelve a dejar entero. */
+@media (pointer: coarse) {
+  .carpeta summary,
+  .entrada-nota {
+    min-height: 44px;
+  }
+
+  .fila-acciones {
+    height: 44px;
+  }
+
+  .arbol-nombre,
+  .proyecto-nombre {
+    padding-right: 4rem;
+  }
 }
 
 /* Panel de la acción: sigue colgado de la fila que lo abrió, pero va
@@ -2045,18 +2199,45 @@ a.menu-item {
   .panel-explorador .proyecto-nombre[title],
   .panel-explorador .entrada-nota[title] {
     font-size: 0;
-    padding: 0.5rem;
+    /* El `1.35rem` es el mismo que la regla base de `.entrada-nota`: el
+       hueco del chevron, para que el texto colapsado de la nota arranque
+       a la altura del de su carpeta. Acá va en `rem` porque el botón
+       tiene `font-size: 0` y un `em` valdría cero. */
+    padding: 0.5rem 0.5rem 0.5rem 1.35rem;
   }
 
-  .panel-explorador .proyecto-nombre[title]::before,
+  .panel-explorador .proyecto-nombre[title]::before {
+    content: attr(title);
+    font-size: 0.85rem;
+  }
+
+  /* `.entrada-nota` es flex, así que su `::before` es un HIJO FLEX: sin
+     más, se contrae a su min-content y cada carácter baja de renglón (el
+     título de una ruta larga se pintaba una letra por línea). Una sola
+     línea recortable, igual que el nombre que reemplaza. El `font-size`
+     es el del reemplazo (0.85rem), nunca `0`: ese colapso es el del
+     botón, de arriba. */
   .panel-explorador .entrada-nota[title]::before {
     content: attr(title);
     font-size: 0.85rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .panel-explorador .proyecto:hover .proyecto-nombre[title]::before,
   .panel-explorador .entrada-nota[title]:hover::before {
     content: attr(title);
+  }
+
+  /* Los íconos del árbol se esconden en esta franja: con el nombre de la
+     nota ya colapsado en su tooltip solo costarían ancho en una columna
+     de 14rem. El chevron de la carpeta sí queda, porque es el que
+     pliega. */
+  .panel-explorador .icono-arbol {
+    display: none;
   }
 
   .panel-explorador .crear-campos {
@@ -2084,10 +2265,6 @@ a.menu-item {
   .panel-explorador .btn[title]::before {
     content: attr(title);
     font-size: 0.85rem;
-  }
-
-  .panel-explorador .fila-acciones {
-    justify-content: center;
   }
 
   .panel-explorador .accion {

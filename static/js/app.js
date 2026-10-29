@@ -2062,6 +2062,20 @@ function pintarNodo(nodo) {
   return nodo.tipo === "carpeta" ? pintarCarpeta(nodo) : pintarNota(nodo);
 }
 
+// Íconos del árbol: SVG estáticos de trazo, sin datos de usuario (misma
+// regla que los íconos de compartir: el `innerHTML` solo interpreta
+// markup fijo de este archivo). El CSS les pinta el trazo con
+// `currentColor`, les fija el tamaño y los esconde en la franja 48–60rem
+// (donde la fila de la nota colapsa en su tooltip). Llevan `aria-hidden`
+// porque el nombre de la entrada ya está en el texto de la fila.
+const ICONO_CARPETA =
+  '<svg class="icono-arbol" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+  '<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.17a1.5 1.5 0 0 1 1.2.6L10.8 8H19.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5Z"/></svg>';
+
+const ICONO_NOTA =
+  '<svg class="icono-arbol" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+  '<path d="M14 3H6.5A1.5 1.5 0 0 0 5 4.5v15A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5V8ZM14 3v5h5M8.5 13h7M8.5 17h7"/></svg>';
+
 /**
  * Crea una carpeta plegable con `<details>`: el plegado es nativo, se
  * opera con el teclado y el estado va en `aria-expanded` sin JS extra.
@@ -2077,8 +2091,16 @@ function pintarCarpeta(nodo) {
   const detalles = document.createElement("details");
   detalles.open = !carpetasColapsadas.has(nodo.path);
 
+  // Ícono fijo (markup de este archivo, ver ICONO_CARPETA) + nombre en su
+  // propio `<span>`: `text-overflow` no funciona sobre un contenedor flex,
+  // así que el recorte elíptico vive en ese hijo con `min-width: 0`. El
+  // nombre del usuario entra por `textContent`, nunca por `innerHTML`.
   const resumen = document.createElement("summary");
-  resumen.textContent = nodo.nombre;
+  resumen.innerHTML = ICONO_CARPETA;
+  const nombre = document.createElement("span");
+  nombre.className = "arbol-nombre";
+  nombre.textContent = nodo.nombre;
+  resumen.append(nombre);
   resumen.title = nodo.path;
 
   const hijos = document.createElement("ul");
@@ -2123,7 +2145,14 @@ function pintarNota(nodo) {
   boton.type = "button";
   boton.className = "entrada-nota";
   boton.dataset.ruta = nodo.path;
-  boton.textContent = nodo.nombre;
+  // Ícono fijo + nombre en su propio `<span>`, por el mismo motivo que en
+  // `pintarCarpeta`: el recorte elíptico necesita un hijo con
+  // `min-width: 0`. El nombre va por `textContent` (dato del usuario).
+  boton.innerHTML = ICONO_NOTA;
+  const nombre = document.createElement("span");
+  nombre.className = "arbol-nombre";
+  nombre.textContent = nodo.nombre;
+  boton.append(nombre);
   // El nombre visible es solo el último segmento: la ruta completa va al
   // tooltip y a la etiqueta accesible, donde no se corta.
   boton.title = nodo.path;

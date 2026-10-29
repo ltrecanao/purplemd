@@ -56,6 +56,13 @@ Todo control tiene como mínimo **44×44 px**: los ítems de los menús
 etiquetas no entran, la barra envuelve en varias filas: nunca se truncan
 ni se achican (`style.css`).
 
+Excepción deliberada: las filas del árbol miden **34px** con puntero fino
+(densa, para que el árbol entre sin scrollear en una columna estrecha) y
+suben a **44px** con `@media (pointer: coarse)`, que es donde el mínimo
+táctil importa. Los botones de acción `.btn-mini` quedan por debajo de
+44px —son secundarios y ya lo estaban— pero siempre alcanzables: al
+foco, al hover y, sin hover (táctil), a la vista.
+
 ## Foco visible (WCAG 2.4.3)
 
 - `:focus-visible` con indicador propio en botones, ítems de menú,
