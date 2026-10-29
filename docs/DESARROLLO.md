@@ -96,20 +96,23 @@ npx mcp-remote http://localhost:8000/mcp --header "X-PurpleMD-Token: <token>"
 ## Pruebas
 
 La suite está escrita con `unittest` (clases `TestCase`), se corre con
-`pytest` y tiene 416 tests, más 286 subtests de `self.subTest()`:
+`pytest` y tiene 443 tests, más los subtests de `self.subTest()`:
 
-- 105 en `tests/test_api.py`.
-- 95 en `tests/test_purplemd.py`.
-- 64 en `tests/test_auth.py` (credenciales, sesiones, OAuth/PKCE,
+- 110 en `tests/test_api.py`.
+- 96 en `tests/test_auth.py` (credenciales, sesiones, OAuth/PKCE,
   aislamiento, CSRF, cabeceras y MCP).
+- 95 en `tests/test_purplemd.py`.
 - 47 en `tests/test_storage.py`.
-- 33 en `tests/test_drive.py` (contrato de los tres backends, los
+- 35 en `tests/test_drive.py` (contrato de los tres backends, los
   detalles propios de Drive y la traducción de errores en la API).
 - 23 en `tests/test_zip.py`.
 - 21 en `tests/test_renderer.py`.
-- 19 en `tests/test_notificaciones.py`.
-- 6 en `tests/test_contraste.py`.
+- 7 en `tests/test_contraste.py`.
 - 3 en `tests/test_texto_visible.py`.
+- 3 en `tests/test_explorador_oculto.py` (ocultar el explorador en PC:
+  la regla CSS, la clase sobre `.app` y la persistencia en `localStorage`).
+- 3 en `tests/test_arbol.py` (acciones superpuestas, sangría de las filas
+  de nota y el título de una línea en la franja 48–60rem).
 
 ```bash
 uv run pytest -q
@@ -127,12 +130,13 @@ uv run ty check .
 ```
 
 El frontend no tiene suite propia: casi todo lo que usa está cubierto por
-`tests/test_api.py` (proyectos, notas, directorios, PDF y render). El
-export/import de `.zip` cubre `tests/test_zip.py` y las tres rutas de
-`/api/notifications`, `tests/test_notificaciones.py`. Del CSS sí hay un
+`tests/test_api.py` (proyectos, notas, directorios, PDF y render) y el
+export/import de `.zip` cubre `tests/test_zip.py`. Del CSS sí hay un
 test por regla que lo pide, leyendo el archivo: la paleta
-(`tests/test_contraste.py`, más abajo) y el texto visible del explorador
-(`tests/test_texto_visible.py`). Lo único del HTML que se testea: que
+(`tests/test_contraste.py`, más abajo), el texto visible del explorador
+(`tests/test_texto_visible.py`), la estructura del árbol
+(`tests/test_arbol.py`) y el explorador oculto en ancho
+(`tests/test_explorador_oculto.py`). Lo único del HTML que se testea: que
 `index.html` no tenga `style=` ni `onclick=` inline, porque la CSP del
 backend no los permitiría (`tests/test_auth.py::CabecerasTests`).
 
