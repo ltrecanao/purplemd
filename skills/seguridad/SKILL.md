@@ -34,7 +34,7 @@ tags: [security, ssrf, dos, limits, validation, cors, headers, logging, auth, oa
 | Diagnóstico | excepciones tragadas sin registro | ✅ logger `purplemd` con traceback + tests (`logging`, nunca `print` ni `pass`) |
 | API pública | CORS con wildcards, cabeceras ausentes | ✅ origen prod literal + regex localhost, CSP y cabeceras + `tests/test_auth.py` |
 | Sesión con Google | CSRF, cookie forjada, open redirect, token filtrado | ✅ `SameSite=Lax` + chequeo de `Origin` + `state` PKCE + cookie HttpOnly + tests |
-| Estado global | listas que crecen sin límite (notificaciones) | ⚠️ acotar o expirar |
+| Estado global | listas o cachés que crecen sin límite | ⚠️ acotar o expirar |
 | Servidor MCP | endpoint sin sesión accesible desde la red | ✅ token propio en `X-PurpleMD-Token` (firmado por cuenta con login, de entorno sin login) + tests |
 
 ---
@@ -110,7 +110,7 @@ tags: [security, ssrf, dos, limits, validation, cors, headers, logging, auth, oa
 ### 7. Estado global acotado
 
 - Cachés, colas y listas de sesión tienen tope o expiración; crecer sin límite es un DoS lento.
-- Lo que vive en memoria (notificaciones) se documenta como efímero y no se comparte como
+- Lo que vive en memoria se documenta como efímero y no se comparte como
   estado autoritativo.
 - Las sesiones por cuenta también: `_MEMORIA_USUARIOS` tope 64,
   `CuentasEnDisco` tope 1000 y `LimiteCuentasError` ⇒ 503.

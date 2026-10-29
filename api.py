@@ -51,7 +51,6 @@ import threading
 import time
 from collections.abc import Mapping
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
@@ -1694,77 +1693,6 @@ def _html_de_markdown(markdown: str, titulo: str) -> str:
 {cuerpo}
 </body>
 </html>"""
-
-# --- Notificaciones ---
-# Sistema de avisos en la interfaz: el backend guarda notificaciones en
-# memoria y el frontend las muestra como toast al cargar. Sirve para pedir
-# aprobación o avisar tareas sin tener que mirar la terminal.
-
-
-@dataclass
-class Notificacion:
-    id: str
-    titulo: str
-    mensaje: str
-    leida: bool = False
-
-
-_notificaciones: list[Notificacion] = []
-_contador = 0
-
-
-def _nueva_notificacion(titulo: str, mensaje: str) -> Notificacion:
-    global _contador
-    _contador += 1
-    notif = Notificacion(id=str(_contador), titulo=titulo, mensaje=mensaje)
-    _notificaciones.append(notif)
-    return notif
-
-
-class NotificacionCreacion(BaseModel):
-    """Cuerpo para crear una notificación."""
-
-    titulo: str
-    mensaje: str
-
-
-@app.get("/api/notifications")
-def listar_notificaciones() -> dict:
-    """Devuelve las notificaciones pendientes (no leídas)."""
-    return {
-        "notifications": [
-            {"id": n.id, "titulo": n.titulo, "mensaje": n.mensaje}
-            for n in _notificaciones
-            if not n.leida
-        ]
-    }
-
-
-@app.post("/api/notifications", response_model=dict, status_code=201)
-def crear_notificacion(payload: NotificacionCreacion) -> dict:
-    """Crea una notificación. Lo usa el frontend y el MCP (futuro)."""
-    notif = _nueva_notificacion(payload.titulo, payload.mensaje)
-    return {"id": notif.id, "titulo": notif.titulo, "mensaje": notif.mensaje}
-
-
-@app.post("/api/notifications/{notif_id}/read", status_code=204)
-def marcar_leida(notif_id: str) -> Response:
-    """Marca una notificación como leída."""
-    for n in _notificaciones:
-        if n.id == notif_id:
-            n.leida = True
-            break
-    return Response(status_code=204)
-
-
-# Notificación de bienvenida: se crea al importar el módulo para que el
-# servidor la tenga en memoria cuando arranca. Sirve para avisar que el
-# sistema de notificaciones está activo.
-_nueva_notificacion(
-    "Notificaciones activas",
-    "El sistema de notificaciones está funcionando. Vas a ver los acá los avisos.",
-)
-
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:

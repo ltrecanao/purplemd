@@ -505,7 +505,6 @@ async function cerrarSesion() {
     // Sin forma de apagar el modo, la salida es engañosa: se avisa en vez
     // de recargar y fingir que cambió algo.
     mostrarToast(
-      null,
       "Modo invitado",
       "No se pudo salir del modo invitado (el navegador bloquea el almacenamiento local).",
       "error",
@@ -1059,7 +1058,7 @@ function eliminarDirectorioLocal(datos, nombre, ruta, recursive) {
 
 /** `true` si `ruta` la resuelve este módulo en vez del servidor. */
 function esRutaLocal(ruta) {
-  return ruta.startsWith("/api/projects") || ruta.startsWith("/api/notifications");
+  return ruta.startsWith("/api/projects");
 }
 
 /**
@@ -1078,12 +1077,6 @@ async function pedirLocal(ruta, opciones) {
   const metodo = ((opciones && opciones.method) || "GET").toUpperCase();
   const cuerpo = opciones && opciones.body ? JSON.parse(opciones.body) : undefined;
   const datos = leerDatosInvitado();
-
-  // Los avisos del servidor (novedades de la app) no existen para un
-  // invitado: no hay sesión donde acumularlos, y nada que marcar leída.
-  if (rutaBase.startsWith("/api/notifications")) {
-    return metodo === "GET" ? { notifications: [] } : null;
-  }
 
   if (rutaBase === "/api/projects") {
     if (metodo === "GET") return { projects: listarProyectosLocal(datos) };
@@ -2738,7 +2731,7 @@ async function ejecutarAccion(panel, config, valor) {
   // «Mover» según `textoBoton`, «Eliminar» al confirmar— más el objeto.
   pintarEstado(exploradorEstado, "", "");
   const disparador = a.modo === "eliminar" ? "Eliminar" : config.textoBoton;
-  mostrarToast(null, `${disparador} ${a.tipo}`, mensaje);
+  mostrarToast(`${disparador} ${a.tipo}`, mensaje);
   enfocarTrasOperacion(a.tipo, a.path);
 }
 
@@ -2961,7 +2954,7 @@ proyectoForm.addEventListener("submit", async (evento) => {
     // quedar vacío; un error, en cambio, se queda junto al formulario.
     pintarEstado(proyectoEstado, "", "");
     // Mostrar SIN prefijo
-    mostrarToast(null, "Crear proyecto", `Proyecto «${stripNs(proyecto.name)}» creado.`);
+    mostrarToast("Crear proyecto", `Proyecto «${stripNs(proyecto.name)}» creado.`);
     await cargarProyectos();
     // El proyecto nuevo queda seleccionado: ya se puede crear una nota.
     // seleccionarProyecto espera SIN prefijo
@@ -3016,7 +3009,7 @@ notaForm.addEventListener("submit", async (evento) => {
     notaRuta.value = "";
     // Éxito transitorio en toast; el indicador del formulario queda limpio.
     pintarEstado(notaEstado, "", "");
-    mostrarToast(null, "Crear nota", `Nota «${nota.path}» creada.`);
+    mostrarToast("Crear nota", `Nota «${nota.path}» creada.`);
     await Promise.all([cargarProyectos(), cargarArbol(nsProject(proyecto))]);
     await abrirNota(nota.path);
   } catch (error) {
@@ -3165,7 +3158,7 @@ async function importarArchivoElegido(archivo) {
     );
     // Éxito transitorio en toast; «Importando…» no queda colgado.
     pintarEstado(importarEstado, "", "");
-    mostrarToast(null, "Importar .md", `Nota «${nota.path}» importada.`);
+    mostrarToast("Importar .md", `Nota «${nota.path}» importada.`);
     await Promise.all([cargarProyectos(), cargarArbol(nsProject(proyecto))]);
     await abrirNota(nota.path);
   } catch (error) {
@@ -3205,7 +3198,7 @@ async function exportarProyecto() {
 
   // El «Exportando…» es un aviso de trabajo: se retira apenas llega el
   // resultado, para no dejar en pantalla un mensaje que ya no es cierto.
-  const enVuelo = mostrarToast(null, "Exportar .zip", "Exportando…");
+  const enVuelo = mostrarToast("Exportar .zip", "Exportando…");
   try {
     let blob;
     if (invitado) {
@@ -3226,12 +3219,12 @@ async function exportarProyecto() {
     }
     descargarBlob(blob, `${proyecto}.zip`);
     quitarToast(enVuelo);
-    mostrarToast(null, "Exportar .zip", `Proyecto «${proyecto}» exportado.`);
+    mostrarToast("Exportar .zip", `Proyecto «${proyecto}» exportado.`);
   } catch (error) {
     // El error de exportación vive en el menú «Menú ▾», que puede estar
     // cerrado: va en toast SIN auto-cierre (solo la X lo cierra).
     quitarToast(enVuelo);
-    mostrarToast(null, "Exportar .zip", `No se pudo exportar: ${error.message}`, "error");
+    mostrarToast("Exportar .zip", `No se pudo exportar: ${error.message}`, "error");
   }
 }
 
@@ -3300,7 +3293,7 @@ async function importarProyectoElegido(archivo) {
     } else {
       // Éxito transitorio en toast; «Importando…» no queda colgado.
       pintarEstado(importarEstado, "", "");
-      mostrarToast(null, "Importar .zip", `${resumen}.`);
+      mostrarToast("Importar .zip", `${resumen}.`);
     }
     await Promise.all([cargarProyectos(), cargarArbol(nsProject(proyecto))]);
   } catch (error) {
@@ -3578,11 +3571,11 @@ async function exportarPdf() {
     }
 
     descargarBlob(await respuesta.blob(), nombreArchivo);
-    mostrarToast(null, "Exportar .pdf", "Nota exportada como .pdf.");
+    mostrarToast("Exportar .pdf", "Nota exportada como .pdf.");
   } catch (error) {
     // Mismo criterio que "Exportar .zip": el error va en toast y persiste
     // hasta que lo cierra la X.
-    mostrarToast(null, "Exportar .pdf", `No se pudo exportar: ${error.message}`, "error");
+    mostrarToast("Exportar .pdf", `No se pudo exportar: ${error.message}`, "error");
   }
 }
 // ------------------------------------------------------ Compartir en redes
@@ -3599,7 +3592,7 @@ async function compartirApp() {
   if (navigator.share) {
     try {
       await navigator.share({ title: titulo, text: texto, url });
-      mostrarToast(null, "Compartir", "¡Gracias por compartir PurpleMD! 💜");
+      mostrarToast("Compartir", "¡Gracias por compartir PurpleMD! 💜");
       return;
     } catch (error) {
       if (error.name === "AbortError") return; // Usuario canceló
@@ -3623,10 +3616,10 @@ async function compartirApp() {
       accion: async () => {
         try {
           await navigator.clipboard.writeText(url);
-          mostrarToast(null, "Compartir", "¡Enlace copiado al portapapeles! 💜");
+          mostrarToast("Compartir", "¡Enlace copiado al portapapeles! 💜");
         } catch {
           // Sin API de portapapeles (contexto no seguro o permiso denegado).
-          mostrarToast(null, "Compartir", "No se pudo copiar el enlace.", "error");
+          mostrarToast("Compartir", "No se pudo copiar el enlace.", "error");
         }
         cleanup();
       },
@@ -3698,7 +3691,7 @@ async function compartirApp() {
     btn.onclick = opt.accion ?? (() => {
       window.open(opt.url, "_blank", "noopener,noreferrer");
       cleanup();
-      mostrarToast(null, "Compartir", "¡Gracias por compartir PurpleMD! 💜");
+      mostrarToast("Compartir", "¡Gracias por compartir PurpleMD! 💜");
     });
     panel.append(btn);
   });
@@ -4830,7 +4823,7 @@ if (!document.documentElement.style.getPropertyValue("--topbar-alto")) {
 
 // -------------------------------------------------------------- Inicio
 
-// ------------------------------------------------------ Notificaciones
+// ------------------------------------------------------ Avisos (toasts)
 
 /** Milisegundos que vive un toast de éxito (Material 3 Snackbar: 4–10 s). */
 const TOAST_MS = 6000;
@@ -4838,22 +4831,6 @@ const TOAST_MS = 6000;
 const TOAST_TOPE = 3;
 /** Auto-cierre pendiente de cada toast en pantalla, por elemento. */
 const timersToast = new Map();
-
-/**
- * Consulta las notificaciones pendientes y las muestra como toast.
- * Van en tono `ok`: el backend solo avisa logros.
- * Se llama al cargar la página y cada 30 segundos.
- */
-async function cargarNotificaciones() {
-  try {
-    const datos = await pedir("/api/notifications");
-    for (const notif of datos.notifications) {
-      mostrarToast(notif.id, notif.titulo, notif.mensaje);
-    }
-  } catch (_) {
-    // Si el endpoint no existe o hay error de red, no se muestra nada.
-  }
-}
 
 /**
  * Auto-cierre de un toast de éxito con pausa por hover y por foco
@@ -4919,9 +4896,7 @@ function programarAutoCierre(toast, alCerrar) {
 }
 
 /**
- * Cierra un toast: cancela su auto-cierre, lo quita del DOM y marca la
- * notificación como leída. Los avisos locales llevan `id` `null` (no
- * están en `dataset.notif`), así que no se toca el backend.
+ * Cierra un toast: cancela su auto-cierre y lo quita del DOM.
  * @param {HTMLElement} toast - Toast a retirar.
  */
 function quitarToast(toast) {
@@ -4929,7 +4904,6 @@ function quitarToast(toast) {
   if (cancelar) cancelar();
   timersToast.delete(toast);
   toast.remove();
-  marcarLeida(toast.dataset.notif ?? null);
 }
 
 /**
@@ -4989,16 +4963,13 @@ function rellenarToast(toast, rellenar) {
  *   adicional— y SIN auto-cierre: solo lo cierra la X. Su superficie es
  *   el menú «Menú ▾», que puede estar cerrado.
  *
- * @param {string|null} id - ID de la notificación; `null` para avisos
- *   locales de la app (operaciones y exportaciones), que no hay que
- *   marcar como leídos.
  * @param {string} titulo - Título del toast (etiqueta de la acción).
  * @param {string} mensaje - Mensaje del toast.
  * @param {"ok"|"error"} [tono] - Éxito transitorio o error persistente.
  * @returns {HTMLElement} El toast, por si hay que cerrarlo antes (p. ej.
  *   el «Exportando…» cuando llega el resultado).
  */
-function mostrarToast(id, titulo, mensaje, tono = "ok") {
+function mostrarToast(titulo, mensaje, tono = "ok") {
   const contenedor = document.getElementById("toasts");
   const esError = tono === "error";
 
@@ -5008,7 +4979,6 @@ function mostrarToast(id, titulo, mensaje, tono = "ok") {
   toast.className = esError ? "toast toast-error" : "toast";
   toast.setAttribute("role", esError ? "alert" : "status");
   if (!esError) toast.setAttribute("aria-live", "polite");
-  if (id !== null && id !== undefined) toast.dataset.notif = String(id);
   // Apilado newest-on-top: el contenedor flex apila de arriba hacia abajo.
   contenedor.prepend(toast);
 
@@ -5019,7 +4989,7 @@ function mostrarToast(id, titulo, mensaje, tono = "ok") {
   cerrar.type = "button";
   cerrar.className = "btn";
   cerrar.textContent = "X";
-  cerrar.setAttribute("aria-label", "Cerrar notificación");
+  cerrar.setAttribute("aria-label", "Cerrar aviso");
   cerrar.addEventListener("click", () => quitarToast(toast));
   toast.append(tituloEl, mensajeEl, cerrar);
 
@@ -5032,21 +5002,6 @@ function mostrarToast(id, titulo, mensaje, tono = "ok") {
   });
 
   return toast;
-}
-
-/**
- * Marca una notificación como leída en el backend. Los avisos locales
- * (operaciones y exportaciones) se crean sin `dataset.notif`: no hay
- * notificación que marcar, así que no se toca el backend.
- * @param {string|null} id - ID de la notificación, o `null` si es local.
- */
-async function marcarLeida(id) {
-  if (id === null) return;
-  try {
-    await pedir(`/api/notifications/${id}/read`, { method: "POST" });
-  } catch (_) {
-    // Si falla el marcado, no pasa nada: el toast ya se cerró.
-  }
 }
 
 // ------------------------------------------------------------- Toolbar
@@ -5724,7 +5679,6 @@ async function crearNotaDesdePlantilla(ruta) {
       conJson("POST", { path: ruta, content: contenido }),
     );
     mostrarToast(
-      null,
       "Crear proyecto",
       `Nota «${nota.path}» creada desde la plantilla «${nombrePlantilla(ruta)}».`,
     );
@@ -5819,8 +5773,6 @@ async function arrancar() {
     // reciente queda seleccionado y ninguna nota abierta.
     await seleccionarProyecto(stripNs(proyectos[0].name));
   }
-  cargarNotificaciones();
-  setInterval(cargarNotificaciones, 30000);
 }
 
 iniciar();

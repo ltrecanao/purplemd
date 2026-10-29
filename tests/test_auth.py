@@ -582,7 +582,6 @@ class AislamientoTests(AuthTestCase):
             "/api/projects/cuaderno/notes/una",
             "/api/projects/cuaderno/notes/una/pdf",
             "/api/projects/cuaderno/export",
-            "/api/notifications",
         )
         for ruta in rutas:
             with self.subTest(ruta=ruta):

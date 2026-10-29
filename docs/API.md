@@ -26,9 +26,6 @@ rutas cuelgan de `https://purplemd.onrender.com`.
 | `POST` | `/api/projects/{project}/import` | `200`, `413`, `422` | Importa un proyecto desde `.zip` (multipart/form-data); lo crea si no existe. |
 | `POST` | `/api/render` | `200`, `422` | Convierte markdown en HTML. |
 | `POST` | `/api/pdf` | `200`, `422` | Convierte markdown en PDF (recibe `{"markdown", "nombre"}`); es el PDF del modo invitado. |
-| `GET` | `/api/notifications` | `200` | Notificaciones no leídas en `{"notifications": [{id, titulo, mensaje}]}`. |
-| `POST` | `/api/notifications` | `201`, `422` | Crea una notificación (recibe `{"titulo", "mensaje"}`). |
-| `POST` | `/api/notifications/{notif_id}/read` | `204` siempre | Marca la notificación como leída; con un id desconocido también `204`. |
 | `GET` | `/health` | `200` siempre | `{"estado": "ok"}` o `{"estado": "degradado"}`. |
 
 `PUT` y `PATCH` no hacen lo mismo sobre una nota:

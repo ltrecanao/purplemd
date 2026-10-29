@@ -77,8 +77,7 @@ Los tres checks (`pytest`, `ruff`, `ty`) tienen que salir **verdes antes** de cu
 - **Sin librerías en el cliente.** No meter frameworks ni CDN: es una decisión de diseño del proyecto,
   documentada en el `README`.
 - El frontend no tiene suite propia. Lo que toca la API se testea en `tests/test_api.py` (proyectos, notas,
-  directorios, PDF, render), en `tests/test_zip.py` (export/import) y en
-  `tests/test_notificaciones.py` (avisos).
+  directorios, PDF, render) y en `tests/test_zip.py` (export/import).
 - Lo único del frontend que sí se testea: `tests/test_auth.py::CabecerasTests` lee
   `static/index.html` y `static/wiki/index.html` y exige que **no** haya `style=` ni
   `onclick=` inline, porque la CSP del backend no los permitiría. La ruta `/wiki`
