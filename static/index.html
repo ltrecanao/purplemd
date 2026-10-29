@@ -39,6 +39,14 @@
            (< 60rem), donde el explorador no es una columna lateral. El
            texto es fijo («Explorador») y `aria-expanded` refleja el estado. -->
       <button type="button" id="explorador-toggle" class="btn" aria-expanded="false" aria-controls="explorador" aria-label="Abrir explorador">Explorador</button>
+      <!-- Ocultar/mostrar el explorador en ancho: solo donde es columna
+           (≥ 48rem; por debajo de ese corte el CSS lo esconde porque ahí
+           ya existe el desplegable `#explorador-toggle`). El texto es la
+           acción a realizar y `aria-expanded` refleja la visibilidad del
+           panel que controla (`aria-controls`); la elección se persiste
+           en el navegador (`localStorage` `purplemd_explorador_oculto`,
+           leída y aplicada al arrancar en `app.js`). -->
+      <button type="button" id="explorador-ocultar" class="btn" aria-expanded="true" aria-controls="explorador">Ocultar explorador</button>
       <!-- Menú «Vista»: único control de visualización en TODOS los
            anchos (antes: segmentado en ancho y grupo «Visualizador» del
            menú ☰ en angosto; dos superficies para lo mismo). Patrón

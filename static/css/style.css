@@ -329,6 +329,16 @@ body {
   }
 }
 
+/* Botón «Ocultar/Mostrar explorador» de la topbar. Existe solo donde el
+   explorador es columna (≥ 48rem): por debajo de ese corte ya está el
+   desplegable `#explorador-toggle` y juntar las dos superficies para lo
+   mismo es justamente lo que este proyecto retiró (ver el menú «Vista»).
+   Así como `#explorador-toggle` arranca visible y lo esconde el CSS
+   ancho, este arranca oculto y lo muestra el media query de 48rem. */
+#explorador-ocultar {
+  display: none;
+}
+
 /* --- Cuenta y pantalla de acceso (integración con Google) --------- */
 
 /* Separador del menú ☰. Va como clase y no como atributo `style`:
@@ -2174,6 +2184,42 @@ a.menu-item {
   }
 
   .zona[data-vista="editor"] .panel-preview {
+    display: none;
+  }
+}
+
+/* --- Preferencia: explorador oculto en ancho (≥ 48rem) --- */
+
+/* El botón de la topbar oculta el explorador aunque sea columna; la
+   clase la pone y quita `app.js` según `localStorage`
+   (`purplemd_explorador_oculto`), con el mismo criterio que el tema
+   (`purplemd_tema`) y la ubicación de la nota (`purplemd_ubicacion`).
+   Scoped a `min-width: 48rem` —el mismo corte donde el explorador pasa
+   a ser columna y el desplegable desaparece—: por debajo la clase no
+   tiene ningún efecto, así que la preferencia guardada nunca rompe el
+   layout angosto ni puede tapar al desplegable. Este único bloque cubre
+   los dos rangos anchos por construcción (48–60rem y ≥ 60rem), igual
+   que el corte de la barra superior: `.app.explorador-oculto` (dos
+   clases) le gana a `.app` de los dos media queries anchos por
+   especificidad, y `.app.explorador-oculto .panel-explorador` (tres
+   componentes) a cualquier `.panel-explorador` de abajo, incluido el
+   `.abierto` del desplegable. */
+@media (min-width: 48rem) {
+  /* El display propio de `.btn` (la base de arriba lo esconde). */
+  #explorador-ocultar {
+    display: inline-flex;
+  }
+
+  /* Una sola columna para que `.zona` ocupe todo el ancho. Las filas
+     también: `.app` base trae `auto minmax(0, 1fr)` (explorador arriba,
+     zona abajo) y con el explorador fuera de la grilla la zona caería en
+     la fila `auto`, que no la deja crecer. */
+  .app.explorador-oculto {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .app.explorador-oculto .panel-explorador {
     display: none;
   }
 }

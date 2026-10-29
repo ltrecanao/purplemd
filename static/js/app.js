@@ -230,6 +230,14 @@ const renderEstado = document.getElementById("render-estado");
 const botonGuardar = document.getElementById("guardar");
 const explorador = document.getElementById("explorador");
 const botonExplorador = document.getElementById("explorador-toggle");
+// Botón de la topbar que oculta/muestra el explorador cuando es columna
+// (≥ 48rem). El desplegable angosto no lo usa: su CSS lo esconde ahí.
+const botonOcultarExplorador = document.getElementById("explorador-ocultar");
+// Contenedor de la grilla principal (`.app`): la preferencia de ocultar
+// el explorador se marca con la clase `explorador-oculto` acá, porque
+// sus reglas CSS colapsan esta grilla a una sola columna (y no en
+// `body`, que es donde viven las preferencias de tema).
+const appContenedor = document.querySelector(".app");
 // Contenedor de la barra superior: el corte de 48rem devuelve acá el foco
 // que queda en un control recién oculto (ver `moverFocoTrasCorte`).
 const accionesBarra = document.querySelector(".acciones");
@@ -4518,6 +4526,85 @@ function cerrarExploradorSiAngosto() {
 // Un solo oyente por botón: dos oyentes sobre el mismo botón alternarían
 // dos veces por toque y el desplegable abriría y cerraría de inmediato.
 botonExplorador.addEventListener("click", alternarExplorador);
+
+// ------------------------------------- Ocultar explorador en ancho (≥ 48rem)
+
+// En ancho el explorador es columna y el desplegable no existe, así que
+// el único modo de sacarlo de la vista es esta opción de la topbar
+// (`#explorador-ocultar`). La elección queda en `localStorage` con el
+// mismo estilo de clave que el tema (`purplemd_tema`) y la ubicación de
+// la nota (`purplemd_ubicacion`); la clase `explorador-oculto` sobre
+// `.app` es la que colapsa la grilla, y su CSS está scoped a
+// `min-width: 48rem` (ver style.css): en angosto la preferencia no
+// tiene ningún efecto y el desplegable sigue funcionando igual.
+const CLAVE_EXPLORADOR_OCULTO = "purplemd_explorador_oculto";
+
+/** ¿Hay preferencia guardada de explorador oculto? */
+function exploradorOcultoGuardado() {
+  try {
+    return localStorage.getItem(CLAVE_EXPLORADOR_OCULTO) === "1";
+  } catch (_) {
+    // Almacenamiento bloqueado (modo privado): sin preferencia guardada,
+    // el explorador arranca visible como siempre.
+    return false;
+  }
+}
+
+/**
+ * Pinta el estado «explorador oculto»: la clase sobre `.app` es la que
+ * colapsa la grilla, y el botón nombra la acción a realizar (patrón del
+ * proyecto: describir la ACCIÓN, no el estado) mientras `aria-expanded`
+ * dice la verdad sobre la visibilidad del panel de `aria-controls`.
+ * @param {boolean} oculto - ¿El explorador queda fuera de la vista?
+ */
+function aplicarExploradorOculto(oculto) {
+  appContenedor.classList.toggle("explorador-oculto", oculto);
+  botonOcultarExplorador.textContent = oculto ? "Mostrar explorador" : "Ocultar explorador";
+  botonOcultarExplorador.setAttribute("aria-expanded", oculto ? "false" : "true");
+}
+
+/**
+ * Oculta o muestra el explorador en ancho y persiste la elección.
+ *
+ * El foco se mide ANTES de tocar nada: en cuanto el panel queda en
+ * `display:none` el navegador lo devuelve al `body` y ya no se puede
+ * saber dónde estaba. Criterio de `moverFocoTrasCorte`: solo se reubica
+ * si el foco estaba dentro de lo que desaparece, y el destino es este
+ * mismo botón —la superficie que controla el panel—, nunca el `body`
+ * (WCAG 2.4.3, «Foco visible»).
+ */
+function alternarExploradorColumna() {
+  const foco = document.activeElement;
+  const focoEnExplorador = foco instanceof Element && explorador.contains(foco);
+  // La acción inline abierta (renombrar/eliminar) vive dentro del `<li>`
+  // del explorador: con el panel en `display:none` su `.accion` se
+  // iría con el foco dentro de algo invisible, así que se cierra antes
+  // de ocultar.
+  cerrarAccion();
+  const oculto = !appContenedor.classList.contains("explorador-oculto");
+  aplicarExploradorOculto(oculto);
+  try {
+    if (oculto) localStorage.setItem(CLAVE_EXPLORADOR_OCULTO, "1");
+    else localStorage.removeItem(CLAVE_EXPLORADOR_OCULTO);
+  } catch (_) {
+    // Sin persistencia: la preferencia dura solo mientras viva la pestaña.
+  }
+  if (oculto && focoEnExplorador) botonOcultarExplorador.focus();
+}
+
+// Un solo oyente por botón: dos harían alternar dos veces por toque.
+botonOcultarExplorador.addEventListener("click", alternarExploradorColumna);
+
+// Preferencia guardada, aplicada en el cuerpo del módulo (en este punto
+// de la evaluación, antes de `iniciar()` y de cualquier request). El
+// navegador pinta recién cuando termina de correr el módulo completo,
+// así que la primera pintura ya sale con el layout elegido y sin
+// destello del explorador que después se oculta. Sacar esto a un script
+// clásico en `<head>` (como `tema.js`, que corre durante el parseo)
+// evitaría incluso ese primer frame, pero partiría una sola opción en
+// dos archivos y duplicaría la lectura de la clave: acá el costo máximo
+// es un frame de layout (no de color) y no justifica el split.
+aplicarExploradorOculto(exploradorOcultoGuardado());
 
 // ------------------------------------------------------ Menús con panel
 
