@@ -96,7 +96,7 @@ npx mcp-remote http://localhost:8000/mcp --header "X-PurpleMD-Token: <token>"
 ## Pruebas
 
 La suite está escrita con `unittest` (clases `TestCase`), se corre con
-`pytest` y tiene 443 tests, más los subtests de `self.subTest()`:
+`pytest` y tiene 445 tests, más los subtests de `self.subTest()`:
 
 - 110 en `tests/test_api.py`.
 - 96 en `tests/test_auth.py` (credenciales, sesiones, OAuth/PKCE,
@@ -113,6 +113,8 @@ La suite está escrita con `unittest` (clases `TestCase`), se corre con
   la regla CSS, la clase sobre `.app` y la persistencia en `localStorage`).
 - 3 en `tests/test_arbol.py` (acciones superpuestas, sangría de las filas
   de nota y el título de una línea en la franja 48–60rem).
+- 2 en `tests/test_filesystem.py` (orden de `listar_proyectos` con
+  `mtime` igualado: desempate por nombre, nunca por `iterdir()`).
 
 ```bash
 uv run pytest -q

@@ -202,7 +202,9 @@ class MemoryStorage:
         proyectos = []
         for nombre, data in self._data.items():
             proyectos.append(Proyecto(name=nombre, modified=data["modified"]))
-        proyectos.sort(key=lambda p: p.modified, reverse=True)
+        # Mismo desempate que `filesystem` y `drive` (nombre descendente):
+        # acá `_now()` nunca empata, pero la regla de orden es una sola.
+        proyectos.sort(key=lambda p: (p.modified, p.name), reverse=True)
         return proyectos
 
     def crear_proyecto(self, name: str) -> Proyecto:

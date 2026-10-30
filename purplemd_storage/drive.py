@@ -587,7 +587,13 @@ class DriveStorage:
     # --- Protocolo Storage ---
 
     def listar_proyectos(self) -> list[Proyecto]:
-        """Proyectos ordenados por su última modificación, descendente."""
+        """Proyectos ordenados por su última modificación, descendente.
+
+        Con `modified` igualado manda el nombre descendente: la API real
+        devuelve `modifiedTime` con precisión limitada y dos carpetas
+        pueden empatar, lo que dejaría el orden librado a la paginación
+        del listado (misma regla que `filesystem` y `memory`).
+        """
         raiz = self._id_carpeta("")
         if raiz is None:
             return []
@@ -596,7 +602,7 @@ class DriveStorage:
             if item["mimeType"] != MIME_CARPETA or not _nombre_valido(item["name"]):
                 continue
             proyectos.append(Proyecto(name=item["name"], modified=_modificado(item)))
-        proyectos.sort(key=lambda proyecto: proyecto.modified, reverse=True)
+        proyectos.sort(key=lambda proyecto: (proyecto.modified, proyecto.name), reverse=True)
         return proyectos
 
     def crear_proyecto(self, name: str) -> Proyecto:

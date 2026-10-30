@@ -166,7 +166,18 @@ class FilesystemStorage:
     # --- Implementación del protocolo Storage ---
 
     def listar_proyectos(self) -> list[Proyecto]:
-        """Lista los proyectos del directorio `projects/`, más recientes primero."""
+        """Lista los proyectos de `projects/`, más recientes primero.
+
+        El desempate por nombre descendente no es cosmético: el reloj de
+        archivos es grosero y dos `mkdir` seguidos suelen compartir
+        `mtime` (medido: delta 0 entre directorios creados uno tras
+        otro). Con `modified` igualado, el orden lo decidiría
+        `iterdir()`, que depende del sistema de archivos, y este backend
+        dejaría de coincidir con `memory` —que ordena con un contador
+        estrictamente creciente y nunca empata— en el contrato que
+        compara los tres (`tests/test_drive.py`). Nombre descendente:
+        determinista y estable en todos lados.
+        """
         base = self._directorio_proyectos()
         if not base.is_dir():
             return []
@@ -179,7 +190,7 @@ class FilesystemStorage:
             except NombreInvalido:
                 continue
             proyectos.append(Proyecto(name=nombre, modified=ruta.stat().st_mtime))
-        proyectos.sort(key=lambda proyecto: proyecto.modified, reverse=True)
+        proyectos.sort(key=lambda proyecto: (proyecto.modified, proyecto.name), reverse=True)
         return proyectos
 
     def crear_proyecto(self, name: str) -> Proyecto:
